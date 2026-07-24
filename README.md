@@ -1,0 +1,62 @@
+# GRASPS 설계 도우미 (MVP)
+
+성취기준에서 GRASPS를 곧바로 뽑는 대신, **백워드 설계(UbD)의 정렬 원리**를 지키는 2단계 생성 파이프라인 웹앱입니다.
+
+> 성취기준 → GRASPS 직행은 "무엇에 대한 이해의 증거인가"가 비어 있는 과제를 만듭니다(Wiggins가 경고한 activity-oriented design). 이 앱은 Stage 1을 먼저 확정하고, 그 이해를 평가하는 과제를 생성합니다.
+
+## 파이프라인
+
+1. **Pass 1 — Stage 1 추출**: 성취기준 → 전이 목표 · 영속적 이해 2 · 본질적 질문 2 (교사가 인라인으로 검토·수정하는 **필수 관문**)
+2. **Pass 2 — Stage 2 생성**: 교사가 확정한 Stage 1 → GRASPS 6요소 + 학생용 안내문 + 4수준 루브릭
+
+**시그니처 — 정렬을 눈으로**: 각 영속적 이해에 색 표식(U1, U2…)이 붙고, 그 이해를 평가하는 루브릭 준거에 **같은 표식**이 다시 나타납니다. "이해 → 평가"의 정렬이 시각적으로 확인됩니다.
+
+선택: **UDL 산출물 옵션** 토글을 켜면 같은 이해를 여러 산출 형태(보고서·발표·영상·모형)로 드러내도록 P를 다양화합니다(UDL 3.0 행동·표현의 다양한 수단).
+
+## 스택
+
+- Vite + React 19 + TypeScript, Tailwind CSS v4
+- 백엔드 없음 — **BYOK**(Bring Your Own Key) Gemini. API 키는 브라우저 localStorage에만 저장되고 Google로 직접 호출됩니다.
+- Gemini `responseSchema`로 JSON 강제 출력 → 파싱 오류 방지.
+- Vercel 정적 배포용(`vercel.json` 포함).
+
+## 로컬 실행
+
+```bash
+npm install
+npm run dev      # http://localhost:5173
+npm run build    # tsc 타입체크 + 정적 빌드 → dist/
+```
+
+앱을 열고 우상단 **API 키 설정**에서 [Google AI Studio](https://aistudio.google.com/app/apikey) 키를 등록하세요.
+
+## 구조
+
+```
+src/
+├─ App.tsx                # 3스텝 위저드 상태 머신 (input → stage1 → result)
+├─ components/
+│  ├─ InputForm.tsx       # 교과·학년·성취기준 입력
+│  ├─ Stage1Review.tsx    # 인라인 편집 가능한 Stage 1 검토 (건너뛸 수 없는 관문)
+│  ├─ GraspsResult.tsx    # 6요소 카드 + 안내문 + 정렬 루브릭
+│  └─ ApiKeyModal.tsx     # BYOK 키·모델 설정
+├─ lib/
+│  ├─ gemini.ts           # callGemini(responseSchema 강제, 429/503 1회 재시도, 한국어 에러)
+│  ├─ prompts.ts          # buildStage1*/buildGrasps* + JSON 스키마
+│  ├─ markers.ts          # 정렬 마커 팔레트
+│  ├─ export.ts           # toMarkdown / 복사 / 다운로드
+│  └─ storage.ts          # localStorage 래퍼
+├─ knowledge/             # Phase 0 증류 지식 (시스템 프롬프트에 임베드)
+│  ├─ ubd_stage1.md
+│  ├─ grasps.md
+│  ├─ udl.md
+│  └─ quality_checklist.md
+└─ types.ts
+```
+
+## 근거 자료
+
+- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.). ASCD.
+- CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org
+
+`knowledge/`의 내용은 위 원자료를 앱 목적에 맞게 증류한 요약이며, 원문 인용 시 각 원자료를 직접 확인하세요.
