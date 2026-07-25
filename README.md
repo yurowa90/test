@@ -47,16 +47,20 @@ src/
 │  ├─ export.ts           # toMarkdown / 복사 / 다운로드
 │  └─ storage.ts          # localStorage 래퍼
 ├─ knowledge/             # Phase 0 증류 지식 (시스템 프롬프트에 임베드)
-│  ├─ ubd_stage1.md
-│  ├─ grasps.md
-│  ├─ udl.md
+│  ├─ ubd_stage1.md       # Stage 1 판별 기준 + Figure 1·2 원문 예시
+│  ├─ grasps.md           # GRASPS 6요소 + Stage 2 원리
+│  ├─ six_facets.md       # 이해의 여섯 측면 (과제·루브릭 설계 렌즈)
+│  ├─ udl.md              # UDL 3.0 행동·표현의 다양화
 │  └─ quality_checklist.md
 └─ types.ts
 ```
 
-## 근거 자료
+## 근거 자료 (Phase 0)
 
-- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.). ASCD.
-- CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org
+`knowledge/`는 아래 원자료를 앱 목적에 맞게 증류한 요약입니다. 각 파일에 1차 출처와 페이지·그림 번호를 표기했습니다.
 
-`knowledge/`의 내용은 위 원자료를 앱 목적에 맞게 증류한 요약이며, 원문 인용 시 각 원자료를 직접 확인하세요.
+- **McTighe, J. & Wiggins, G. (2012). *Understanding by Design® Framework* [백서]. ASCD.** — `ubd_stage1.md`, `six_facets.md`, `quality_checklist.md`, `grasps.md`의 Stage 2 원리가 이 문서(3단계, 7개 원칙, Figure 1·2, 이해의 여섯 측면, 정렬, Appendix A·B)에 근거합니다.
+- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.). ASCD. — **GRASPS 6요소 약어의 1차 출처.** 2012 백서에는 "GRASPS"라는 약어가 등장하지 않으므로, 약어 정의는 이 원저 기준입니다.
+- CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org — `udl.md`. (2.2와 체크포인트 문구가 다르므로 3.0 기준임을 명시)
+
+원문 인용이 필요하면 각 원자료를 직접 확인하세요.
