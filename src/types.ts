@@ -37,13 +37,20 @@ export interface ProductOption {
   rationale: string;
 }
 
-/** Pass 2 산출물 — Stage 2 GRASPS 수행과제 */
+/**
+ * Pass 2 산출물 — Stage 2 GRASPS 수행과제.
+ * 원문(W&M 2005 제7장) 표기 주의:
+ *  - P는 Product/Performance/Purpose로 혼용된다 → 내부 키를 performanceProduct
+ *    하나로 통일하고 UI 라벨만 "수행·산출물"로 병기한다.
+ *  - S는 Situation과 Standards 두 곳에 쓰이므로 필드를 분리해 둔다.
+ */
 export interface GraspsTask {
   goal: string;
   role: string;
   audience: string;
   situation: string;
-  product: string;
+  /** P — Product/Performance/Purpose (수행·산출물) */
+  performanceProduct: string;
   standards: string;
   /** 학생에게 그대로 제시할 수 있는 통합 서술형 과제 안내문 */
   studentPrompt: string;

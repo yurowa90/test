@@ -39,7 +39,7 @@ export function toMarkdown(
   lines.push(`| **R** 역할 | ${escapeCell(task.role)} |`);
   lines.push(`| **A** 청중 | ${escapeCell(task.audience)} |`);
   lines.push(`| **S** 상황 | ${escapeCell(task.situation)} |`);
-  lines.push(`| **P** 산출물 | ${escapeCell(task.product)} |`);
+  lines.push(`| **P** 수행·산출물 | ${escapeCell(task.performanceProduct)} |`);
   lines.push(`| **S** 성공기준 | ${escapeCell(task.standards)} |`);
   lines.push("");
 

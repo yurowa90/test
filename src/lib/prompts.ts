@@ -35,7 +35,7 @@ export const GRASPS_SCHEMA = {
     role: { type: "string" },
     audience: { type: "string" },
     situation: { type: "string" },
-    product: { type: "string" },
+    performanceProduct: { type: "string" },
     standards: { type: "string" },
     studentPrompt: { type: "string" },
     productOptions: {
@@ -82,7 +82,7 @@ export const GRASPS_SCHEMA = {
     "role",
     "audience",
     "situation",
-    "product",
+    "performanceProduct",
     "standards",
     "studentPrompt",
     "rubric",
@@ -92,7 +92,7 @@ export const GRASPS_SCHEMA = {
     "role",
     "audience",
     "situation",
-    "product",
+    "performanceProduct",
     "standards",
     "studentPrompt",
     "productOptions",
@@ -158,6 +158,7 @@ ${qualityChecklist}
 - 영속적 이해가 2개이므로 rubric 준거도 최소 2개(각 이해당 1개 이상)를 만들고, 모든 이해가 최소 1개 준거로 평가되게 합니다.
 - 각 준거의 levels는 정확히 4개 수준이며, "잘함/보통" 같은 공허한 등급이 아니라 관찰 가능한 수행 차이로 서술합니다.
 - 겨냥한 이해에 적절한 '이해의 여섯 측면'(설명·해석·적용·관점·공감·자기지식)을 골라 과제 요구와 루브릭 준거로 번역합니다. 모든 측면을 억지로 넣지 않습니다.
+- 각 루브릭 준거(standards)는 performanceProduct 또는 situation 진술의 어떤 구절에서 도출되었는지 역추적 가능해야 합니다(W&M 2005 Fig 7.7의 1:1 대응). 과제 진술에 근거가 없는 준거는 만들지 않습니다.
 - 역할(role)·청중(audience)이 학생의 실제 수행을 바꾸도록 설계합니다. 장식용 역할("당신은 장관입니다")을 금지합니다.
 - studentPrompt는 6요소를 자연스럽게 통합해 학생에게 그대로 제시할 수 있는 안내문으로 작성합니다.
 ${includeUdlOptions ? "- productOptions에 UDL 기반 산출물 대안 3개를 넣습니다. 모든 옵션은 같은 영속적 이해를 증거로 요구하고 같은 루브릭으로 채점 가능해야 합니다." : "- productOptions는 생략합니다(빈 배열 또는 필드 없음)."}

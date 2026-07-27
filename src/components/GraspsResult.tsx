@@ -21,7 +21,7 @@ const GRASPS_ROWS: {
   { key: "role", letter: "R", name: "역할 Role" },
   { key: "audience", letter: "A", name: "청중 Audience" },
   { key: "situation", letter: "S", name: "상황 Situation" },
-  { key: "product", letter: "P", name: "산출물 Product" },
+  { key: "performanceProduct", letter: "P", name: "수행·산출물 Product/Performance" },
   { key: "standards", letter: "S", name: "성공기준 Standards" },
 ];
 

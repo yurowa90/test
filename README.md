@@ -60,7 +60,7 @@ src/
 `knowledge/`는 아래 원자료를 앱 목적에 맞게 증류한 요약입니다. 각 파일에 1차 출처와 페이지·그림 번호를 표기했습니다.
 
 - **McTighe, J. & Wiggins, G. (2012). *Understanding by Design® Framework* [백서]. ASCD.** — `ubd_stage1.md`, `six_facets.md`, `quality_checklist.md`, `grasps.md`의 Stage 2 원리가 이 문서(3단계, 7개 원칙, Figure 1·2, 이해의 여섯 측면, 정렬, Appendix A·B)에 근거합니다.
-- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.). ASCD. — **GRASPS 6요소 약어의 1차 출처.** 2012 백서에는 "GRASPS"라는 약어가 등장하지 않으므로, 약어 정의는 이 원저 기준입니다.
+- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.), 제7장 pp. 157–159, Figure 7.7 "GRASPS Task Design Prompts". ASCD. — **GRASPS 6요소 약어의 1차 출처.** 2012 백서에는 "GRASPS"라는 약어가 등장하지 않으므로, 약어 정의·프롬프트·예시는 이 원저 기준입니다. (P는 Product/Performance/Purpose로 혼용 → 코드 내부 키 `performanceProduct`로 통일)
 - CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org — `udl.md`. (2.2와 체크포인트 문구가 다르므로 3.0 기준임을 명시)
 
 원문 인용이 필요하면 각 원자료를 직접 확인하세요.
