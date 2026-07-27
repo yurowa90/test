@@ -1,9 +1,18 @@
-import type { GraspsTask, Stage1Result, TeacherInput } from "../types";
+import type {
+  GraspsCandidates,
+  GraspsFinal,
+  GraspsSelection,
+  Stage1Result,
+  TeacherInput,
+} from "../types";
 import {
-  GRASPS_SCHEMA,
+  GRASPS_CANDIDATES_SCHEMA,
+  GRASPS_FINAL_SCHEMA,
   STAGE1_SCHEMA,
-  buildGraspsSystem,
-  buildGraspsUser,
+  buildCandidatesSystem,
+  buildCandidatesUser,
+  buildFinalSystem,
+  buildFinalUser,
   buildStage1System,
   buildStage1User,
 } from "./prompts";
@@ -128,18 +137,42 @@ export async function generateStage1(
   });
 }
 
-export async function generateGrasps(
+/** Pass 2a — 6요소 각각의 후보(2~3개)를 생성 */
+export async function generateGraspsCandidates(
   input: TeacherInput,
   stage1: Stage1Result,
   apiKey: string,
   model: string,
-  includeUdlOptions: boolean,
-): Promise<GraspsTask> {
-  return callGemini<GraspsTask>({
+): Promise<GraspsCandidates> {
+  return callGemini<GraspsCandidates>({
     apiKey,
     model,
-    system: buildGraspsSystem(includeUdlOptions),
-    user: buildGraspsUser(input, stage1),
-    schema: GRASPS_SCHEMA,
+    system: buildCandidatesSystem(),
+    user: buildCandidatesUser(input, stage1),
+    schema: GRASPS_CANDIDATES_SCHEMA,
   });
+}
+
+/** Pass 2b — 확정된 6요소로 학생 안내문·루브릭을 생성 */
+export async function generateGraspsFinal(
+  input: TeacherInput,
+  stage1: Stage1Result,
+  selection: GraspsSelection,
+  apiKey: string,
+  model: string,
+  includeUdlOptions: boolean,
+): Promise<GraspsFinal> {
+  const final = await callGemini<GraspsFinal>({
+    apiKey,
+    model,
+    system: buildFinalSystem(includeUdlOptions),
+    user: buildFinalUser(input, stage1, selection),
+    schema: GRASPS_FINAL_SCHEMA,
+  });
+  if (!final.studentPrompt || !Array.isArray(final.rubric) || final.rubric.length === 0) {
+    throw new GeminiError(
+      "안내문·루브릭 생성이 불완전합니다. 다시 시도해 주세요.",
+    );
+  }
+  return final;
 }

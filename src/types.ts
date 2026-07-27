@@ -59,4 +59,32 @@ export interface GraspsTask {
   rubric: RubricCriterion[];
 }
 
-export type WizardStep = "input" | "stage1" | "result";
+/** GRASPS 6요소 키 (P/S 표기 통일 기준) */
+export type GraspsElementKey =
+  | "goal"
+  | "role"
+  | "audience"
+  | "situation"
+  | "performanceProduct"
+  | "standards";
+
+/**
+ * Pass 2a 산출물 — 요소별 후보 문장(각 2~3개).
+ * 원문 Figure 7.7이 요소마다 복수의 문장 틀을 제공하는 설계를 반영한다
+ * (W&M 2005 §3): 생성기가 후보를 내고 교사가 하나를 고른다.
+ */
+export type GraspsCandidates = Record<GraspsElementKey, string[]>;
+
+/** 교사가 요소별로 확정한 6요소 */
+export type GraspsSelection = Record<GraspsElementKey, string>;
+
+/** Pass 2b 산출물 — 확정된 6요소에 정렬된 안내문·루브릭 */
+export interface GraspsFinal {
+  /** 학생에게 그대로 제시할 수 있는 통합 서술형 과제 안내문 */
+  studentPrompt: string;
+  /** UDL 행동·표현 다양화: P의 복수 옵션 (선택 생성) */
+  productOptions?: ProductOption[];
+  rubric: RubricCriterion[];
+}
+
+export type WizardStep = "input" | "stage1" | "candidates" | "result";

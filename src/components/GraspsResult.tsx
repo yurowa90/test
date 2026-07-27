@@ -7,6 +7,7 @@ interface Props {
   task: GraspsTask;
   busy: boolean;
   onRegenerate: () => void;
+  onReselect: () => void;
   onCopy: () => void;
   onDownload: () => void;
   onRestart: () => void;
@@ -30,6 +31,7 @@ export default function GraspsResult({
   task,
   busy,
   onRegenerate,
+  onReselect,
   onCopy,
   onDownload,
   onRestart,
@@ -63,7 +65,14 @@ export default function GraspsResult({
           disabled={busy}
           className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
         >
-          {busy ? "다시 생성 중…" : "다시 생성"}
+          {busy ? "다시 생성 중…" : "안내문·루브릭 다시 생성"}
+        </button>
+        <button
+          onClick={onReselect}
+          disabled={busy}
+          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
+        >
+          요소 다시 고르기
         </button>
         <div className="ml-auto">
           <button

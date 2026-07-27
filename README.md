@@ -4,10 +4,12 @@
 
 > 성취기준 → GRASPS 직행은 "무엇에 대한 이해의 증거인가"가 비어 있는 과제를 만듭니다(Wiggins가 경고한 activity-oriented design). 이 앱은 Stage 1을 먼저 확정하고, 그 이해를 평가하는 과제를 생성합니다.
 
-## 파이프라인
+## 파이프라인 (4단계 위저드, 2단계 생성)
 
-1. **Pass 1 — Stage 1 추출**: 성취기준 → 전이 목표 · 영속적 이해 2 · 본질적 질문 2 (교사가 인라인으로 검토·수정하는 **필수 관문**)
-2. **Pass 2 — Stage 2 생성**: 교사가 확정한 Stage 1 → GRASPS 6요소 + 학생용 안내문 + 4수준 루브릭
+1. **입력**: 교과·학년·성취기준.
+2. **Pass 1 — Stage 1 추출**: 성취기준 → 전이 목표 · 영속적 이해 2 · 본질적 질문 2 (교사가 인라인으로 검토·수정하는 **필수 관문**)
+3. **Pass 2a — GRASPS 요소 후보**: 확정된 Stage 1 → 6요소(G·R·A·S·P·S) 각각 **2~3개 후보 문장** 생성. 교사가 요소별로 하나를 고르고 필요하면 손봅니다. (원저 Wiggins & McTighe, Fig 7.7의 복수 문장 틀 설계를 반영)
+4. **Pass 2b — 완성**: 교사가 확정한 6요소 → 6요소를 통합한 학생용 안내문 + 4수준 루브릭. 루브릭 준거는 확정된 산출물·상황 진술에서 역추적 가능하도록 정렬됩니다.
 
 **시그니처 — 정렬을 눈으로**: 각 영속적 이해에 색 표식(U1, U2…)이 붙고, 그 이해를 평가하는 루브릭 준거에 **같은 표식**이 다시 나타납니다. "이해 → 평가"의 정렬이 시각적으로 확인됩니다.
 
@@ -38,11 +40,13 @@ src/
 ├─ components/
 │  ├─ InputForm.tsx       # 교과·학년·성취기준 입력
 │  ├─ Stage1Review.tsx    # 인라인 편집 가능한 Stage 1 검토 (건너뛸 수 없는 관문)
+│  ├─ CandidateSelect.tsx # 요소별 후보 선택·편집 (Pass 2a → 2b 사이)
 │  ├─ GraspsResult.tsx    # 6요소 카드 + 안내문 + 정렬 루브릭
 │  └─ ApiKeyModal.tsx     # BYOK 키·모델 설정
 ├─ lib/
-│  ├─ gemini.ts           # callGemini(responseSchema 강제, 429/503 1회 재시도, 한국어 에러)
-│  ├─ prompts.ts          # buildStage1*/buildGrasps* + JSON 스키마
+│  ├─ gemini.ts           # generateStage1 / generateGraspsCandidates / generateGraspsFinal
+│  │                      #   (responseSchema 강제, 429/503 1회 재시도, 한국어 에러)
+│  ├─ prompts.ts          # buildStage1*/buildCandidates*/buildFinal* + JSON 스키마
 │  ├─ markers.ts          # 정렬 마커 팔레트
 │  ├─ export.ts           # toMarkdown / 복사 / 다운로드
 │  └─ storage.ts          # localStorage 래퍼

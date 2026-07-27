@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type {
+  GraspsCandidates,
+  GraspsSelection,
   GraspsTask,
   Stage1Result,
   TeacherInput,
@@ -8,22 +10,16 @@ import type {
 import {
   DEFAULT_MODEL,
   GeminiError,
-  generateGrasps,
+  generateGraspsCandidates,
+  generateGraspsFinal,
   generateStage1,
 } from "./lib/gemini";
-import {
-  API_KEY_STORAGE,
-  MODEL_STORAGE,
-  storage,
-} from "./lib/storage";
-import {
-  copyToClipboard,
-  downloadMarkdown,
-  toMarkdown,
-} from "./lib/export";
+import { API_KEY_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
+import { copyToClipboard, downloadMarkdown, toMarkdown } from "./lib/export";
 import ApiKeyModal from "./components/ApiKeyModal";
 import InputForm from "./components/InputForm";
 import Stage1Review from "./components/Stage1Review";
+import CandidateSelect from "./components/CandidateSelect";
 import GraspsResult from "./components/GraspsResult";
 
 const EMPTY_INPUT: TeacherInput = {
@@ -36,13 +32,16 @@ const EMPTY_INPUT: TeacherInput = {
 const STEPS: { id: WizardStep; label: string; sub: string }[] = [
   { id: "input", label: "입력", sub: "성취기준" },
   { id: "stage1", label: "Stage 1 검토", sub: "이해 확정" },
-  { id: "result", label: "GRASPS", sub: "과제·루브릭" },
+  { id: "candidates", label: "GRASPS 요소", sub: "후보 선택" },
+  { id: "result", label: "완성", sub: "안내문·루브릭" },
 ];
 
 export default function App() {
   const [step, setStep] = useState<WizardStep>("input");
   const [input, setInput] = useState<TeacherInput>(EMPTY_INPUT);
   const [stage1, setStage1] = useState<Stage1Result | null>(null);
+  const [candidates, setCandidates] = useState<GraspsCandidates | null>(null);
+  const [selection, setSelection] = useState<GraspsSelection | null>(null);
   const [task, setTask] = useState<GraspsTask | null>(null);
   const [udlOptions, setUdlOptions] = useState(false);
 
@@ -72,6 +71,7 @@ export default function App() {
     else setError("알 수 없는 오류가 발생했습니다. 다시 시도해 주세요.");
   }
 
+  // Pass 1: 성취기준 → Stage 1
   async function handleInputSubmit(next: TeacherInput) {
     setInput(next);
     setError(null);
@@ -87,19 +87,48 @@ export default function App() {
     }
   }
 
-  async function runGrasps(confirmed: Stage1Result) {
+  // Pass 2a: 확정된 Stage 1 → 요소별 후보
+  async function handleStage1Confirm(confirmed: Stage1Result) {
     setStage1(confirmed);
     setError(null);
     setBusy(true);
     try {
-      const result = await generateGrasps(
+      const result = await generateGraspsCandidates(
         input,
         confirmed,
         apiKey,
         model,
+      );
+      setCandidates(result);
+      setStep("candidates");
+    } catch (e) {
+      reportError(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Pass 2b: 확정된 6요소 → 안내문·루브릭
+  async function runFinal(sel: GraspsSelection) {
+    if (!stage1) return;
+    setSelection(sel);
+    setError(null);
+    setBusy(true);
+    try {
+      const final = await generateGraspsFinal(
+        input,
+        stage1,
+        sel,
+        apiKey,
+        model,
         udlOptions,
       );
-      setTask(result);
+      setTask({
+        ...sel,
+        studentPrompt: final.studentPrompt,
+        productOptions: final.productOptions,
+        rubric: final.rubric,
+      });
       setStep("result");
     } catch (e) {
       reportError(e);
@@ -109,13 +138,11 @@ export default function App() {
   }
 
   async function handleRegenerate() {
-    if (stage1) await runGrasps(stage1);
+    if (selection) await runFinal(selection);
   }
 
   function handleCopy() {
-    if (stage1 && task) {
-      copyToClipboard(toMarkdown(input, stage1, task));
-    }
+    if (stage1 && task) copyToClipboard(toMarkdown(input, stage1, task));
   }
 
   function handleDownload() {
@@ -123,13 +150,18 @@ export default function App() {
       const name = `grasps_${input.subject || "과제"}_${input.grade || ""}`
         .replace(/\s+/g, "")
         .replace(/[^\p{L}\p{N}_-]/gu, "");
-      downloadMarkdown(`${name || "grasps"}.md`, toMarkdown(input, stage1, task));
+      downloadMarkdown(
+        `${name || "grasps"}.md`,
+        toMarkdown(input, stage1, task),
+      );
     }
   }
 
   function handleRestart() {
     setStep("input");
     setStage1(null);
+    setCandidates(null);
+    setSelection(null);
     setTask(null);
     setError(null);
   }
@@ -146,15 +178,13 @@ export default function App() {
               </p>
               <h1 className="serif mt-3 text-3xl font-bold leading-tight sm:text-[2.6rem]">
                 이해를 먼저 정하고,
-                <br className="hidden sm:block" /> 그 다음에 과제를
-                설계합니다.
+                <br className="hidden sm:block" /> 그 다음에 과제를 설계합니다.
               </h1>
               <p className="mt-4 max-w-xl text-sm leading-relaxed text-paper/80 sm:text-base">
-                성취기준에서 GRASPS를 바로 뽑으면 '무엇에 대한 이해의
-                증거인가'가 비어 버립니다. 이 도구는 먼저 Stage 1(전이 목표·영속적
-                이해·본질적 질문)을 뽑아 <strong className="text-white">교사가
-                확정</strong>한 뒤, 그 이해를 평가하는 수행과제와 루브릭을
-                만듭니다.
+                성취기준에서 GRASPS를 바로 뽑으면 '무엇에 대한 이해의 증거인가'가
+                비어 버립니다. 이 도구는 먼저 Stage 1(전이 목표·영속적 이해·본질적
+                질문)을 뽑아 <strong className="text-white">교사가 확정</strong>한
+                뒤, 그 이해를 평가하는 수행과제와 루브릭을 만듭니다.
               </p>
             </div>
             <button
@@ -167,12 +197,15 @@ export default function App() {
 
           {/* 진행 스파인 */}
           <nav aria-label="진행 단계" className="mt-10">
-            <ol className="flex items-center gap-2 sm:gap-4">
+            <ol className="flex items-center gap-2 sm:gap-3">
               {STEPS.map((s, i) => {
                 const state =
                   i < stepIndex ? "done" : i === stepIndex ? "active" : "todo";
                 return (
-                  <li key={s.id} className="flex flex-1 items-center gap-2 sm:gap-4">
+                  <li
+                    key={s.id}
+                    className="flex flex-1 items-center gap-2 sm:gap-3"
+                  >
                     <div className="flex items-center gap-2.5">
                       <span
                         className={[
@@ -244,7 +277,16 @@ export default function App() {
             udlOptions={udlOptions}
             onToggleUdl={setUdlOptions}
             onBack={() => setStep("input")}
-            onConfirm={runGrasps}
+            onConfirm={handleStage1Confirm}
+          />
+        )}
+
+        {step === "candidates" && candidates && (
+          <CandidateSelect
+            candidates={candidates}
+            busy={busy}
+            onBack={() => setStep("stage1")}
+            onConfirm={runFinal}
           />
         )}
 
@@ -254,6 +296,7 @@ export default function App() {
             task={task}
             busy={busy}
             onRegenerate={handleRegenerate}
+            onReselect={() => setStep("candidates")}
             onCopy={handleCopy}
             onDownload={handleDownload}
             onRestart={handleRestart}
