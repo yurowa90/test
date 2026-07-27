@@ -165,7 +165,7 @@ export async function generateGraspsFinal(
   const final = await callGemini<GraspsFinal>({
     apiKey,
     model,
-    system: buildFinalSystem(includeUdlOptions),
+    system: buildFinalSystem(includeUdlOptions, input.achievementLevels),
     user: buildFinalUser(input, stage1, selection),
     schema: GRASPS_FINAL_SCHEMA,
   });

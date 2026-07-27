@@ -1,12 +1,45 @@
-export interface TeacherInput {
-  /** 교과명 (예: 통합과학, 생명과학Ⅰ) */
+/** 2022 개정 과학과 성취수준 (5수준 A~E 또는 3수준 A~C) */
+export interface AchievementLevels {
+  /** 5 = A~E, 3 = A~C(과학탐구실험 등 수행 중심 과목) */
+  system: 3 | 5;
+  A: string;
+  B: string;
+  C: string;
+  D: string;
+  E: string;
+}
+
+/** 공식 과학 성취기준 한 건 (science_standards.json) */
+export interface ScienceStandard {
+  /** 학교급: 초등학교 / 중학교 / 고등학교 */
+  level: string;
+  /** 과목유형: 공통 / 일반선택 / 진로선택 / 융합선택 */
+  type: string;
+  /** 과목명 (예: 통합과학1, 생명과학) */
   subject: string;
-  /** 학년 (예: 고등학교 1학년) */
+  /** 영역 */
+  domain: string;
+  /** 성취기준 코드 (예: 10통과1-01-01) */
+  code: string;
+  /** 성취기준 원문 */
+  text: string;
+  /** 성취수준 A~E (없을 수 있음 — 초등 등) */
+  levels?: AchievementLevels;
+}
+
+export interface TeacherInput {
+  /** 교과명 (예: 통합과학, 생명과학) */
+  subject: string;
+  /** 학년/학교급 */
   grade: string;
-  /** 성취기준 원문 (붙여넣기) */
+  /** 성취기준 원문 (선택 또는 직접 입력) */
   standard: string;
-  /** 수업 맥락 메모 (선택) — 단원, 학생 특성, 가용 시수 등 */
+  /** 수업 맥락 메모 (선택) — 수업 목표·핵심 활동, 단원, 가용 시수 등 */
   context: string;
+  /** 공식 성취기준에서 고른 경우의 코드 */
+  standardCode?: string;
+  /** 공식 성취기준의 A~E 성취수준 (있으면 루브릭을 이 체계에 정렬) */
+  achievementLevels?: AchievementLevels;
 }
 
 /** Pass 1 산출물 — 백워드 설계 Stage 1 요소 */

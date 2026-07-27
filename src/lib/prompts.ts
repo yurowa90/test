@@ -1,4 +1,9 @@
-import type { GraspsSelection, Stage1Result, TeacherInput } from "../types";
+import type {
+  AchievementLevels,
+  GraspsSelection,
+  Stage1Result,
+  TeacherInput,
+} from "../types";
 import grasps from "../knowledge/grasps.md?raw";
 import ubdStage1 from "../knowledge/ubd_stage1.md?raw";
 import sixFacets from "../knowledge/six_facets.md?raw";
@@ -99,8 +104,8 @@ export const GRASPS_FINAL_SCHEMA = {
               required: ["label", "descriptor"],
               propertyOrdering: ["label", "descriptor"],
             },
-            minItems: 4,
-            maxItems: 4,
+            minItems: 3,
+            maxItems: 5,
           },
         },
         required: ["criterion", "alignedUnderstandingIndex", "levels"],
@@ -199,7 +204,18 @@ ${stage1Block(stage1)}
 
 /* ── Pass 2b: 확정된 6요소 → 안내문·루브릭 ──────────────── */
 
-export function buildFinalSystem(includeUdlOptions: boolean): string {
+export function buildFinalSystem(
+  includeUdlOptions: boolean,
+  levels?: AchievementLevels,
+): string {
+  const labels = levels
+    ? levels.system === 3
+      ? "A, B, C (3수준)"
+      : "A, B, C, D, E (5수준)"
+    : null;
+  const rubricLevelRule = labels
+    ? `- 이 성취기준에는 2022 개정 교육과정 공식 성취수준이 있습니다. 각 준거의 levels는 정확히 이 체계(${labels})를 따르고, label은 "${levels!.system === 3 ? "A/B/C" : "A/B/C/D/E"}"로 답니다. 각 수준 서술어는 아래 <official_levels>의 해당 수준 서술을 이 GRASPS 과제 맥락으로 구체화한 것이어야 합니다(원문 복사가 아니라 과제에 맞춘 재서술, 그러나 성취 눈금은 공식 수준에 맞출 것).`
+    : `- 각 준거의 levels는 정확히 4개 수준이며, "잘함/보통" 같은 공허한 등급이 아니라 관찰 가능한 수행 차이로 서술합니다.`;
   return `${SHARED_ROLE}
 
 당신의 임무는 **교사가 요소별로 확정한 GRASPS 6요소**를 입력으로 받아, 그 6요소를 자연스럽게 통합한 학생용 과제 안내문과, Stage 1의 이해에 정렬된 루브릭을 생성하는 것입니다. **6요소 자체는 이미 확정되었으니 바꾸지 마십시오.**
@@ -225,7 +241,7 @@ ${qualityChecklist}
 절대 제약(정렬이 이 도구의 존재 이유입니다):
 - rubric의 각 준거는 반드시 하나의 영속적 이해에 대응하며, alignedUnderstandingIndex에 그 이해의 0-기반 인덱스를 정확히 넣습니다.
 - 영속적 이해가 2개이므로 rubric 준거도 최소 2개(각 이해당 1개 이상)를 만들고, 모든 이해가 최소 1개 준거로 평가되게 합니다.
-- 각 준거의 levels는 정확히 4개 수준이며, "잘함/보통" 같은 공허한 등급이 아니라 관찰 가능한 수행 차이로 서술합니다.
+${rubricLevelRule}
 - 겨냥한 이해에 적절한 '이해의 여섯 측면'(설명·해석·적용·관점·공감·자기지식)을 골라 루브릭 준거로 번역합니다. 모든 측면을 억지로 넣지 않습니다.
 - 각 루브릭 준거는 확정된 performanceProduct 또는 situation 진술의 어떤 구절에서 도출되었는지 역추적 가능해야 합니다(W&M 2005 Fig 7.7의 1:1 대응). 과제 진술에 근거가 없는 준거는 만들지 않습니다.
 - studentPrompt는 확정된 6요소를 자연스럽게 통합해 학생에게 그대로 제시할 수 있는 안내문으로 작성합니다.
@@ -252,6 +268,18 @@ export function buildFinalUser(
     .map((k) => `- ${ELEMENT_LABELS[k]}: ${selection[k]}`)
     .join("\n");
 
+  const lv = input.achievementLevels;
+  const officialBlock = lv
+    ? `
+
+=== 공식 성취수준 (${lv.system === 3 ? "A~C" : "A~E"}) — 루브릭 눈금의 근거 ===
+<official_levels>
+A: ${lv.A}
+B: ${lv.B}
+C: ${lv.C}${lv.system === 5 ? `\nD: ${lv.D}\nE: ${lv.E}` : ""}
+</official_levels>`
+    : "";
+
   return `교과: ${input.subject || "(미지정)"} / 학년: ${input.grade || "(미지정)"}
 ${input.context ? `수업 맥락: ${input.context}\n` : ""}
 === 교사가 확정한 Stage 1 ===
@@ -260,7 +288,7 @@ ${stage1Block(stage1)}
 
 === 교사가 확정한 GRASPS 6요소 (그대로 사용) ===
 
-${elements}
+${elements}${officialBlock}
 
 위 6요소를 통합한 학생용 안내문과, 위 이해에 정렬된 루브릭을 생성하십시오.`;
 }
