@@ -1,78 +1,95 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #17192b;
-  --color-ink-soft: #40435a;
-  --color-paper: #faf8f5;
-  --color-paper-line: #e8e3d8;
-  --color-blueprint: #1c3050;
-  --color-blueprint-deep: #142338;
-  --color-blueprint-line: #3a5580;
-  --color-thread: #b0791f;
-  --color-thread-soft: #f0e4c8;
+  /* 카메라 바디 */
+  --color-film: #191614;
+  --color-film-deep: #0e0c0b;
+  --color-film-line: #2e2a26;
+  --color-film-panel: #211d1a;
+  /* 바디 각인 글자 */
+  --color-chrome: #b9b2a7;
+  --color-chrome-dim: #7d766c;
+  /* 감열지 */
+  --color-receipt: #faf7ef;
+  --color-ink: #221e1a;
+  --color-ink-soft: #6f675c;
+  /* 셔터 버튼 — 이 앱의 유일한 원색 */
+  --color-shutter: #d9482b;
+  --color-shutter-deep: #b0361d;
 
-  --font-serif: "Noto Serif KR", Georgia, serif;
   --font-sans:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     system-ui, sans-serif;
+  --font-receipt: "Nanum Gothic Coding", ui-monospace, monospace;
 }
 
 :root {
-  color-scheme: light;
-}
-
-html {
-  scroll-behavior: smooth;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background-color: var(--color-paper);
-  color: var(--color-ink);
+  background-color: var(--color-film);
+  color: var(--color-chrome);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Blueprint graph-paper texture for dark panels */
-.blueprint-grid {
-  background-color: var(--color-blueprint);
-  background-image:
-    linear-gradient(rgba(120, 160, 210, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 160, 210, 0.09) 1px, transparent 1px),
-    linear-gradient(rgba(120, 160, 210, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 160, 210, 0.045) 1px, transparent 1px);
-  background-size:
-    64px 64px,
-    64px 64px,
-    16px 16px,
-    16px 16px;
-  background-position: -1px -1px;
-}
-
-.serif {
-  font-family: var(--font-serif);
-}
-
+/* ── 영수증 배출 애니메이션: 감열 프린터처럼 한 칸씩 밀려 나온다 ── */
 @media (prefers-reduced-motion: no-preference) {
-  .rise-in {
-    animation: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  .receipt-feed {
+    animation: receiptFeed 2s steps(16, end) both;
+  }
+  .blink {
+    animation: blink 1.1s step-end infinite;
   }
 }
 
-@keyframes riseIn {
+@keyframes receiptFeed {
   from {
-    opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(-97%);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
 
-*:focus-visible {
-  outline: 2px solid var(--color-thread);
-  outline-offset: 2px;
-  border-radius: 2px;
+@keyframes blink {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* ── 시스템 인쇄: 영수증만 종이에 얹는다 ── */
+#printable {
+  display: none;
+}
+
+@page {
+  size: auto;
+  margin: 0;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  #app-root {
+    display: none !important;
+  }
+  #printable {
+    display: block;
+  }
+  /* 58mm 감열지: 인쇄 가능 폭 약 48mm */
+  #printable .receipt-sheet {
+    width: 46mm;
+    font-size: 8.5pt;
+    margin: 0;
+    box-shadow: none;
+  }
+  body[data-paper="80"] #printable .receipt-sheet {
+    width: 68mm;
+    font-size: 10.5pt;
+  }
 }

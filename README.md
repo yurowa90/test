@@ -1,74 +1,59 @@
-# GRASPS 설계 도우미 (MVP)
+# Poetry Camera (웹 DIY 버전)
 
-성취기준에서 GRASPS를 곧바로 뽑는 대신, **백워드 설계(UbD)의 정렬 원리**를 지키는 2단계 생성 파이프라인 웹앱입니다.
+찍으면, 시가 나옵니다. [poetry-camera-rpi](https://github.com/bokito-studio/poetry-camera-rpi)에서 영감을 받아, 라즈베리파이 없이 **폰 브라우저만으로** 돌아가게 만든 DIY 웹 버전입니다.
 
-> 성취기준 → GRASPS 직행은 "무엇에 대한 이해의 증거인가"가 비어 있는 과제를 만듭니다(Wiggins가 경고한 activity-oriented design). 이 앱은 Stage 1을 먼저 확정하고, 그 이해를 평가하는 과제를 생성합니다.
+폰 카메라로 장면을 담으면 Gemini가 사진을 읽고 **한국어 시**를 지어 주고, 결과는 감열식 영수증 모양으로 "인쇄되어" 나옵니다. 실제 감열 프린터로도 뽑을 수 있습니다.
 
-## 파이프라인 (4단계 위저드, 2단계 생성)
+## 동작 방식
 
-1. **입력**: **2022 개정 교육과정 과학과 공식 성취기준 473개**(초·중·고 22과목)에서 학교급→과목→영역→성취기준으로 골라 넣습니다(직접 입력 모드도 있음). 성취수준 A~E가 있는 371개 기준을 고르면, 그 공식 A~E 서술이 뒤 단계 루브릭 눈금의 근거로 쓰입니다.
-2. **Pass 1 — Stage 1 추출**: 성취기준 → 전이 목표 · 영속적 이해 2 · 본질적 질문 2 (교사가 인라인으로 검토·수정하는 **필수 관문**)
-3. **Pass 2a — GRASPS 요소 후보**: 확정된 Stage 1 → 6요소(G·R·A·S·P·S) 각각 **2~3개 후보 문장** 생성. 교사가 요소별로 하나를 고르고 필요하면 손봅니다. (원저 Wiggins & McTighe, Fig 7.7의 복수 문장 틀 설계를 반영)
-4. **Pass 2b — 완성**: 교사가 확정한 6요소 → 6요소를 통합한 학생용 안내문 + 루브릭. 루브릭 준거는 확정된 산출물·상황 진술에서 역추적 가능하도록 정렬되며, 공식 성취수준이 있는 기준이면 루브릭 수준을 그 A~E(과학탐구실험은 A~C) 체계에 맞춰 생성합니다.
+1. **찍기** — 뷰파인더에서 카메라 촬영 또는 앨범 사진 선택 (브라우저에서 긴 변 1280px로 리사이즈)
+2. **짓기** — 사진을 Gemini API(비전)로 보내 시 형식 규칙과 함께 JSON 강제 출력으로 시를 받음
+   - 형식: 자유시 · 시조(3장, 종장 첫 마디 3음절) · 하이쿠(5·7·5) · 동시
+3. **뽑기** — 영수증이 배출구에서 스텝 애니메이션으로 밀려 나오고, 세 가지 방법으로 실물 인쇄
+   - 사진은 시를 짓는 동안 Gemini API로만 전송됩니다. 별도 서버가 없습니다.
 
-**시그니처 — 정렬을 눈으로**: 각 영속적 이해에 색 표식(U1, U2…)이 붙고, 그 이해를 평가하는 루브릭 준거에 **같은 표식**이 다시 나타납니다. "이해 → 평가"의 정렬이 시각적으로 확인됩니다.
+## 감열식 영수증 프린터로 인쇄하기
 
-선택: **UDL 산출물 옵션** 토글을 켜면 같은 이해를 여러 산출 형태(보고서·발표·영상·모형)로 드러내도록 P를 다양화합니다(UDL 3.0 행동·표현의 다양한 수단).
+| 방법 | 조건 | 비고 |
+| --- | --- | --- |
+| **블루투스 인쇄** | Android Chrome 또는 데스크톱 Chrome/Edge + BLE ESC/POS 프린터 | 영수증을 캔버스 비트맵으로 그려 ESC/POS 래스터(`GS v 0`)로 전송 — **프린터에 한글 폰트가 없어도 인쇄됩니다** |
+| **시스템 인쇄** | OS에 프린터 드라이버 설치(또는 AirPrint 등) | 58/80mm 전용 인쇄 CSS 적용, 설정에서 용지 폭 선택 |
+| **PNG 저장** | 아무 브라우저 | iOS 등 Web Bluetooth 미지원 환경에서는 PNG 저장 후 [RawBT](https://rawbt.ru/) 같은 프린터 앱으로 인쇄 |
 
-## 스택
+- 용지 폭: 58mm(384dot, 휴대용 대부분) / 80mm(576dot, 매장용) — 설정(⚙)에서 선택
+- Web Bluetooth는 HTTPS(또는 localhost)에서만 동작합니다. iOS Safari는 Web Bluetooth를 지원하지 않습니다.
 
-- Vite + React 19 + TypeScript, Tailwind CSS v4
-- 백엔드 없음 — **BYOK**(Bring Your Own Key) Gemini. API 키는 브라우저 localStorage에만 저장되고 Google로 직접 호출됩니다.
-- Gemini `responseSchema`로 JSON 강제 출력 → 파싱 오류 방지.
-- Vercel 정적 배포용(`vercel.json` 포함).
-
-## 로컬 실행
+## 시작하기
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # tsc 타입체크 + 정적 빌드 → dist/
+npm run dev
 ```
 
-앱을 열고 우상단 **API 키 설정**에서 [Google AI Studio](https://aistudio.google.com/app/apikey) 키를 등록하세요.
+[Google AI Studio](https://aistudio.google.com/app/apikey)에서 무료 API 키를 발급받아 앱 우상단 설정(⚙)에 넣으세요. 키는 브라우저 localStorage에만 저장됩니다.
+
+```bash
+npm run build   # 타입 검사 + 프로덕션 빌드
+```
+
+Vercel 정적 배포 설정(`vercel.json`)이 포함되어 있습니다. 폰에서 쓰려면 HTTPS 배포가 필요합니다(카메라·클립보드·Web Bluetooth 모두 HTTPS 요구).
 
 ## 구조
 
 ```
 src/
-├─ App.tsx                # 3스텝 위저드 상태 머신 (input → stage1 → result)
-├─ components/
-│  ├─ InputForm.tsx       # 교과·학년·성취기준 입력
-│  ├─ Stage1Review.tsx    # 인라인 편집 가능한 Stage 1 검토 (건너뛸 수 없는 관문)
-│  ├─ CandidateSelect.tsx # 요소별 후보 선택·편집 (Pass 2a → 2b 사이)
-│  ├─ GraspsResult.tsx    # 6요소 카드 + 안내문 + 정렬 루브릭
-│  └─ ApiKeyModal.tsx     # BYOK 키·모델 설정
-├─ lib/
-│  ├─ gemini.ts           # generateStage1 / generateGraspsCandidates / generateGraspsFinal
-│  │                      #   (responseSchema 강제, 429/503 1회 재시도, 한국어 에러)
-│  ├─ standards.ts        # 공식 성취기준 로드 + 학교급/과목/영역 캐스케이드 헬퍼
-│  ├─ prompts.ts          # buildStage1*/buildCandidates*/buildFinal* + JSON 스키마
-│  ├─ markers.ts          # 정렬 마커 팔레트
-│  ├─ export.ts           # toMarkdown / 복사 / 다운로드
-│  └─ storage.ts          # localStorage 래퍼
-├─ knowledge/             # Phase 0 증류 지식 (시스템 프롬프트에 임베드)
-│  ├─ ubd_stage1.md       # Stage 1 판별 기준 + Figure 1·2 원문 예시
-│  ├─ grasps.md           # GRASPS 6요소 + Stage 2 원리
-│  ├─ six_facets.md       # 이해의 여섯 측면 (과제·루브릭 설계 렌즈)
-│  ├─ udl.md              # UDL 3.0 행동·표현의 다양화
-│  └─ quality_checklist.md
-└─ types.ts
-
-public/
-└─ science_standards.json  # 2022 개정 과학과 성취기준 473 + 성취수준 A~E 371
+  App.tsx                 카메라 바디 UI(뷰파인더·셔터·배출구)와 상태 흐름
+  components/
+    Viewfinder.tsx        사진 미리보기 + 촬영/선택
+    Receipt.tsx           화면·시스템 인쇄 공용 영수증(em 기준 치수)
+    SettingsModal.tsx     API 키 · 모델 · 감열지 폭
+  lib/
+    gemini.ts             Gemini 비전 호출(JSON 강제 출력, 한국어 오류 처리)
+    prompts.ts            시 작법 시스템 프롬프트 + 형식 규칙
+    image.ts              업로드 사진 리사이즈·압축
+    receipt.ts            영수증 캔버스 렌더러(인쇄·PNG 공용)
+    escpos.ts             캔버스 → ESC/POS 래스터 바이트
+    bluetooth.ts          Web Bluetooth BLE 프린터 연결·전송
 ```
 
-## 근거 자료 (Phase 0)
-
-`knowledge/`는 아래 원자료를 앱 목적에 맞게 증류한 요약입니다. 각 파일에 1차 출처와 페이지·그림 번호를 표기했습니다.
-
-- **McTighe, J. & Wiggins, G. (2012). *Understanding by Design® Framework* [백서]. ASCD.** — `ubd_stage1.md`, `six_facets.md`, `quality_checklist.md`, `grasps.md`의 Stage 2 원리가 이 문서(3단계, 7개 원칙, Figure 1·2, 이해의 여섯 측면, 정렬, Appendix A·B)에 근거합니다.
-- Wiggins, G. & McTighe, J. (2005). *Understanding by Design* (Expanded 2nd ed.), 제7장 pp. 157–159, Figure 7.7 "GRASPS Task Design Prompts". ASCD. — **GRASPS 6요소 약어의 1차 출처.** 2012 백서에는 "GRASPS"라는 약어가 등장하지 않으므로, 약어 정의·프롬프트·예시는 이 원저 기준입니다. (P는 Product/Performance/Purpose로 혼용 → 코드 내부 키 `performanceProduct`로 통일)
-- CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org — `udl.md`. (2.2와 체크포인트 문구가 다르므로 3.0 기준임을 명시)
-
-원문 인용이 필요하면 각 원자료를 직접 확인하세요.
+기술 스택: React 19 + TypeScript + Vite + Tailwind CSS 4. 런타임 의존성은 React뿐입니다.

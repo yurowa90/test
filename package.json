@@ -1,5 +1,5 @@
 {
-  "name": "grasps-designer",
+  "name": "poetry-camera",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -16,6 +16,7 @@
     "@tailwindcss/vite": "^4.1.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@types/web-bluetooth": "^0.0.21",
     "@vitejs/plugin-react": "^4.5.0",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.8.0",

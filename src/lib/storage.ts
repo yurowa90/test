@@ -1,4 +1,4 @@
-const KEY_PREFIX = "grasps-designer:";
+const KEY_PREFIX = "poetry-camera:";
 
 export const storage = {
   get(key: string): string | null {
@@ -26,3 +26,5 @@ export const storage = {
 
 export const API_KEY_STORAGE = "gemini-api-key";
 export const MODEL_STORAGE = "gemini-model";
+export const PAPER_STORAGE = "paper-width";
+export const FORM_STORAGE = "poem-form";
