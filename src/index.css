@@ -81,15 +81,25 @@ body {
   #printable {
     display: block;
   }
-  /* 58mm 감열지: 인쇄 가능 폭 약 48mm */
+  /* 기본: 일반 프린터(A4) — 가운데 배치, 잘라 쓸 수 있게 절취선 테두리 */
   #printable .receipt-sheet {
+    width: 80mm;
+    font-size: 11pt;
+    margin: 14mm auto 0;
+    border: 1pt dashed #9a938a;
+    box-shadow: none;
+  }
+  /* 감열 프린터: 용지 폭에 딱 맞게, 테두리 없이 */
+  body[data-print="58"] #printable .receipt-sheet {
     width: 46mm;
     font-size: 8.5pt;
     margin: 0;
-    box-shadow: none;
+    border: none;
   }
-  body[data-paper="80"] #printable .receipt-sheet {
+  body[data-print="80"] #printable .receipt-sheet {
     width: 68mm;
     font-size: 10.5pt;
+    margin: 0;
+    border: none;
   }
 }

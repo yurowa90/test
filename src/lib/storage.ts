@@ -26,5 +26,5 @@ export const storage = {
 
 export const API_KEY_STORAGE = "gemini-api-key";
 export const MODEL_STORAGE = "gemini-model";
-export const PAPER_STORAGE = "paper-width";
+export const PRINT_STORAGE = "print-target";
 export const FORM_STORAGE = "poem-form";

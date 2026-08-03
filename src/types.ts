@@ -25,5 +25,8 @@ export interface CapturedImage {
   mimeType: string;
 }
 
-/** 감열지 폭 (mm) — 58mm=384dot, 80mm=576dot */
-export type PaperWidth = 58 | 80;
+/**
+ * 시스템 인쇄 대상.
+ * a4 = 일반 프린터(A4 가운데, 절취선 테두리) / 58·80 = 감열 프린터 용지 폭(mm)
+ */
+export type PrintTarget = "a4" | "58" | "80";

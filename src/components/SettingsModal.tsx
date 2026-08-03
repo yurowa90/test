@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { DEFAULT_MODEL } from "../lib/gemini";
-import type { PaperWidth } from "../types";
+import type { PrintTarget } from "../types";
 
 interface Props {
   open: boolean;
   initialKey: string;
   initialModel: string;
-  initialPaper: PaperWidth;
-  onSave: (key: string, model: string, paper: PaperWidth) => void;
+  initialPrint: PrintTarget;
+  onSave: (key: string, model: string, print: PrintTarget) => void;
   onClose: () => void;
 }
 
@@ -24,13 +24,13 @@ export default function SettingsModal({
   open,
   initialKey,
   initialModel,
-  initialPaper,
+  initialPrint,
   onSave,
   onClose,
 }: Props) {
   const [key, setKey] = useState(initialKey);
   const [model, setModel] = useState(initialModel || DEFAULT_MODEL);
-  const [paper, setPaper] = useState<PaperWidth>(initialPaper);
+  const [print, setPrint] = useState<PrintTarget>(initialPrint);
 
   if (!open) return null;
 
@@ -82,14 +82,15 @@ export default function SettingsModal({
         </label>
 
         <label className="mt-4 block text-sm font-semibold text-chrome">
-          감열지 폭
+          인쇄 방식
           <select
-            value={paper}
-            onChange={(e) => setPaper(Number(e.target.value) === 80 ? 80 : 58)}
+            value={print}
+            onChange={(e) => setPrint(e.target.value as PrintTarget)}
             className={inputClass}
           >
-            <option value={58}>58mm (휴대용 프린터 대부분)</option>
-            <option value={80}>80mm (매장용 영수증 프린터)</option>
+            <option value="a4">일반 프린터 — A4에 인쇄해 잘라 쓰기</option>
+            <option value="58">감열 프린터 58mm (PT-210 등 휴대용)</option>
+            <option value="80">감열 프린터 80mm (매장용)</option>
           </select>
         </label>
 
@@ -114,7 +115,7 @@ export default function SettingsModal({
             취소
           </button>
           <button
-            onClick={() => onSave(key.trim(), model, paper)}
+            onClick={() => onSave(key.trim(), model, print)}
             disabled={!key.trim()}
             className="rounded-lg bg-receipt px-4 py-2 text-sm font-bold text-ink hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
           >

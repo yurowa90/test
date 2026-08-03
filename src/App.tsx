@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CapturedImage, PaperWidth, PoemForm, PoemResult } from "./types";
+import type { CapturedImage, PoemForm, PoemResult, PrintTarget } from "./types";
 import {
   BluetoothPrinter,
   BluetoothPrinterError,
@@ -14,7 +14,7 @@ import {
   API_KEY_STORAGE,
   FORM_STORAGE,
   MODEL_STORAGE,
-  PAPER_STORAGE,
+  PRINT_STORAGE,
   storage,
 } from "./lib/storage";
 import Receipt, { TearEdge } from "./components/Receipt";
@@ -37,9 +37,10 @@ export default function App() {
   const [model, setModel] = useState(
     () => storage.get(MODEL_STORAGE) || DEFAULT_MODEL,
   );
-  const [paper, setPaper] = useState<PaperWidth>(() =>
-    storage.get(PAPER_STORAGE) === "80" ? 80 : 58,
-  );
+  const [printTarget, setPrintTarget] = useState<PrintTarget>(() => {
+    const saved = storage.get(PRINT_STORAGE);
+    return saved === "58" || saved === "80" ? saved : "a4";
+  });
   const [form, setForm] = useState<PoemForm>(() => {
     const saved = storage.get(FORM_STORAGE);
     return FORMS.some((f) => f.id === saved) ? (saved as PoemForm) : "free";
@@ -60,10 +61,10 @@ export default function App() {
 
   const btSupported = isBluetoothSupported();
 
-  // 시스템 인쇄 CSS가 용지 폭을 알 수 있도록 body에 표시
+  // 시스템 인쇄 CSS가 인쇄 방식을 알 수 있도록 body에 표시
   useEffect(() => {
-    document.body.dataset.paper = String(paper);
-  }, [paper]);
+    document.body.dataset.print = printTarget;
+  }, [printTarget]);
 
   useEffect(() => {
     if (!notice) return;
@@ -89,7 +90,7 @@ export default function App() {
   const shoot = async () => {
     if (writing) return;
     if (!image) {
-      cameraInput.current?.click();
+      galleryInput.current?.click();
       return;
     }
     if (!apiKey) {
@@ -116,7 +117,7 @@ export default function App() {
     if (!result) throw new Error("시가 없습니다.");
     await ensureReceiptFont();
     return renderReceipt(result.poem, {
-      dots: paper === 80 ? 576 : 384,
+      dots: printTarget === "80" ? 576 : 384,
       scale,
       dateText: formatDate(result.takenAt),
       formLabel: formLabel(result.form),
@@ -260,7 +261,7 @@ export default function App() {
             <button
               onClick={shoot}
               disabled={writing}
-              aria-label={image ? "이 장면으로 시 짓기" : "카메라 열기"}
+              aria-label={image ? "이 장면으로 시 짓기" : "사진 올리기"}
               className={`h-[72px] w-[72px] rounded-full border-4 transition-colors disabled:opacity-50 ${
                 image
                   ? "border-receipt/80 bg-shutter active:bg-shutter-deep"
@@ -272,7 +273,7 @@ export default function App() {
                 ? "짓는 중…"
                 : image
                   ? "셔터를 누르면 이 장면으로 시를 짓습니다"
-                  : "셔터를 누르면 카메라가 열립니다"}
+                  : "셔터를 누르면 사진을 올릴 수 있습니다"}
             </p>
           </div>
 
@@ -312,14 +313,18 @@ export default function App() {
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
+                    onClick={() => window.print()}
+                    className="col-span-2 rounded-lg bg-receipt px-3 py-3 text-sm font-bold text-ink hover:bg-white"
+                  >
+                    인쇄하기
+                    {printTarget === "a4" ? " (일반 프린터)" : ` (감열 ${printTarget}mm)`}
+                  </button>
+                  <button
                     onClick={printBluetooth}
                     disabled={btBusy || !btSupported}
-                    className="col-span-2 rounded-lg bg-receipt px-3 py-3 text-sm font-bold text-ink hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className={actionClass}
                   >
-                    {btBusy ? "인쇄 중…" : "블루투스 프린터로 인쇄"}
-                  </button>
-                  <button onClick={() => window.print()} className={actionClass}>
-                    시스템 인쇄
+                    {btBusy ? "전송 중…" : "블루투스 인쇄"}
                   </button>
                   <button onClick={savePng} className={actionClass}>
                     PNG 저장
@@ -331,13 +336,13 @@ export default function App() {
                     다시 찍기
                   </button>
                 </div>
-                {!btSupported && (
-                  <p className="mt-2.5 text-xs leading-relaxed text-chrome-dim">
-                    이 브라우저는 블루투스 인쇄를 지원하지 않습니다(Android
-                    Chrome·데스크톱 Chrome 필요). PNG로 저장한 뒤 RawBT 같은
-                    프린터 앱으로 인쇄할 수 있습니다.
-                  </p>
-                )}
+                <p className="mt-2.5 text-xs leading-relaxed text-chrome-dim">
+                  {printTarget === "a4"
+                    ? "일반 프린터로 A4에 인쇄한 뒤 절취선을 따라 잘라 쓰세요. 감열 프린터가 생기면 설정(⚙)에서 인쇄 방식을 바꿀 수 있습니다."
+                    : "감열 프린터 용지 폭에 맞춰 인쇄합니다. 일반 프린터로 뽑으려면 설정(⚙)에서 인쇄 방식을 바꾸세요."}
+                  {!btSupported &&
+                    " 블루투스 인쇄는 Android Chrome·데스크톱 Chrome에서만 가능합니다."}
+                </p>
               </>
             )}
           </div>
@@ -400,14 +405,14 @@ export default function App() {
           open={settingsOpen}
           initialKey={apiKey}
           initialModel={model}
-          initialPaper={paper}
-          onSave={(key, newModel, newPaper) => {
+          initialPrint={printTarget}
+          onSave={(key, newModel, newPrint) => {
             setApiKey(key);
             setModel(newModel);
-            setPaper(newPaper);
+            setPrintTarget(newPrint);
             storage.set(API_KEY_STORAGE, key);
             storage.set(MODEL_STORAGE, newModel);
-            storage.set(PAPER_STORAGE, String(newPaper));
+            storage.set(PRINT_STORAGE, newPrint);
             setSettingsOpen(false);
           }}
           onClose={() => setSettingsOpen(false)}

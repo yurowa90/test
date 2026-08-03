@@ -25,19 +25,19 @@ export default function Viewfinder({
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
-          <p className="text-sm text-chrome-dim">장면을 담아 주세요</p>
+          <p className="text-sm text-chrome-dim">시로 만들 사진을 올려 주세요</p>
           <div className="flex gap-2">
             <button
-              onClick={onOpenCamera}
+              onClick={onOpenGallery}
               className="rounded-lg border border-film-line bg-film-panel px-4 py-2 text-sm font-semibold text-chrome hover:border-chrome/40"
             >
-              카메라로 찍기
+              사진 올리기
             </button>
             <button
-              onClick={onOpenGallery}
+              onClick={onOpenCamera}
               className="rounded-lg border border-film-line px-4 py-2 text-sm text-chrome-dim hover:text-chrome"
             >
-              사진 고르기
+              카메라로 찍기
             </button>
           </div>
         </div>
