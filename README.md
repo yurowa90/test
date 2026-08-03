@@ -48,7 +48,11 @@ npm run dev
 npm run build   # 타입 검사 + 프로덕션 빌드
 ```
 
-Vercel 정적 배포 설정(`vercel.json`)이 포함되어 있습니다. 폰에서 쓰려면 HTTPS 배포가 필요합니다(카메라·클립보드·Web Bluetooth 모두 HTTPS 요구).
+## 배포
+
+**GitHub Pages**: <https://yurowa90.github.io/test/>
+
+`claude/poetry-camera-a8dhpu` 브랜치에 푸시하면 GitHub Actions(`.github/workflows/deploy-pages.yml`)가 빌드해서 `gh-pages` 브랜치로 자동 배포합니다. 폰에서 필요한 HTTPS(카메라·클립보드·Web Bluetooth 요구 조건)가 기본 제공됩니다. Vercel 설정(`vercel.json`)도 남아 있어 원하면 Vercel로도 배포할 수 있습니다.
 
 ## 구조
 
