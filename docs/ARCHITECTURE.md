@@ -16,6 +16,20 @@
 
 버전 정책: PHASE 1에서 각 라이브러리의 stable 버전을 확인하여 `package.json`에 고정하고, 이 문서에 기록을 추가한다. 임의의 버전을 미리 하드코딩하지 않는다.
 
+확정 버전 (2026-08-12, PHASE 1 — npm 레지스트리 stable 기준 고정):
+
+| 패키지 | 버전 |
+|---|---|
+| next | 16.3.0 |
+| react / react-dom | 19.2.8 |
+| typescript | 7.0.2 |
+| tailwindcss / @tailwindcss/postcss | 4.3.3 |
+| @supabase/supabase-js | 2.112.3 |
+| @supabase/ssr | 0.12.4 |
+| Node.js (개발 환경) | 22.x |
+
+`@google/genai`는 PHASE 4(첫 Gemini 사용 시점)에서 stable 확인 후 고정한다.
+
 ## 2. 시스템 구성도
 
 ```mermaid
