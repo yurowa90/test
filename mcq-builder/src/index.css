@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #17192b;
+  --color-ink-soft: #40435a;
+  --color-paper: #faf8f5;
+  --color-paper-line: #e8e3d8;
+  --color-blueprint: #1c3050;
+  --color-blueprint-deep: #142338;
+  --color-blueprint-line: #3a5580;
+  --color-thread: #b0791f;
+  --color-thread-soft: #f0e4c8;
+
+  --font-serif: "Noto Serif KR", Georgia, serif;
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Blueprint graph-paper texture for dark panels */
+.blueprint-grid {
+  background-color: var(--color-blueprint);
+  background-image:
+    linear-gradient(rgba(120, 160, 210, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 160, 210, 0.09) 1px, transparent 1px),
+    linear-gradient(rgba(120, 160, 210, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 160, 210, 0.045) 1px, transparent 1px);
+  background-size:
+    64px 64px,
+    64px 64px,
+    16px 16px,
+    16px 16px;
+  background-position: -1px -1px;
+}
+
+.serif {
+  font-family: var(--font-serif);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-thread);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

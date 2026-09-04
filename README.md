@@ -72,3 +72,15 @@ public/
 - CAST (2024). *UDL Guidelines version 3.0.* https://udlguidelines.cast.org — `udl.md`. (2.2와 체크포인트 문구가 다르므로 3.0 기준임을 명시)
 
 원문 인용이 필요하면 각 원자료를 직접 확인하세요.
+
+---
+
+## 자매 앱: 학력평가형 문항 제작 도우미 (`mcq-builder/`)
+
+같은 저장소의 [`mcq-builder/`](mcq-builder/README.md)는 논술·수행과제가 아니라 **전국연합학력평가형 과학탐구 선다형 문항**(합답형 ㄱㄴㄷ·정답형·부정형)을 만드는 두 번째 웹앱입니다. 이 앱의 CSS 테마, 성취기준 데이터베이스(`science_standards.json`), BYOK Gemini 클라이언트, "교사가 확정하는 관문 → 생성" 구조를 그대로 가져왔고, 지식 베이스는 경기도교육청 『2024 평가문항 제작 방법』(물리·화학·생명·지구)을 증류한 것입니다.
+
+```bash
+cd mcq-builder && npm install && npm run dev
+```
+
+Vercel에는 별도 프로젝트로 배포합니다(Root Directory = `mcq-builder`).
