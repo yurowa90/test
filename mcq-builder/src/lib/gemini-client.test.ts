@@ -31,10 +31,30 @@ test("all non-thought text parts are joined", async () => {
 });
 test("input mistakes and retired models fail before sending a request", async () => {
   assert.equal(normalizeKey(` ${key} `), key);
-  assert.throws(() => normalizeKey('"AIza wrong"'), kind("key"));
+  assert.throws(() => normalizeKey('키 내용'), kind("key"));
   assert.throws(() => normalizeModel("models/gemini-2.0-flash"), kind("model"));
   assert.throws(() => normalizeModel("gemini-2.5-flash?key=leak"), kind("model"));
-  await assert.rejects(callGemini({ ...options, apiKey: "bad" }, { fetch: async () => { assert.fail("must not fetch"); } }), kind("key"));
+  await assert.rejects(callGemini({ ...options, apiKey: " " }, { fetch: async () => { assert.fail("must not fetch"); } }), kind("key"));
+});
+test("copied keys normalize whitespace, invisible marks and matched quotes without changing token characters", () => {
+  for (const copied of [` \"${key}\"\n`, `‘${key}’`, `\u200B${key}\uFEFF`, `test-key-\nnever-sent-to-google`, `test-key-\u00A0never-sent-to-google`]) {
+    assert.equal(normalizeKey(copied), key);
+    assert.equal(normalizeKey(normalizeKey(copied)), key);
+  }
+  assert.equal(normalizeKey("AbC_-123"), "AbC_-123");
+  assert.equal(normalizeKey("x".repeat(250)), "x".repeat(250));
+  assert.equal(normalizeKey("token.with.other:ASCII"), "token.with.other:ASCII");
+  assert.throws(() => normalizeKey("••••••"), kind("key"));
+  assert.throws(() => normalizeKey("******"), kind("key"));
+});
+test("normalized copied key reaches model discovery instead of a local length rejection", async () => {
+  let sent = false;
+  await listModels(`“\u200B${key}\n”`, undefined, { fetch: async (_url, init) => {
+    sent = true;
+    assert.equal(new Headers(init?.headers).get("x-goog-api-key"), key);
+    return json({ models: [] });
+  } });
+  assert.equal(sent, true);
 });
 for (const [status, data, expected] of [
   [400, { error: { details: [{ reason: "API_KEY_INVALID" }], message: key } }, "key"],

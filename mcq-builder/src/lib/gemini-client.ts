@@ -9,8 +9,14 @@ type ObjectValue = Record<string, unknown>;
 const object = (v: unknown): v is ObjectValue => !!v && typeof v === "object" && !Array.isArray(v);
 const records = (v: unknown): ObjectValue[] => Array.isArray(v) ? v.filter(object) : [];
 export function normalizeKey(key: string): string {
-  const value = key.trim();
-  if (!/^[A-Za-z0-9_-]{20,200}$/.test(value)) throw new GeminiError("API 키를 확인해 주세요. 키만 붙여넣고 공백·따옴표·줄바꿈을 제거하세요.", "key");
+  // Copy/paste may add line breaks, NBSP, zero-width marks or wrapping quotes.
+  // Do not infer provider validity from an undocumented length/alphabet rule.
+  let value = key.replace(/[\s\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/gu, "");
+  const wrappers: Record<string, string> = { '"': '"', "'": "'", "`": "`", "“": "”", "‘": "’" };
+  if (value.length >= 2 && wrappers[value[0]] === value.at(-1)) value = value.slice(1, -1);
+  if (!value) throw new GeminiError("API 키가 비어 있습니다. AI Studio에서 복사한 키를 붙여넣어 주세요.", "key");
+  if (/^[*•●·]+$/.test(value)) throw new GeminiError("가려진 표시 문자가 입력됐습니다. AI Studio의 복사 버튼으로 실제 키를 복사해 주세요.", "key");
+  if (!/^[\x21-\x7E]+$/.test(value)) throw new GeminiError("키에 한글·전각 문자 등 전송할 수 없는 문자가 남아 있습니다. AI Studio의 키 복사 버튼으로 다시 복사해 주세요. 키 값은 공유하지 마세요.", "key");
   return value;
 }
 export function normalizeModel(model: string): string {

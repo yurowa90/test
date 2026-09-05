@@ -17,6 +17,7 @@ export default function ApiKeyModal({ initialKey, initialModel, onSave, onClear,
   const [tested, setTested] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [keyNote, setKeyNote] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -32,6 +33,8 @@ export default function ApiKeyModal({ initialKey, initialModel, onSave, onClear,
     setBusy(true); invalidate();
     try {
       const cleanKey = normalizeKey(key);
+      setKey(cleanKey);
+      setKeyNote(cleanKey !== key ? "붙여넣기에 포함된 공백·보이지 않는 문자·감싼 따옴표를 정리했습니다. 키 유효성은 Google 응답으로 확인합니다." : "키를 Google에 보내 확인합니다. 모델 목록 조회에는 문항 내용이 포함되지 않습니다.");
       if (mode === "list") {
         const available = await listModels(cleanKey, controller.signal);
         if (controller.signal.aborted) return;
@@ -54,8 +57,10 @@ export default function ApiKeyModal({ initialKey, initialModel, onSave, onClear,
       <h2 id="apikey-title" className="serif text-xl font-bold">Gemini API 연결 설정</h2>
       <p className="mt-2 text-sm text-ink-soft">키와 문항 입력은 Google API로 직접 전송됩니다. 저장한 키는 이 브라우저에 남으므로 공용 컴퓨터에서는 사용 후 삭제하세요.</p>
       <label className="mt-4 block text-sm font-semibold">API 키
-        <input autoFocus type="password" value={key} disabled={busy} onChange={e => { setKey(e.target.value); setModels(null); invalidate(); }} autoComplete="off" spellCheck={false} placeholder="Google AI Studio에서 발급한 키" className={fieldClass} />
+        <input autoFocus type="password" value={key} disabled={busy} onChange={e => { setKey(e.target.value); setKeyNote(""); setModels(null); invalidate(); }} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Google AI Studio의 복사 버튼으로 복사한 키" className={fieldClass} />
       </label>
+      <p className="mt-2 text-xs text-ink-soft">키 앞뒤의 따옴표와 붙여넣기 공백은 자동 정리합니다. 키 길이만으로 유효하지 않다고 판단하지 않습니다.</p>
+      {keyNote && <p role="status" className="mt-2 text-xs text-ink-soft">{keyNote}</p>}
       <button type="button" disabled={busy || !key.trim()} onClick={() => void check("list")} className="mt-3 rounded border border-paper-line px-3 py-2 text-sm disabled:opacity-40">1. 사용 가능한 모델 조회</button>
       <label className="mt-4 block text-sm font-semibold">모델
         <select value={model} disabled={busy} onChange={e => { setModel(e.target.value); invalidate(); }} className={fieldClass}>
