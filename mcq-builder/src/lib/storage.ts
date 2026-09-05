@@ -26,3 +26,4 @@ export const storage = {
 
 export const API_KEY_STORAGE = "gemini-api-key";
 export const MODEL_STORAGE = "gemini-model";
+export const DRAFT_STORAGE = "draft-v2";

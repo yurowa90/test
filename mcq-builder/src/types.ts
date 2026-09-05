@@ -42,6 +42,29 @@ export const FORMAT_LABELS: Record<ItemFormat, string> = {
 export type InquiryContext = "순수과학" | "실생활";
 export type TargetDifficulty = "상" | "중" | "하";
 
+export const SOURCE_KINDS = ["논문", "전공서적", "공공데이터", "공식보고서", "기타"] as const;
+export type SourceKind = (typeof SOURCE_KINDS)[number];
+export type SourceMode = "reference" | "synthetic";
+export const SOURCE_USES = ["원자료 수치 재구성", "그림 재도식화", "표 재구성", "배경 참고"] as const;
+export type SourceUse = (typeof SOURCE_USES)[number];
+
+/** 교사가 원문을 확인한 자료만 모델에 전달한다. 원본 그림은 복제하지 않고 재구성한다. */
+export interface SourceReference {
+  id: string;
+  kind: SourceKind;
+  title: string;
+  creators: string;
+  year: string;
+  /** DOI·URL·ISBN·쪽수·그림/표 번호 등 원문을 다시 찾을 수 있는 정보 */
+  locator: string;
+  use: SourceUse;
+  /** 공개 라이선스, 이용 허락, 교사 확인 등 저작권·이용 조건 */
+  rights: string;
+  /** 원문에서 교사가 확인해 옮긴 수치·표·그림 구조·핵심 설명 */
+  dataExcerpt: string;
+  verified: boolean;
+}
+
 export const STIMULUS_TYPES = ["그림", "그래프", "표", "실험", "제시문", "대화"] as const;
 export type StimulusType = (typeof STIMULUS_TYPES)[number];
 
@@ -68,6 +91,8 @@ export interface TeacherInput {
   standardCode?: string;
   domain?: string;
   achievementLevels?: AchievementLevels;
+  sourceMode: SourceMode;
+  sources: SourceReference[];
   options: ItemOptions;
 }
 
@@ -81,6 +106,8 @@ export interface Scenario {
   /** 자료가 반드시 담아야 할 단서 */
   cues: string[];
   inquiryContext: InquiryContext;
+  /** 입력된 출처의 어느 자료를 어떻게 재구성할지에 대한 계획 */
+  sourcePlan: string;
 }
 
 export interface AnalysisResult {
@@ -110,6 +137,8 @@ export interface Stimulus {
   stemPrefix: string;
   /** 자료 복잡도 0 단순 / 1 보통 / 2 복잡 */
   complexity: 0 | 1 | 2;
+  /** TeacherInput.sources의 id만 허용 */
+  sourceIds: string[];
 }
 
 export interface Proposition {
@@ -197,7 +226,7 @@ export interface FinalItem {
   body: string;
   figureSpec: string;
   conditions: string[];
-  /** 윤문된 〈보기〉(합답형) 또는 선택지 진술(정답형·부정형) — 순서·진위 불변 */
+  /** 잠근 〈보기〉(합답형) 또는 선택지 진술(정답형·부정형) — 원문·순서·진위 불변 */
   statements: string[];
   explanations: Explanation[];
   solution: string;

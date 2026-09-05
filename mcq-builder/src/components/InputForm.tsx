@@ -4,12 +4,13 @@ import type {
   ItemFormat,
   ItemOptions,
   ScienceStandard,
+  SourceReference,
   StimulusType,
   TargetDifficulty,
   InquiryContext,
   TeacherInput,
 } from "../types";
-import { BEHAVIOR_DOMAINS, STIMULUS_TYPES } from "../types";
+import { BEHAVIOR_DOMAINS, SOURCE_KINDS, SOURCE_USES, STIMULUS_TYPES } from "../types";
 import {
   domainsFor,
   loadStandards,
@@ -40,6 +41,21 @@ const FORMAT_HINTS: Record<ItemFormat, string> = {
   bujeong:
     "옳지 않은 진술 1개 + 옳은 진술 4개. 부정어 '않은'에 밑줄이 붙습니다. 다수 출제는 지양(지침 p.46).",
 };
+
+function blankSource(index: number): SourceReference {
+  return {
+    id: `S${index}`,
+    kind: "논문",
+    title: "",
+    creators: "",
+    year: "",
+    locator: "",
+    use: "원자료 수치 재구성",
+    rights: "",
+    dataExcerpt: "",
+    verified: false,
+  };
+}
 
 function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + "…" : s;
@@ -131,6 +147,28 @@ export default function InputForm({
     setForm((f) => ({ ...f, options: { ...f.options, ...patch } }));
   const o = form.options;
 
+  const updateSource = (id: string, patch: Partial<SourceReference>) =>
+    setForm((f) => ({
+      ...f,
+      sources: f.sources.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              ...patch,
+              verified: "verified" in patch ? Boolean(patch.verified) : false,
+            }
+          : s,
+      ),
+    }));
+  const addSource = () =>
+    setForm((f) => {
+      const nextIndex =
+        Math.max(0, ...f.sources.map((source) => Number(source.id.replace(/^S/, "")) || 0)) + 1;
+      return { ...f, sources: [...f.sources, blankSource(nextIndex)] };
+    });
+  const removeSource = (id: string) =>
+    setForm((f) => ({ ...f, sources: f.sources.filter((s) => s.id !== id) }));
+
   function chooseStandard(next: ScienceStandard | null) {
     if (!next) {
       set({
@@ -144,14 +182,23 @@ export default function InputForm({
     set({
       standard: next.text,
       subject: next.subject,
-      grade: form.grade || next.level,
+      grade: next.level,
       standardCode: next.code,
       domain: next.domain,
       achievementLevels: next.levels,
     });
   }
 
-  const canSubmit = hasApiKey && form.standard.trim().length > 0 && !busy;
+  const sourceReady =
+    form.sourceMode === "synthetic" ||
+    form.sources.some(
+      (s) =>
+        s.title.trim() !== "" &&
+        s.locator.trim() !== "" &&
+        s.dataExcerpt.trim() !== "" &&
+        s.verified,
+    );
+  const canSubmit = hasApiKey && form.standard.trim().length > 0 && sourceReady && !busy;
 
   return (
     <form
@@ -466,6 +513,175 @@ export default function InputForm({
           </div>
         </section>
 
+        {/* 출처 기반 자료 */}
+        <section className="rounded-xl border border-paper-line bg-white p-4 shadow-sm">
+          <h3 className="serif text-sm font-bold text-blueprint">자료·그림·표의 출처</h3>
+          <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+            논문·전공서적·공공데이터에서 교사가 확인한 수치와 구조를 입력하면 이를
+            바탕으로 표와 그래프를 다시 구성합니다. 원본 그림을 그대로 복제하지 않으며,
+            모델이 출처나 값을 임의로 만들지 못하게 합니다.
+          </p>
+
+          <Seg<"reference" | "synthetic">
+            value={form.sourceMode}
+            options={[
+              { value: "reference", label: "검증한 출처 사용" },
+              { value: "synthetic", label: "교육용 합성 자료" },
+            ]}
+            onChange={(v) => set({ sourceMode: v })}
+          />
+
+          {form.sourceMode === "reference" ? (
+            <div className="mt-4 space-y-4">
+              {form.sources.map((source, index) => (
+                <article
+                  key={source.id}
+                  className="rounded-xl border border-paper-line bg-paper/30 p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-ink">출처 {index + 1}</h4>
+                    {form.sources.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSource(source.id)}
+                        className="rounded px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block text-xs font-semibold text-ink">
+                      자료 종류
+                      <select
+                        value={source.kind}
+                        onChange={(e) =>
+                          updateSource(source.id, {
+                            kind: e.target.value as SourceReference["kind"],
+                          })
+                        }
+                        className={selectClass}
+                      >
+                        {SOURCE_KINDS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {kind}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-ink">
+                      활용 방식
+                      <select
+                        value={source.use}
+                        onChange={(e) =>
+                          updateSource(source.id, {
+                            use: e.target.value as SourceReference["use"],
+                          })
+                        }
+                        className={selectClass}
+                      >
+                        {SOURCE_USES.map((use) => (
+                          <option key={use} value={use}>
+                            {use}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-ink sm:col-span-2">
+                      논문·책·데이터셋 제목 <span className="text-thread">*</span>
+                      <input
+                        value={source.title}
+                        onChange={(e) => updateSource(source.id, { title: e.target.value })}
+                        placeholder="예: 논문명, 전공서적명, 통계표명"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-ink">
+                      저자·기관
+                      <input
+                        value={source.creators}
+                        onChange={(e) => updateSource(source.id, { creators: e.target.value })}
+                        placeholder="저자 또는 발행 기관"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-ink">
+                      발행 연도
+                      <input
+                        value={source.year}
+                        onChange={(e) => updateSource(source.id, { year: e.target.value })}
+                        placeholder="예: 2025"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-ink sm:col-span-2">
+                      DOI·URL·ISBN·쪽수·그림/표 번호 <span className="text-thread">*</span>
+                      <input
+                        value={source.locator}
+                        onChange={(e) => updateSource(source.id, { locator: e.target.value })}
+                        placeholder="예: DOI 10.xxxx/xxxx, Fig. 2, pp. 115-116"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-ink sm:col-span-2">
+                      이용 조건·라이선스
+                      <input
+                        value={source.rights}
+                        onChange={(e) => updateSource(source.id, { rights: e.target.value })}
+                        placeholder="예: CC BY 4.0, 수치만 인용하여 재구성, 교사용 제한"
+                        className={inputClass}
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-ink sm:col-span-2">
+                      확인한 수치·표·그림 구조 <span className="text-thread">*</span>
+                      <textarea
+                        value={source.dataExcerpt}
+                        onChange={(e) => updateSource(source.id, { dataExcerpt: e.target.value })}
+                        rows={5}
+                        placeholder={
+                          "원문에서 확인한 데이터만 붙여 넣으세요.\n예: 온도(℃), 효소 활성(상댓값)\n10, 0.12\n20, 0.38\n30, 0.91"
+                        }
+                        className={`${inputClass} resize-y font-mono leading-relaxed`}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-ink">
+                    <input
+                      type="checkbox"
+                      checked={source.verified}
+                      onChange={(e) => updateSource(source.id, { verified: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 accent-blueprint"
+                    />
+                    원문과 위의 수치·설명을 직접 대조했으며, 출제 목적의 재구성에 필요한
+                    이용 조건을 확인했습니다.
+                  </label>
+                </article>
+              ))}
+
+              <button
+                type="button"
+                onClick={addSource}
+                className="text-xs font-semibold text-blueprint hover:underline"
+              >
+                + 출처 추가
+              </button>
+              {!sourceReady && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                  제목, 위치 정보, 확인한 데이터와 원문 대조 확인을 모두 입력해야 다음
+                  단계로 이동할 수 있습니다.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+              합성 자료는 실제 연구 결과처럼 표현하지 않습니다. 결과물에 ‘교육용으로
+              재구성한 합성 자료’라고 표시됩니다.
+            </p>
+          )}
+        </section>
+
         <label className="block text-sm font-semibold text-ink">
           출제 맥락 메모 <span className="font-normal text-ink-soft">(선택)</span>
           <textarea
@@ -486,6 +702,12 @@ export default function InputForm({
             먼저 Gemini API 키를 등록하세요 →
           </button>
         )}
+
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs leading-relaxed text-rose-900">
+          입력한 성취기준, 출처 데이터, 출제 맥락은 문항 생성을 위해 Google Gemini API로
+          전송됩니다. 실제 정기시험 원안, 공동출제 비공개 문항, 학생 개인정보는 입력하지
+          마세요.
+        </p>
 
         <div className="flex items-center justify-between border-t border-paper-line pt-5">
           <p className="max-w-xs text-xs leading-relaxed text-ink-soft">

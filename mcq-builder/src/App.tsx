@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   AnalysisResult,
   Assembly,
@@ -15,8 +15,13 @@ import {
   generateBank,
   generateFinal,
 } from "./lib/gemini";
-import { API_KEY_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
-import { copyToClipboard, downloadMarkdown, toMarkdown } from "./lib/export";
+import { API_KEY_STORAGE, DRAFT_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
+import {
+  copyToClipboard,
+  downloadMarkdown,
+  toStudentMarkdown,
+  toTeacherMarkdown,
+} from "./lib/export";
 import ApiKeyModal from "./components/ApiKeyModal";
 import InputForm from "./components/InputForm";
 import AnalysisReview from "./components/AnalysisReview";
@@ -28,6 +33,21 @@ const EMPTY_INPUT: TeacherInput = {
   grade: "",
   standard: "",
   context: "",
+  sourceMode: "reference",
+  sources: [
+    {
+      id: "S1",
+      kind: "논문",
+      title: "",
+      creators: "",
+      year: "",
+      locator: "",
+      use: "원자료 수치 재구성",
+      rights: "",
+      dataExcerpt: "",
+      verified: false,
+    },
+  ],
   options: {
     format: "hapdab",
     bogiCount: 3,
@@ -38,23 +58,48 @@ const EMPTY_INPUT: TeacherInput = {
   },
 };
 
+interface DraftSnapshot {
+  version: 2;
+  step: WizardStep;
+  input: TeacherInput;
+  analysis: AnalysisResult | null;
+  scenarioIndex: number;
+  bank: ItemBank | null;
+  stimulus: Stimulus | null;
+  assembly: Assembly | null;
+  final: FinalItem | null;
+}
+
+function loadDraft(): DraftSnapshot | null {
+  const raw = storage.get(DRAFT_STORAGE);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DraftSnapshot>;
+    return parsed.version === 2 && parsed.input ? (parsed as DraftSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
 const STEPS: { id: WizardStep; label: string; sub: string }[] = [
   { id: "input", label: "입력", sub: "성취기준·옵션" },
   { id: "analysis", label: "평가 요소", sub: "장면 확정" },
   { id: "bank", label: "〈보기〉 조립", sub: "명제 선택" },
-  { id: "result", label: "완성", sub: "문항·해설·정보표" },
+  { id: "result", label: "결과 검토", sub: "교사 확인·출력" },
 ];
 
 export default function App() {
-  const [step, setStep] = useState<WizardStep>("input");
-  const [input, setInput] = useState<TeacherInput>(EMPTY_INPUT);
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [scenarioIndex, setScenarioIndex] = useState(0);
-  const [bank, setBank] = useState<ItemBank | null>(null);
+  const [seed] = useState<DraftSnapshot | null>(loadDraft);
+  const [step, setStep] = useState<WizardStep>(seed?.step ?? "input");
+  const [input, setInput] = useState<TeacherInput>(seed?.input ?? EMPTY_INPUT);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(seed?.analysis ?? null);
+  const [scenarioIndex, setScenarioIndex] = useState(seed?.scenarioIndex ?? 0);
+  const [bank, setBank] = useState<ItemBank | null>(seed?.bank ?? null);
   const [bankVersion, setBankVersion] = useState(0);
-  const [stimulus, setStimulus] = useState<Stimulus | null>(null);
-  const [assembly, setAssembly] = useState<Assembly | null>(null);
-  const [final, setFinal] = useState<FinalItem | null>(null);
+  const [stimulus, setStimulus] = useState<Stimulus | null>(seed?.stimulus ?? null);
+  const [assembly, setAssembly] = useState<Assembly | null>(seed?.assembly ?? null);
+  const [final, setFinal] = useState<FinalItem | null>(seed?.final ?? null);
+  const [finalVersion, setFinalVersion] = useState(0);
 
   const [apiKey, setApiKey] = useState(() => storage.get(API_KEY_STORAGE) ?? "");
   const [model, setModel] = useState(() => storage.get(MODEL_STORAGE) ?? DEFAULT_MODEL);
@@ -66,11 +111,35 @@ export default function App() {
   const stepIndex = STEPS.findIndex((s) => s.id === step);
   const scenario = analysis?.scenarios[scenarioIndex] ?? null;
 
+  useEffect(() => {
+    const snapshot: DraftSnapshot = {
+      version: 2,
+      step,
+      input,
+      analysis,
+      scenarioIndex,
+      bank,
+      stimulus,
+      assembly,
+      final,
+    };
+    const timer = window.setTimeout(() => {
+      storage.set(DRAFT_STORAGE, JSON.stringify(snapshot));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [step, input, analysis, scenarioIndex, bank, stimulus, assembly, final]);
+
   function saveKey(key: string, m: string) {
     setApiKey(key);
     setModel(m);
     storage.set(API_KEY_STORAGE, key);
     storage.set(MODEL_STORAGE, m);
+    setKeyModalOpen(false);
+  }
+
+  function clearKey() {
+    setApiKey("");
+    storage.remove(API_KEY_STORAGE);
     setKeyModalOpen(false);
   }
 
@@ -127,7 +196,7 @@ export default function App() {
     if (analysis) await runBank(analysis, scenarioIndex);
   }
 
-  // Pass 2b: 교사가 조립한 문항 골격 → 윤문·해설·문항정보표·검토
+  // Pass 2b: 잠근 문항 골격 → 해설·문항정보표·AI 사전 점검
   async function runFinal(st: Stimulus, asm: Assembly) {
     if (!analysis || !scenario) return;
     setStimulus(st);
@@ -137,6 +206,7 @@ export default function App() {
     try {
       const result = await generateFinal(input, analysis, scenario, st, asm, apiKey, model);
       setFinal(result);
+      setFinalVersion((version) => version + 1);
       setStep("result");
     } catch (e) {
       reportError(e);
@@ -149,27 +219,35 @@ export default function App() {
     if (stimulus && assembly) await runFinal(stimulus, assembly);
   }
 
-  function markdown(): string | null {
+  function markdown(mode: "student" | "teacher"): string | null {
     if (!analysis || !scenario || !stimulus || !assembly || !final) return null;
-    return toMarkdown(input, analysis, scenario, stimulus, assembly, final);
+    const args = [input, analysis, scenario, stimulus, assembly, final] as const;
+    return mode === "student" ? toStudentMarkdown(...args) : toTeacherMarkdown(...args);
   }
 
-  function handleCopy() {
-    const md = markdown();
-    if (md) copyToClipboard(md);
+  async function handleCopy(mode: "student" | "teacher"): Promise<boolean> {
+    const md = markdown(mode);
+    return md ? copyToClipboard(md) : false;
   }
 
-  function handleDownload() {
-    const md = markdown();
+  function handleDownload(mode: "student" | "teacher") {
+    const md = markdown(mode);
     if (!md) return;
-    const name = `item_${input.standardCode || input.subject || "문항"}`
+    const name = `${mode === "student" ? "학생용" : "교사용"}_${input.standardCode || input.subject || "문항"}`
       .replace(/\s+/g, "")
       .replace(/[^\p{L}\p{N}_-]/gu, "");
     downloadMarkdown(`${name || "item"}.md`, md);
   }
 
   function handleRestart() {
+    if (
+      (analysis || bank || final) &&
+      !window.confirm("현재 문항과 생성 이력을 지우고 새 문항을 시작하시겠습니까?")
+    ) {
+      return;
+    }
     setStep("input");
+    setInput(EMPTY_INPUT);
     setAnalysis(null);
     setScenarioIndex(0);
     setBank(null);
@@ -177,6 +255,7 @@ export default function App() {
     setAssembly(null);
     setFinal(null);
     setError(null);
+    storage.remove(DRAFT_STORAGE);
   }
 
   return (
@@ -187,7 +266,7 @@ export default function App() {
           <div className="flex items-start justify-between gap-4">
             <div className="max-w-2xl">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blueprint-line">
-                전국연합학력평가형 · 경기도교육청 출제 지침 · 2단계 생성
+                과학 선다형 · 경기도교육청 문항 제작 지침 · 교사 검토형 4단계
               </p>
               <h1 className="serif mt-3 text-3xl font-bold leading-tight sm:text-[2.6rem]">
                 평가 요소를 먼저 정하고,
@@ -216,6 +295,7 @@ export default function App() {
                   <li key={s.id} className="flex flex-1 items-center gap-2 sm:gap-3">
                     <div className="flex items-center gap-2.5">
                       <span
+                        aria-current={state === "active" ? "step" : undefined}
                         className={[
                           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ring-1 transition",
                           state === "active"
@@ -281,6 +361,7 @@ export default function App() {
             key={analysis.assessmentElement}
             value={analysis}
             initialScenarioIndex={scenarioIndex}
+            requireSourcePlan={input.sourceMode === "reference"}
             busy={busy}
             onBack={() => setStep("input")}
             onConfirm={handleAnalysisConfirm}
@@ -293,6 +374,7 @@ export default function App() {
             bank={bank}
             format={input.options.format}
             bogiCount={input.options.bogiCount}
+            sourceMode={input.sourceMode}
             busy={busy}
             initialStimulus={stimulus}
             initialAssembly={assembly}
@@ -304,6 +386,7 @@ export default function App() {
 
         {step === "result" && analysis && scenario && stimulus && assembly && final && (
           <ItemResult
+            key={finalVersion}
             input={input}
             analysis={analysis}
             scenario={scenario}
@@ -322,8 +405,9 @@ export default function App() {
 
       <footer className="mx-auto max-w-5xl px-5 pb-10 text-center text-xs text-ink-soft sm:px-8">
         <p>
-          경기도교육청 『2024 평가문항 제작 방법』(전국연합학력평가 출제 지침) · 2022 개정
-          과학과 성취기준 473개 · BYOK Gemini · 데이터는 브라우저에만 저장됩니다.
+          경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 성취기준 473개 ·
+          입력 내용은 문항 생성을 위해 Google Gemini API로 전송되며, 작업 초안과 키는 이
+          브라우저에 저장됩니다.
         </p>
       </footer>
 
@@ -332,6 +416,7 @@ export default function App() {
         initialKey={apiKey}
         initialModel={model}
         onSave={saveKey}
+        onClear={clearKey}
         onClose={() => setKeyModalOpen(false)}
       />
     </div>

@@ -5,6 +5,7 @@ import type {
   ItemBank,
   ItemFormat,
   Proposition,
+  SourceMode,
   Stimulus,
 } from "../types";
 import { FORMAT_LABELS } from "../types";
@@ -23,6 +24,7 @@ interface Props {
   bank: ItemBank;
   format: ItemFormat;
   bogiCount: 3 | 4;
+  sourceMode: SourceMode;
   busy: boolean;
   /** 결과 화면에서 되돌아온 경우 이전 자료·조립을 복원 */
   initialStimulus?: Stimulus | null;
@@ -31,9 +33,6 @@ interface Props {
   onRegenerate: () => void;
   onConfirm: (stimulus: Stimulus, assembly: Assembly) => void;
 }
-
-const fieldClass =
-  "mt-1 w-full resize-y rounded-md border border-paper-line bg-paper/30 px-3 py-2 text-sm leading-relaxed text-ink focus:border-thread focus:bg-white focus:outline-none";
 
 function PropCard({
   p,
@@ -104,6 +103,7 @@ export default function BankSelect({
   bank,
   format,
   bogiCount,
+  sourceMode,
   busy,
   initialStimulus,
   initialAssembly,
@@ -111,8 +111,7 @@ export default function BankSelect({
   onRegenerate,
   onConfirm,
 }: Props) {
-  const [stimulus, setStimulus] = useState<Stimulus>(initialStimulus ?? bank.stimulus);
-  const [editing, setEditing] = useState(false);
+  const [stimulus] = useState<Stimulus>(initialStimulus ?? bank.stimulus);
   const [pickIds, setPickIds] = useState<string[]>(
     () => initialAssembly?.picks.map((p) => p.id) ?? [],
   );
@@ -163,7 +162,14 @@ export default function BankSelect({
   const trues = bank.propositions.filter((p) => p.isTrue);
   const falses = bank.propositions.filter((p) => !p.isTrue);
   const full = picks.length === maxPicks;
-  const ready = full && assembly.answerIndex >= 0 && !busy;
+  const blockingWarnings = assembly.warnings.filter(
+    (warning) =>
+      warning.includes("정답이 없습니다") ||
+      warning.includes("복수 정답 위험") ||
+      warning.includes("비표준 배열") ||
+      warning.includes("모든 〈보기〉가 참"),
+  );
+  const ready = full && assembly.answerIndex >= 0 && blockingWarnings.length === 0 && !busy;
   const d = assembly.difficulty;
   const orderLabel = format === "hapdab" ? "ㄱ, ㄴ, ㄷ" : "①~⑤";
 
@@ -195,82 +201,34 @@ export default function BankSelect({
           <h3 className="serif text-sm font-bold tracking-wide text-blueprint">
             자료 — 문제 장면 구현
           </h3>
-          <button
-            type="button"
-            onClick={() => setEditing((e) => !e)}
-            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-blueprint ring-1 ring-blueprint/30 hover:bg-blueprint/5"
-          >
-            {editing ? "미리보기" : "자료 수정"}
-          </button>
+          <span className="rounded-full bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink-soft ring-1 ring-paper-line">
+            명제 진위·정답과 함께 잠김
+          </span>
         </div>
-        {editing ? (
-          <div className="mt-3 space-y-3">
-            <label className="block text-xs font-semibold text-ink-soft">
-              간접 발문
-              <textarea
-                value={stimulus.indirectStem}
-                onChange={(e) => setStimulus((s) => ({ ...s, indirectStem: e.target.value }))}
-                rows={2}
-                className={fieldClass}
-              />
-            </label>
-            <label className="block text-xs font-semibold text-ink-soft">
-              자료 본문 (표는 | 구분 | 값 | 형식)
-              <textarea
-                value={stimulus.body}
-                onChange={(e) => setStimulus((s) => ({ ...s, body: e.target.value }))}
-                rows={8}
-                className={`${fieldClass} font-mono`}
-              />
-            </label>
-            <label className="block text-xs font-semibold text-ink-soft">
-              그림·그래프 제작 지시 (없으면 비움)
-              <textarea
-                value={stimulus.figureSpec}
-                onChange={(e) => setStimulus((s) => ({ ...s, figureSpec: e.target.value }))}
-                rows={2}
-                className={fieldClass}
-              />
-            </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block text-xs font-semibold text-ink-soft">
-                직접 발문 앞부분 ('설명으로'로 끝나게)
-                <input
-                  value={stimulus.stemPrefix}
-                  onChange={(e) => setStimulus((s) => ({ ...s, stemPrefix: e.target.value }))}
-                  className={fieldClass}
-                />
-              </label>
-              <label className="block text-xs font-semibold text-ink-soft">
-                단서 조항 (한 줄에 하나, "(단, …)"에 들어감)
-                <textarea
-                  value={stimulus.conditions.join("\n")}
-                  onChange={(e) =>
-                    setStimulus((s) => ({
-                      ...s,
-                      conditions: e.target.value.split("\n").map((c) => c.trim()).filter(Boolean),
-                    }))
-                  }
-                  rows={2}
-                  className={fieldClass}
-                />
-              </label>
-            </div>
+        <div className="mt-3 text-[15px] text-ink">
+          <p className="leading-relaxed">{stimulus.indirectStem}</p>
+          <div className="mt-2 rounded-lg border border-ink/20 bg-paper/30 p-3">
+            <StimulusBody text={stimulus.body} />
           </div>
-        ) : (
-          <div className="mt-3 text-[15px] text-ink">
-            <p className="leading-relaxed">{stimulus.indirectStem}</p>
-            <div className="mt-2 rounded-lg border border-ink/20 bg-paper/30 p-3">
-              <StimulusBody text={stimulus.body} />
-            </div>
-            {stimulus.figureSpec && (
-              <p className="mt-2 rounded-lg border border-dashed border-thread/50 bg-thread-soft/30 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-                <span className="font-semibold text-thread">그림·그래프 제작 지시</span>{" "}
-                {stimulus.figureSpec}
-              </p>
-            )}
-          </div>
-        )}
+          {stimulus.figureSpec && (
+            <p className="mt-2 rounded-lg border border-dashed border-thread/50 bg-thread-soft/30 px-3 py-2 text-xs leading-relaxed text-ink-soft">
+              <span className="font-semibold text-thread">그림·그래프 제작 지시</span>{" "}
+              {stimulus.figureSpec}
+            </p>
+          )}
+          <p className="mt-2 text-[11px] text-ink-soft">
+            {sourceMode === "synthetic"
+              ? "교육용 합성 자료"
+              : stimulus.sourceIds.length > 0
+                ? `사용 출처: ${stimulus.sourceIds.join(", ")}`
+                : "출처 연결 오류 — 풀을 다시 생성하세요"}
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
+            자료의 수치·단위·조건을 바꾸면 명제의 진위와 정답이 달라질 수 있습니다. 수정이
+            필요하면 입력 단계의 출처 데이터·출제 맥락을 고친 뒤 자료·명제 풀 전체를 다시
+            생성합니다.
+          </p>
+        </div>
       </section>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -417,7 +375,7 @@ export default function BankSelect({
 
           <section className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-paper-line">
             <div className="flex items-center justify-between">
-              <h3 className="serif text-sm font-bold text-blueprint">난이도 추천 (7등급)</h3>
+              <h3 className="serif text-sm font-bold text-blueprint">사전 인지 복잡도 (7등급)</h3>
               <span
                 className={`rounded-md px-2.5 py-1 text-sm font-bold ${TIER_CHIP[d.tier] ?? "bg-slate-300 text-ink"}`}
               >
@@ -427,7 +385,7 @@ export default function BankSelect({
             <p className="mt-1 text-[11px] leading-relaxed text-ink-soft">
               점수 {d.score.toFixed(2)} = 명제 수준 평균 {d.base.toFixed(2)} + 정답 구조{" "}
               {d.answerWeight.toFixed(2)} + 맥락 {d.contextWeight.toFixed(2)}. 권장치이며 최종
-              판단은 선생님의 몫입니다.
+              추정치입니다. 실제 문항 난도는 학생 응답 자료의 정답률·변별도로 판단합니다.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
               <label className="block font-semibold text-ink">
@@ -465,7 +423,11 @@ export default function BankSelect({
             disabled={!ready}
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {busy ? "문항 완성 중…" : "이 조합으로 문항 완성"}
+            {busy
+              ? "해설·사전 점검 생성 중…"
+              : blockingWarnings.length > 0
+                ? "차단 경고를 해결하세요"
+                : "이 조합으로 해설·사전 점검 생성"}
             {!busy && <span aria-hidden>→</span>}
           </button>
         </aside>
@@ -480,7 +442,11 @@ export default function BankSelect({
           ← 평가 요소·장면 수정
         </button>
         <button
-          onClick={onRegenerate}
+          onClick={() => {
+            if (window.confirm("현재 자료 수정과 명제 선택을 지우고 다시 생성하시겠습니까?")) {
+              onRegenerate();
+            }
+          }}
           disabled={busy}
           className="rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
         >

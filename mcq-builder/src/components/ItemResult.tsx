@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { FORMAT_LABELS } from "../types";
 import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
+import { formatSource } from "../lib/export";
 import { TIER_CHIP } from "../lib/markers";
 import StimulusBody from "./StimulusBody";
 
@@ -22,10 +23,17 @@ interface Props {
   busy: boolean;
   onRegenerate: () => void;
   onReselect: () => void;
-  onCopy: () => void;
-  onDownload: () => void;
+  onCopy: (mode: "student" | "teacher") => Promise<boolean>;
+  onDownload: (mode: "student" | "teacher") => void;
   onRestart: () => void;
 }
+
+const TEACHER_CHECKS = [
+  "자료와 출처 원문의 수치·단위·조건을 대조했습니다.",
+  "각 진술의 참·거짓과 정답이 하나뿐임을 직접 검산했습니다.",
+  "교육과정 및 실제 수업 범위 안의 내용임을 확인했습니다.",
+  "학생용 결과에 정답·해설·제작 지시가 포함되지 않음을 확인했습니다.",
+] as const;
 
 /** 부정 발문의 '않은'에 밑줄 (지침 p.10, p.31) */
 function StemText({ text }: { text: string }) {
@@ -54,11 +62,17 @@ export default function ItemResult({
   onDownload,
   onRestart,
 }: Props) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    onCopy();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+  const [copyStatus, setCopyStatus] = useState<"" | "학생용 복사됨" | "교사용 복사됨" | "복사 실패">("");
+  const [teacherChecks, setTeacherChecks] = useState([false, false, false, false]);
+  const usedSourceIds = new Set(stimulus.sourceIds);
+  const usedSources = input.sources.filter((source) => usedSourceIds.has(source.id));
+  const approved =
+    teacherChecks.every(Boolean) &&
+    (input.sourceMode === "synthetic" || usedSources.length > 0);
+  const handleCopy = async (mode: "student" | "teacher") => {
+    const success = await onCopy(mode);
+    setCopyStatus(success ? (mode === "student" ? "학생용 복사됨" : "교사용 복사됨") : "복사 실패");
+    setTimeout(() => setCopyStatus(""), 1600);
   };
 
   const answer = assembly.answerIndex >= 0 ? CIRCLED[assembly.answerIndex] : "-";
@@ -75,7 +89,7 @@ export default function ItemResult({
     ["평가 요소", final.info.assessmentElement],
     ["평가 목표", final.info.assessmentGoal],
     ["탐구 상황", final.info.inquiryContext],
-    ["난이도(7등급 추천)", tier],
+    ["사전 인지 복잡도(7등급)", tier],
     ["정답", answer],
     ["출제 의도·주안점", final.info.intent],
   ];
@@ -85,23 +99,44 @@ export default function ItemResult({
       {/* 액션 바 */}
       <div className="sticky top-2 z-10 mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-paper-line bg-paper/90 p-2 shadow-sm backdrop-blur">
         <button
-          onClick={handleCopy}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper"
+          onClick={() => handleCopy("student")}
+          disabled={!approved}
+          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {copied ? "복사됨 ✓" : "Markdown 복사"}
+          학생용 복사
         </button>
         <button
-          onClick={onDownload}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper"
+          onClick={() => handleCopy("teacher")}
+          disabled={!approved}
+          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:cursor-not-allowed disabled:opacity-40"
         >
-          .md 다운로드
+          교사용 복사
         </button>
+        <button
+          onClick={() => onDownload("student")}
+          disabled={!approved}
+          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
+        >
+          학생용 .md
+        </button>
+        <button
+          onClick={() => onDownload("teacher")}
+          disabled={!approved}
+          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
+        >
+          교사용 .md
+        </button>
+        {copyStatus && (
+          <span aria-live="polite" className="text-xs font-semibold text-ink-soft">
+            {copyStatus}
+          </span>
+        )}
         <button
           onClick={onRegenerate}
           disabled={busy}
           className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
         >
-          {busy ? "다시 생성 중…" : "윤문·해설 다시 생성"}
+          {busy ? "다시 생성 중…" : "해설·사전 점검 다시 생성"}
         </button>
         <button
           onClick={onReselect}
@@ -136,7 +171,7 @@ export default function ItemResult({
           <span
             className={`ml-auto rounded-md px-2 py-0.5 font-bold ${TIER_CHIP[tier] ?? "bg-slate-300 text-ink"}`}
           >
-            난이도 {tier}
+            인지 복잡도 {tier}
           </span>
         </div>
 
@@ -154,6 +189,13 @@ export default function ItemResult({
               {final.figureSpec}
             </p>
           )}
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
+            {input.sourceMode === "synthetic"
+              ? "자료: 교육용으로 재구성한 합성 자료"
+              : usedSources.length > 0
+                ? `자료 출처: ${usedSources.map((source) => formatSource(source)).join(" / ")} (출제 목적에 맞게 재구성)`
+                : "자료 출처: 교사 확인 필요"}
+          </p>
           <p className="mt-4">
             <StemText text={stem} />
           </p>
@@ -251,18 +293,75 @@ export default function ItemResult({
         </div>
         <p className="mt-2 text-xs leading-relaxed text-ink-soft">
           조립 근거: {assembly.uniform ? "선택지 항목 수 균일" : "선택지 항목 수 상이"} →
-          "{assembly.directStem}" / 난이도 점수 {assembly.difficulty.score.toFixed(2)} (명제 평균{" "}
+          "{assembly.directStem}" / 사전 인지 복잡도 점수 {assembly.difficulty.score.toFixed(2)} (명제 평균{" "}
           {assembly.difficulty.base.toFixed(2)} + 정답 구조 {assembly.difficulty.answerWeight.toFixed(2)} +
           맥락 {assembly.difficulty.contextWeight.toFixed(2)})
         </p>
       </section>
 
-      {/* 검토 체크리스트 */}
+      <section className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-paper-line">
+        <h2 className="serif text-lg font-bold text-blueprint">자료 출처·이용 기록</h2>
+        {input.sourceMode === "synthetic" ? (
+          <p className="mt-2 text-sm leading-relaxed text-ink">
+            교육용으로 재구성한 합성 자료이며 실제 연구 결과가 아닙니다.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-3">
+            {usedSources.length === 0 && (
+              <li className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                연결된 출처가 없습니다. 자료·명제 단계로 돌아가 출처 연결을 확인하세요.
+              </li>
+            )}
+            {usedSources.map((source) => (
+              <li key={source.id} className="rounded-lg bg-paper/40 px-3 py-2 text-sm text-ink">
+                <p className="font-semibold">{formatSource(source)}</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-soft">
+                  활용: {source.use} · 이용 조건: {source.rights || "교사 확인 필요"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* 교사 최종 확인 */}
+      <section className="mt-6 rounded-xl border border-blueprint/25 bg-blueprint/5 p-5">
+        <h2 className="serif text-lg font-bold text-blueprint">교사 최종 확인</h2>
+        <p className="mt-1 text-sm leading-relaxed text-ink-soft">
+          AI 사전 점검은 독립 검토가 아닙니다. 아래 항목을 직접 확인해야 학생용·교사용
+          결과를 내보낼 수 있습니다.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {TEACHER_CHECKS.map((label, index) => (
+            <li key={label}>
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg bg-white px-3 py-2 text-sm leading-relaxed text-ink ring-1 ring-paper-line">
+                <input
+                  type="checkbox"
+                  checked={teacherChecks[index]}
+                  onChange={(event) =>
+                    setTeacherChecks((checks) =>
+                      checks.map((value, i) => (i === index ? event.target.checked : value)),
+                    )
+                  }
+                  className="mt-0.5 h-4 w-4 accent-blueprint"
+                />
+                {label}
+              </label>
+            </li>
+          ))}
+        </ul>
+        <p aria-live="polite" className="mt-3 text-xs font-semibold text-blueprint">
+          {approved ? "교사 확인 완료 — 내보내기가 활성화되었습니다." : "교사 확인 전 — 내보내기가 잠겨 있습니다."}
+        </p>
+      </section>
+
+      {/* AI 사전 점검 */}
       <section className="mt-6">
-        <h2 className="serif text-lg font-bold text-blueprint">검토 체크리스트</h2>
+        <h2 className="serif text-lg font-bold text-blueprint">AI 사전 점검</h2>
         <p className="mt-0.5 text-sm text-ink-soft">
-          지침 Ⅱ장 4절의 검토 관점으로 모델이 자기 대조한 결과입니다. 통과하지 못한 항목
-          {failed.length > 0 ? ` ${failed.length}개` : "은 없습니다"}.
+          지침 Ⅱ장 4절의 관점으로 생성 모델이 자기 점검한 결과입니다. 독립 검토가 아니며,
+          이상 가능성을 찾는 보조 자료로만 사용합니다. 확인 필요 항목
+          {failed.length > 0 ? ` ${failed.length}개` : "은 발견되지 않았습니다"}.
         </p>
         <ul className="mt-3 space-y-2">
           {final.review.map((r, i) => (
@@ -278,7 +377,7 @@ export default function ItemResult({
                     : "bg-rose-100 text-rose-800 ring-rose-300",
                 ].join(" ")}
               >
-                {r.pass ? "통과" : "수정"}
+                {r.pass ? "이상 미발견" : "확인 필요"}
               </span>
               <span className="text-sm leading-relaxed text-ink">
                 {r.item}

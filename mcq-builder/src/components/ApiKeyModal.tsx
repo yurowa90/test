@@ -6,6 +6,7 @@ interface Props {
   initialKey: string;
   initialModel: string;
   onSave: (key: string, model: string) => void;
+  onClear: () => void;
   onClose: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function ApiKeyModal({
   initialKey,
   initialModel,
   onSave,
+  onClear,
   onClose,
 }: Props) {
   const [key, setKey] = useState(initialKey);
@@ -43,8 +45,9 @@ export default function ApiKeyModal({
           Gemini API 키
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-          키는 이 브라우저에만 저장되며(localStorage) 서버로 전송되지 않습니다.
-          호출은 브라우저에서 Google로 직접 전송됩니다.
+          키는 이 브라우저의 localStorage에 저장됩니다. 문항 생성 시 API 키와 입력
+          내용이 이 사이트의 별도 서버를 거치지 않고 Google Gemini API로 직접
+          전송됩니다. 공용 컴퓨터에서는 사용 후 키를 삭제하세요.
         </p>
 
         <label className="mt-5 block text-sm font-semibold text-ink">
@@ -88,6 +91,14 @@ export default function ApiKeyModal({
         </p>
 
         <div className="mt-6 flex justify-end gap-2">
+          {initialKey && (
+            <button
+              onClick={onClear}
+              className="mr-auto rounded-lg px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+            >
+              저장된 키 삭제
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-sm font-semibold text-ink-soft hover:bg-paper-line/50"

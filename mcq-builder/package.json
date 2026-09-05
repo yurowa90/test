@@ -1,12 +1,13 @@
 {
   "name": "mcq-item-builder",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test src/lib/assemble.test.ts"
   },
   "dependencies": {
     "react": "^19.1.0",

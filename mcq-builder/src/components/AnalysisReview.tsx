@@ -6,6 +6,7 @@ import { BEHAVIOR_CHIP } from "../lib/markers";
 interface Props {
   value: AnalysisResult;
   initialScenarioIndex?: number;
+  requireSourcePlan: boolean;
   busy: boolean;
   onBack: () => void;
   onConfirm: (edited: AnalysisResult, scenarioIndex: number) => void;
@@ -33,6 +34,7 @@ function AutoTextarea({
 export default function AnalysisReview({
   value,
   initialScenarioIndex = 0,
+  requireSourcePlan,
   busy,
   onBack,
   onConfirm,
@@ -61,7 +63,15 @@ export default function AnalysisReview({
     }));
 
   const chosen = draft.scenarios[scenarioIndex];
-  const canConfirm = !!chosen && draft.assessmentElement.trim() !== "" && !busy;
+  const canConfirm =
+    !!chosen &&
+    draft.contentElements.some((element) => element.trim() !== "") &&
+    draft.assessmentElement.trim() !== "" &&
+    draft.assessmentGoal.trim() !== "" &&
+    chosen.description.trim() !== "" &&
+    chosen.cues.length > 0 &&
+    (!requireSourcePlan || chosen.sourcePlan.trim() !== "") &&
+    !busy;
 
   return (
     <div className="rise-in mx-auto max-w-3xl">
@@ -218,6 +228,14 @@ export default function AnalysisReview({
                       })
                     }
                     rows={Math.max(2, s.cues.length)}
+                  />
+                  <p className="mt-1 text-[11px] font-semibold text-ink-soft">
+                    출처 자료 활용 계획
+                  </p>
+                  <AutoTextarea
+                    value={s.sourcePlan ?? ""}
+                    onChange={(v) => setScenario(i, { sourcePlan: v })}
+                    rows={2}
                   />
                 </div>
               </li>
