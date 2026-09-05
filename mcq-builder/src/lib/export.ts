@@ -7,8 +7,8 @@ import type {
   Stimulus,
   TeacherInput,
 } from "../types";
-import { FORMAT_LABELS } from "../types";
-import { CIRCLED, composeStem, pickLabel } from "./assemble";
+import { FORMAT_LABELS } from "../types.ts";
+import { CIRCLED, composeStem, pickLabel } from "./assemble.ts";
 
 function selectedSources(input: TeacherInput, stimulus: Stimulus): SourceReference[] {
   const ids = new Set(stimulus.sourceIds);
@@ -201,6 +201,10 @@ export function toTeacherMarkdown(
       L.push(`- ${formatSource(source)}`);
       L.push(`  - 활용: ${source.use}`);
       L.push(`  - 이용 조건: ${source.rights || "교사 확인 필요"}`);
+      L.push(`  - 원문 위치: ${source.originalLocation || source.locator}`);
+      L.push(`  - 연구 조건: ${source.studyConditions || "미기록"}`);
+      L.push(`  - 재구성 기록: ${source.transformations || "미기록"}`);
+      L.push(`  - 해석 한계: ${source.limitations || "미기록"}`);
     });
   }
   return L.join("\n");
@@ -223,7 +227,11 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 export function downloadMarkdown(filename: string, content: string): void {
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  downloadText(filename, content, "text/markdown;charset=utf-8");
+}
+
+export function downloadText(filename: string, content: string, type: string): void {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

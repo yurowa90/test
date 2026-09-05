@@ -22,122 +22,8 @@ import {
   buildFinalUser,
 } from "./prompts";
 
-export const DEFAULT_MODEL = "gemini-2.5-flash";
-
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
-
-/** 사용자에게 그대로 보여줄 한국어 오류 */
-export class GeminiError extends Error {}
-
-interface CallOptions {
-  apiKey: string;
-  model: string;
-  system: string;
-  user: string;
-  schema: unknown;
-  temperature?: number;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** JSON 강제 출력으로 Gemini를 호출하고 파싱된 객체를 반환. 429/503은 1회 재시도. */
-async function callGemini<T>({
-  apiKey,
-  model,
-  system,
-  user,
-  schema,
-  temperature = 0.7,
-}: CallOptions): Promise<T> {
-  const url = `${ENDPOINT}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const body = {
-    systemInstruction: { parts: [{ text: system }] },
-    contents: [{ role: "user", parts: [{ text: user }] }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
-      temperature,
-    },
-  };
-
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let res: Response;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 90_000);
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw new GeminiError("모델 응답 시간이 90초를 초과했습니다. 입력 범위를 줄여 다시 시도해 주세요.");
-      }
-      throw new GeminiError(
-        "네트워크 연결에 실패했습니다. 인터넷 상태를 확인한 뒤 다시 시도해 주세요.",
-      );
-    } finally {
-      window.clearTimeout(timeout);
-    }
-
-    if (res.ok) {
-      const data = await res.json();
-      const text: string | undefined =
-        data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!text) {
-        const blockReason = data?.promptFeedback?.blockReason;
-        if (blockReason) {
-          throw new GeminiError(
-            `모델이 응답을 생성하지 못했습니다(사유: ${blockReason}). 성취기준·맥락 문구를 다듬어 다시 시도해 주세요.`,
-          );
-        }
-        throw new GeminiError("모델이 빈 응답을 반환했습니다. 다시 시도해 주세요.");
-      }
-
-      try {
-        return JSON.parse(text) as T;
-      } catch {
-        throw new GeminiError(
-          "모델 응답을 해석하지 못했습니다(JSON 형식 오류). 다시 시도해 주세요.",
-        );
-      }
-    }
-
-    if ((res.status === 429 || res.status === 503) && attempt === 0) {
-      lastError = res.status;
-      await sleep(1500);
-      continue;
-    }
-
-    if (res.status === 400) {
-      throw new GeminiError(
-        "모델이 요청 형식 또는 입력 내용을 처리하지 못했습니다(400). 모델 설정과 입력 자료를 확인해 주세요.",
-      );
-    }
-    if (res.status === 403) {
-      throw new GeminiError("API 키가 유효하지 않거나 해당 모델 사용 권한이 없습니다.");
-    }
-    if (res.status === 404) {
-      throw new GeminiError("선택한 모델을 사용할 수 없습니다. API 키 설정에서 다른 모델을 고르세요.");
-    }
-    if (res.status === 429) {
-      throw new GeminiError("요청 한도를 초과했습니다(429). 잠시 후 다시 시도해 주세요.");
-    }
-    throw new GeminiError(
-      `모델 호출에 실패했습니다(HTTP ${res.status}). 잠시 후 다시 시도해 주세요.`,
-    );
-  }
-
-  throw new GeminiError(
-    `모델이 일시적으로 혼잡합니다(${lastError}). 잠시 후 다시 시도해 주세요.`,
-  );
-}
+import { callGemini, GeminiError } from "./gemini-client";
+export { DEFAULT_MODEL, GeminiError } from "./gemini-client";
 
 const asString = (v: unknown, fallback = ""): string =>
   typeof v === "string" ? v : fallback;
@@ -260,6 +146,7 @@ export async function generateBank(
     !stimulus.body ||
     !stimulus.indirectStem ||
     propositions.length < 10 ||
+    propositions.some(p => !p.explanation) ||
     !trueEnough ||
     !falseEnough ||
     sourceInvalid

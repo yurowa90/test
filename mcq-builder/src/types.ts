@@ -63,6 +63,11 @@ export interface SourceReference {
   /** 원문에서 교사가 확인해 옮긴 수치·표·그림 구조·핵심 설명 */
   dataExcerpt: string;
   verified: boolean;
+  originalLocation?: string;
+  studyConditions?: string;
+  transformations?: string;
+  limitations?: string;
+  inspected?: "bibliography" | "fulltext" | "figure";
 }
 
 export const STIMULUS_TYPES = ["그림", "그래프", "표", "실험", "제시문", "대화"] as const;
@@ -88,6 +93,7 @@ export interface TeacherInput {
   standard: string;
   /** 수업·출제 맥락 메모 (선택) */
   context: string;
+  picker?: { mode: "picker" | "direct"; level: string; subject: string; domain: string; code: string };
   standardCode?: string;
   domain?: string;
   achievementLevels?: AchievementLevels;
@@ -119,6 +125,7 @@ export interface AnalysisResult {
   assessmentGoal: string;
   behaviorDomain: BehaviorDomain;
   behaviorRationale: string;
+  evidenceGoal?: string;
   scenarios: Scenario[];
 }
 
@@ -152,6 +159,7 @@ export interface Proposition {
 }
 
 export interface ItemBank {
+  origin?: "ai" | "example";
   stimulus: Stimulus;
   propositions: Proposition[];
 }

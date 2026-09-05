@@ -8,18 +8,20 @@ export const storage = {
       return null;
     }
   },
-  set(key: string, value: string): void {
+  set(key: string, value: string): boolean {
     try {
       localStorage.setItem(KEY_PREFIX + key, value);
+      return true;
     } catch {
-      /* localStorage 사용 불가(사생활 보호 모드 등) — 조용히 무시 */
+      return false;
     }
   },
-  remove(key: string): void {
+  remove(key: string): boolean {
     try {
       localStorage.removeItem(KEY_PREFIX + key);
+      return true;
     } catch {
-      /* 무시 */
+      return false;
     }
   },
 };

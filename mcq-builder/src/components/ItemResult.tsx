@@ -21,6 +21,8 @@ interface Props {
   assembly: Assembly;
   final: FinalItem;
   busy: boolean;
+  teacherChecks: boolean[];
+  onChecksChange: (checks: boolean[]) => void;
   onRegenerate: () => void;
   onReselect: () => void;
   onCopy: (mode: "student" | "teacher") => Promise<boolean>;
@@ -56,6 +58,8 @@ export default function ItemResult({
   assembly,
   final,
   busy,
+  teacherChecks,
+  onChecksChange,
   onRegenerate,
   onReselect,
   onCopy,
@@ -63,11 +67,10 @@ export default function ItemResult({
   onRestart,
 }: Props) {
   const [copyStatus, setCopyStatus] = useState<"" | "학생용 복사됨" | "교사용 복사됨" | "복사 실패">("");
-  const [teacherChecks, setTeacherChecks] = useState([false, false, false, false]);
   const usedSourceIds = new Set(stimulus.sourceIds);
   const usedSources = input.sources.filter((source) => usedSourceIds.has(source.id));
   const approved =
-    teacherChecks.every(Boolean) &&
+    !busy && teacherChecks.length === 4 && teacherChecks.every(Boolean) &&
     (input.sourceMode === "synthetic" || usedSources.length > 0);
   const handleCopy = async (mode: "student" | "teacher") => {
     const success = await onCopy(mode);
@@ -339,9 +342,7 @@ export default function ItemResult({
                   type="checkbox"
                   checked={teacherChecks[index]}
                   onChange={(event) =>
-                    setTeacherChecks((checks) =>
-                      checks.map((value, i) => (i === index ? event.target.checked : value)),
-                    )
+                    onChecksChange(teacherChecks.map((value, i) => (i === index ? event.target.checked : value)))
                   }
                   className="mt-0.5 h-4 w-4 accent-blueprint"
                 />

@@ -313,6 +313,10 @@ function sourcesBlock(input: TeacherInput): string {
 위치 정보: ${promptData(source.locator)}
 활용 방식: ${source.use}
 이용 조건: ${promptData(source.rights || "교사 확인 필요")}
+원문 위치: ${promptData(source.originalLocation || source.locator)}
+연구 조건: ${promptData(source.studyConditions || "미기록 — 추정 금지")}
+교사 재구성 기록: ${promptData(source.transformations || "미기록 — 수치·축·단위 임의 변경 금지")}
+해석 한계: ${promptData(source.limitations || "미기록 — 과잉 일반화 금지")}
 교사가 원문과 대조한 데이터·구조:
 ${promptData(source.dataExcerpt)}
 </source>`,
@@ -384,6 +388,7 @@ function analysisBlock(analysis: AnalysisResult, scenario: Scenario): string {
 ${analysis.contentElements.map((e) => `  - ${e}`).join("\n")}
 평가 요소: ${analysis.assessmentElement}
 평가 목표: ${analysis.assessmentGoal}
+교사가 확인하려는 학생 응답 증거: ${analysis.evidenceGoal || "미기록"}
 행동 영역: ${analysis.behaviorDomain} (${analysis.behaviorRationale})
 
 === 교사가 확정한 문제 장면 ===

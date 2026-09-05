@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import ReferenceSearch from "./ReferenceSearch";
 import type {
   BehaviorDomain,
   ItemFormat,
@@ -21,6 +23,7 @@ import {
 
 interface Props {
   initial: TeacherInput;
+  onChange: Dispatch<SetStateAction<TeacherInput>>;
   hasApiKey: boolean;
   busy: boolean;
   onOpenKey: () => void;
@@ -94,13 +97,16 @@ function Seg<T extends string>({
 
 export default function InputForm({
   initial,
+  onChange: setForm,
   hasApiKey,
   busy,
   onOpenKey,
   onSubmit,
 }: Props) {
-  const [mode, setMode] = useState<Mode>("picker");
-  const [form, setForm] = useState<TeacherInput>(initial);
+  const form = initial;
+  const picker = form.picker ?? { mode: form.standard ? "direct" : "picker", level: "", subject: "", domain: "", code: "" };
+  const mode = picker.mode;
+  const setMode = (mode: Mode) => setForm(f => ({ ...f, picker: { ...picker, mode } }));
 
   const [all, setAll] = useState<ScienceStandard[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -115,10 +121,12 @@ export default function InputForm({
       );
   }, []);
 
-  const [level, setLevel] = useState("");
-  const [subject, setSubject] = useState("");
-  const [domain, setDomain] = useState("");
-  const [code, setCode] = useState("");
+  const { level, subject, domain, code } = picker;
+  const setPicker = (patch: Partial<typeof picker>) => setForm(f => ({ ...f, picker: { ...(f.picker ?? picker), ...patch } }));
+  const setLevel = (level: string) => setPicker({ level });
+  const setSubject = (subject: string) => setPicker({ subject });
+  const setDomain = (domain: string) => setPicker({ domain });
+  const setCode = (code: string) => setPicker({ code });
 
   const levels = useMemo(() => (all ? schoolLevels(all) : []), [all]);
   const subjects = useMemo(
@@ -533,13 +541,14 @@ export default function InputForm({
 
           {form.sourceMode === "reference" ? (
             <div className="mt-4 space-y-4">
+              <ReferenceSearch subject={form.subject} standard={form.standard} />
               {form.sources.map((source, index) => (
                 <article
                   key={source.id}
                   className="rounded-xl border border-paper-line bg-paper/30 p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-sm font-bold text-ink">출처 {index + 1}</h4>
+                    <h4 className="text-sm font-bold text-ink">출처 {index + 1} · {source.verified ? "교사 원문 대조 완료" : "원문 대조 전"}</h4>
                     {form.sources.length > 1 && (
                       <button
                         type="button"
@@ -647,11 +656,27 @@ export default function InputForm({
                     </label>
                   </div>
 
+                  <details className="growth-panel">
+                    <summary>원자료 → 출제 자료 변환 기록</summary>
+                    <p>수치가 같아도 축·단위·표본·조건을 바꾸면 해석이 달라질 수 있습니다.</p>
+                    <label>현재 확인 범위
+                      <select value={source.inspected ?? (source.verified ? "figure" : "bibliography")} onChange={e => updateSource(source.id, { inspected: e.target.value as SourceReference["inspected"] })}>
+                        <option value="bibliography">서지정보만 확인</option><option value="fulltext">원문 본문 확인</option><option value="figure">그림·표·설명까지 확인</option>
+                      </select>
+                    </label>
+                    {([
+                      ["originalLocation", "판본·쪽수·그림/표 번호", "예: 3판, p.125, Fig.4b 및 설명"],
+                      ["studyConditions", "대상·표본 수·측정 조건·단위", "원문에 없는 조건은 추정하지 마세요."],
+                      ["transformations", "재구성한 부분", "예: 소수 둘째 자리 반올림. 축·단위 유지. 변경 없음도 기록 가능"],
+                      ["limitations", "해석 한계", "예: 특정 실험 조건의 결과이며 다른 종으로 일반화하지 않음"],
+                    ] as const).map(([key, label, placeholder]) => <label key={key}>{label}<textarea rows={2} value={source[key] ?? ""} placeholder={placeholder} onChange={e => updateSource(source.id, { [key]: e.target.value })} /></label>)}
+                  </details>
                   <label className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-ink">
                     <input
                       type="checkbox"
                       checked={source.verified}
-                      onChange={(e) => updateSource(source.id, { verified: e.target.checked })}
+                      disabled={source.inspected === "bibliography"}
+                      onChange={(e) => updateSource(source.id, { verified: e.target.checked, inspected: source.inspected ?? "figure" })}
                       className="mt-0.5 h-4 w-4 accent-blueprint"
                     />
                     원문과 위의 수치·설명을 직접 대조했으며, 출제 목적의 재구성에 필요한

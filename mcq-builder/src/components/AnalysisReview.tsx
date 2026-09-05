@@ -1,10 +1,12 @@
-import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { AnalysisResult, BehaviorDomain, Scenario } from "../types";
 import { BEHAVIOR_DOMAINS } from "../types";
 import { BEHAVIOR_CHIP } from "../lib/markers";
 
 interface Props {
   value: AnalysisResult;
+  onChange: Dispatch<SetStateAction<AnalysisResult>>;
+  onScenarioChange: (index: number) => void;
   initialScenarioIndex?: number;
   requireSourcePlan: boolean;
   busy: boolean;
@@ -33,16 +35,16 @@ function AutoTextarea({
 
 export default function AnalysisReview({
   value,
+  onChange: setDraft,
+  onScenarioChange: setScenarioIndex,
   initialScenarioIndex = 0,
   requireSourcePlan,
   busy,
   onBack,
   onConfirm,
 }: Props) {
-  const [draft, setDraft] = useState<AnalysisResult>(value);
-  const [scenarioIndex, setScenarioIndex] = useState(
-    Math.min(initialScenarioIndex, Math.max(value.scenarios.length - 1, 0)),
-  );
+  const draft = value;
+  const scenarioIndex = Math.min(initialScenarioIndex, Math.max(value.scenarios.length - 1, 0));
 
   const setElement = (i: number, v: string) =>
     setDraft((d) => ({
@@ -69,7 +71,8 @@ export default function AnalysisReview({
     draft.assessmentElement.trim() !== "" &&
     draft.assessmentGoal.trim() !== "" &&
     chosen.description.trim() !== "" &&
-    chosen.cues.length > 0 &&
+    chosen.cues.some(cue => cue.trim() !== "") &&
+    draft.behaviorRationale.trim() !== "" &&
     (!requireSourcePlan || chosen.sourcePlan.trim() !== "") &&
     !busy;
 
@@ -152,7 +155,7 @@ export default function AnalysisReview({
             <select
               value={draft.behaviorDomain}
               onChange={(e) =>
-                setDraft((d) => ({ ...d, behaviorDomain: e.target.value as BehaviorDomain }))
+                setDraft((d) => ({ ...d, behaviorDomain: e.target.value as BehaviorDomain, behaviorRationale: "" }))
               }
               className="mt-1.5 block rounded-lg border border-paper-line bg-paper/50 px-3 py-2 text-sm text-ink focus:border-thread focus:bg-white focus:outline-none"
             >
@@ -163,12 +166,17 @@ export default function AnalysisReview({
               ))}
             </select>
           </label>
-          <p
+          <label
             className={`rounded-lg px-3 py-2 text-xs leading-relaxed ring-1 ${BEHAVIOR_CHIP[draft.behaviorDomain]}`}
           >
-            {draft.behaviorRationale || "행동 영역 선택 근거"}
-          </p>
+            행동 영역 선택 근거 (변경 시 다시 작성)
+            <AutoTextarea value={draft.behaviorRationale} onChange={v => setDraft(d => ({ ...d, behaviorRationale: v }))} />
+          </label>
         </div>
+        <label className="growth-panel">이해를 확인할 학생 응답 증거 (선택)
+          <AutoTextarea value={draft.evidenceGoal ?? ""} onChange={v => setDraft(d => ({ ...d, evidenceGoal: v }))} />
+          <p className="text-xs">예: 두 조건의 값을 비교하고, 그 차이를 근거로 관계를 설명한다. 단순 정답 선택과 사고 과정의 증거를 구분합니다.</p>
+        </label>
       </section>
 
       {/* 문제 장면 후보 */}
