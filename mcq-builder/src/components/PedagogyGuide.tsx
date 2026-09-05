@@ -1,4 +1,5 @@
-import type { WizardStep } from "../types";
+import type { TeacherInput, WizardStep } from "../types";
+import ReferenceCoach from "./ReferenceCoach";
 
 interface Guide {
   title: string;
@@ -54,10 +55,10 @@ const GUIDES: Record<WizardStep, Guide> = {
   },
 };
 
-export default function PedagogyGuide({ step }: { step: WizardStep }) {
+export default function PedagogyGuide({ step, input }: { step: WizardStep; input: TeacherInput }) {
   const guide = GUIDES[step];
   return (
-    <details className="pedagogy-guide" open>
+    <><details className="pedagogy-guide" open>
       <summary>
         <span>출제 원리</span>
         <strong>{guide.title}</strong>
@@ -72,6 +73,6 @@ export default function PedagogyGuide({ step }: { step: WizardStep }) {
         </ol>
         <p className="pedagogy-reference">근거: {guide.reference}</p>
       </div>
-    </details>
+    </details><ReferenceCoach input={input} step={step} /></>
   );
 }

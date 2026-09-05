@@ -169,7 +169,7 @@ export async function generateFinal(
   const raw = await callGemini<Partial<FinalItem>>({
     apiKey,
     model,
-    system: buildFinalSystem(),
+    system: buildFinalSystem(input),
     user: buildFinalUser(input, analysis, scenario, stimulus, assembly),
     schema: FINAL_SCHEMA,
     temperature: 0.4,

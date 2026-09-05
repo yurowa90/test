@@ -54,6 +54,18 @@ body { margin: 0; background: #d5dbe3; color: #152238; font-family: var(--font-s
 .pedagogy-guide-body h3 { margin-top: 10px; font-weight: 700; }
 .pedagogy-guide-body ol { list-style: decimal; padding-left: 20px; }
 .pedagogy-reference { margin-top: 10px; color: #526072; font-size: 11px; }
+.reference-coach { margin: -8px 0 22px; border: 1px solid #b6c0cd; padding: 12px; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.reference-coach summary { cursor: pointer; }
+.reference-coach > summary { font-weight: 700; }
+.reference-coach > summary span { display: inline-block; margin-left: 10px; color: #2859b6; font-size: 11px; }
+.reference-intro { margin: 12px 0; color: #526072; }
+.reference-lesson { border-top: 1px solid #b6c0cd; padding: 10px 0; }
+.reference-lesson summary span { display: block; font-size: 11px; color: #526072; }
+.reference-lesson dl > div { margin-top: 10px; }
+.reference-lesson dt { color: #2859b6; font-weight: 700; }
+.reference-question { margin-top: 12px; border-left: 3px solid #2859b6; padding: 8px; background: #f6f3eb; }
+.reference-library { border-top: 1px solid #b6c0cd; padding-top: 10px; margin-top: 8px; }
+.reference-library > p,.reference-library > ul > li { margin-top: 12px; }
 .preview-sheet { background: #f6f3eb; min-height: 680px; padding: clamp(22px,3vw,54px); }
 .preview-sheet-head { display: flex; justify-content: space-between; border-top: 3px solid; border-bottom: 1px solid; padding: 12px 0; }
 .preview-sheet-head strong { display: block; font-family: var(--font-serif); }

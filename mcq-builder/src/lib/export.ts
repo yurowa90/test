@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { FORMAT_LABELS } from "../types.ts";
 import { CIRCLED, composeStem, pickLabel } from "./assemble.ts";
+import { designReferenceMarkdown } from "./design-references.ts";
 
 function selectedSources(input: TeacherInput, stimulus: Stimulus): SourceReference[] {
   const ids = new Set(stimulus.sourceIds);
@@ -207,6 +208,7 @@ export function toTeacherMarkdown(
       L.push(`  - 해석 한계: ${source.limitations || "미기록"}`);
     });
   }
+  L.push("", designReferenceMarkdown(input));
   return L.join("\n");
 }
 

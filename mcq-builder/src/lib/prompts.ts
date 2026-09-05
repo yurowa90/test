@@ -8,6 +8,7 @@ import type {
 import { BEHAVIOR_DOMAINS, FORMAT_LABELS, LEVEL_LABELS, STIMULUS_TYPES } from "../types";
 import { CIRCLED, pickLabel } from "./assemble";
 import { renderItemText } from "./export";
+import { designReferencePrompt } from "./design-references";
 import principles from "../knowledge/item_principles.md?raw";
 import structure from "../knowledge/item_structure.md?raw";
 import procedure from "../knowledge/item_procedure.md?raw";
@@ -358,15 +359,17 @@ ${behaviorDomains}
 ${subjectKnowledge(input)}
 </knowledge>
 
+${designReferencePrompt(input, "analysis")}
+
 제약:
 - contentElements: 성취기준의 핵심 동사와 내용 요소를 분석해 **필수 학습 요소** 2~6개를 뽑습니다. 교과서에 있어도 교육과정 내용 요소와 무관한 것은 넣지 않습니다.
-- assessmentElement: **평가 요소는 정확히 하나**입니다(한 문항이 묻는 평가 요소는 하나, 발문 작성 원리 ⑤). 세목화한 요소 중 하위 요소를 포섭하는 상위 요소, 교육과정에서 중요하게 다뤄지는 요소를 고릅니다.
+- assessmentElement: 주 평가 요소 하나를 명시합니다. 보조 추론은 주 평가 요소에 연결하고, 서로 무관한 능력을 한 문항에 섞지 않습니다.
 - assessmentGoal: "~을/를 알고 ~을/를 파악(해석·추론·설계)할 수 있는지를 평가한다." 형식의 한 문장.
 - behaviorDomain: 옵션이 '자동'이면 성취기준의 수행 동사와 내용에 가장 맞는 행동 영역을 고르고, 지정되어 있으면 그 영역을 씁니다. behaviorRationale에 근거를 1~2문장으로.
 - scenarios: 서로 **자료 형태가 다른** 문제 장면 2~3개. 각 장면은 교육과정 범위 안의 자료, 학생이 학습한 장면에서 추론 가능한 자료여야 하며, description에는 '문제 상황 설정'과 '자료 제시 계획'을, cues에는 자료가 반드시 담아야 할 단서(기호 체계 포함: (가)(나), A·B·C, ㉠㉡, 조건 값)를 적습니다. 선호 자료 형태가 지정되어 있으면 첫 장면은 그 형태로.
 - sourcePlan: 입력된 출처의 어떤 수치·관계·표·그림 구조를 사용할지 source id와 함께 밝힙니다. 출처 기반 모드에서는 입력되지 않은 자료나 서지를 만들지 않습니다.
 - 탐구 상황 옵션(순수과학/실생활)을 장면에 반영합니다. 실생활이면 실제 맥락에서 개념을 쓰는 장면으로.
-- 공식 성취수준이 있으면 목표 난이도에 맞는 수준의 수행 동사·범위를 평가 목표에 반영합니다(상=A·B 수준, 중=B·C 수준, 하=C·D 수준).
+- 공식 성취수준의 수행 동사·범위를 참고하되 A~E를 상·중·하 난도에 기계적으로 대응시키지 않습니다. 목표 난도는 자료 친숙도·추론 단계·읽기 부담으로 설계하고 실제 정답률은 시행 전에는 알 수 없습니다.
 - 평가 요소가 '몸'이면 문제 장면은 '옷'입니다. 장면이 비합리적이면 평가 효과가 반감되므로, 평가 요소가 가장 잘 드러나는 장면을 제안합니다.`;
 }
 
@@ -422,6 +425,8 @@ ${behaviorDomains}
 ${subjectKnowledge(input)}
 </knowledge>
 
+${designReferencePrompt(input, "bank")}
+
 자료 제약:
 - indirectStem: 자료의 사전 정보를 주는 간접 발문. "그림은 ~를 나타낸 것이다." / "표는 ~을 나타낸 것이다." / "다음은 ~에 대한 실험이다." / "다음은 ~에 대한 학생 A~C의 대화이다." 형식. 그림·표·그래프를 '다음'으로 지칭하지 않습니다.
 - body: 자료 본문. 표는 Markdown 표(| 구분 | … |, 공통 단위는 열 제목에 괄호)로, 실험은 "[실험 과정]" 아래 (가)(나)(다) 문장과 "[실험 결과]" 표로, 제시문·대화는 문장으로, 그림·그래프는 "〈그림〉" 아래에 학생이 보게 될 내용을 문장으로 정확히 묘사합니다. 조건 나열은 불릿 ◦. 기호는 (가)(나) / A, B, C / ㉠㉡ / Ⅰ, Ⅱ 중 네 가지 유형을 넘지 않게. 정량 자료는 값이 서로 모순되지 않게 검산합니다.
@@ -461,7 +466,7 @@ ${optionsBlock(input)}
 
 /* ── Pass 2b: 잠근 문항의 해설·문항정보표·사전 점검 ───── */
 
-export function buildFinalSystem(): string {
+export function buildFinalSystem(input: TeacherInput): string {
   return `${SHARED_ROLE}
 
 당신의 임무는 교사가 확정한 문항 골격을 변경하지 않고 해설·문항정보표·AI 사전 점검 결과를 작성하는 것입니다. 문항 자료와 진술은 이미 교사가 확정했으므로 출력하지도, 윤문하지도 마십시오.
@@ -477,6 +482,8 @@ ${reviewChecklist}
 <knowledge name="style_rules">
 ${styleRules}
 </knowledge>
+
+${designReferencePrompt(input, "result")}
 
 절대 제약:
 - 앱이 확정한 자료, 조건, 진술, 발문, 선택지 배열, 정답 번호는 변경 금지입니다. 출력 JSON에 이 필드를 넣지 않습니다.
