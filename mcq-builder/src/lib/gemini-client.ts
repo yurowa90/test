@@ -32,6 +32,7 @@ interface Runtime {
 }
 interface CallOptions {
   apiKey: string; model: string; system: string; user: string; schema: unknown;
+  attachments?: { mimeType: string; data: string }[];
   temperature?: number; signal?: AbortSignal;
 }
 function httpError(status: number, data: unknown): GeminiError {
@@ -130,9 +131,10 @@ export function matchesSchema(value: unknown, schema: unknown): boolean {
 }
 export async function callGemini<T>(options: CallOptions, runtime: Runtime = {}): Promise<T> {
   const model = normalizeModel(options.model);
+  if ((options.attachments?.length ?? 0) > 3 || (options.attachments ?? []).some(a => !["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(a.mimeType) || !/^[A-Za-z0-9+/]+={0,2}$/.test(a.data)) || (options.attachments ?? []).reduce((n, a) => n + a.data.length, 0) > 12 * 1024 * 1024) throw new GeminiError("첨부 형식 또는 크기를 확인하세요. PDF·PNG·JPEG·WebP, 원본 합계 8MB 이내로 입력하세요.", "request");
   const data = await request(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, options.apiKey, {
     systemInstruction: { parts: [{ text: options.system }] },
-    contents: [{ role: "user", parts: [{ text: options.user }] }],
+    contents: [{ role: "user", parts: [{ text: options.user }, ...(options.attachments ?? []).map(a => ({ inlineData: { mimeType: a.mimeType, data: a.data } }))] }],
     generationConfig: { responseMimeType: "application/json", responseSchema: options.schema,
       maxOutputTokens: 32768, ...(options.temperature === undefined ? {} : { temperature: options.temperature }) },
   }, options.signal, runtime);

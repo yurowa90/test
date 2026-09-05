@@ -16,6 +16,7 @@ import WorkspacePreview from "./components/WorkspacePreview";
 import GrowthNotebook, { notebookMarkdown } from "./components/GrowthNotebook";
 import StructureGuide from "./components/StructureGuide";
 import { exampleWorkspace } from "./lib/example";
+import RevisionStudio from "./components/RevisionStudio";
 
 const EMPTY_INPUT: TeacherInput = {
   subject: "", grade: "", standard: "", context: "", sourceMode: "reference",
@@ -38,6 +39,7 @@ export default function App() {
   const [model, setModel] = useState(() => storage.get(MODEL_STORAGE) ?? DEFAULT_MODEL);
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [revisionOpen, setRevisionOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"settings" | "preview">("settings");
   const scenario = analysis?.scenarios[scenarioIndex] ?? null;
@@ -172,6 +174,9 @@ export default function App() {
   return <div className="editorial-shell"><div className="editorial-wrap">
     <header className="editorial-header"><div className="editorial-mast"><div><h1>학력평가형 문항 설계·성찰 도우미</h1><p>출제 원리를 이해하고, 근거를 대조하며, 고친 이유를 다음 문항에 연결합니다.</p></div><div className="editorial-stamp"><span>과학과</span><span>2022 개정</span><span>교사 성장</span></div></div></header>
     <section className="method-overview"><div className="method-overview-head"><div><span>설계 방식</span><h2>문항 구조를 보면서 단계적으로 설계합니다</h2><p>교육과정 분석 → 자료·명제 편집 → 근거 대조 → 교사 검토·성찰</p></div><button type="button" className="api-status" disabled={busy} onClick={() => setKeyModalOpen(true)}>{apiKey ? "API 설정 · 키 입력됨" : "API 키 설정"}</button></div><div className="method-cards"><article className="method-card"><strong>교사가 설계하고 판단합니다</strong><small>명제를 직접 작성·수정하고 자료와 대조해 진위를 확인합니다.</small></article><article className="method-card"><strong>수정 과정을 함께 남깁니다</strong><small>원본 비교·출처 변환 기록·성찰 노트가 하나의 작업에 쌓입니다.</small></article></div></section>
+    <nav className="growth-actions revision-mode" aria-label="작업 방식"><button type="button" disabled={busy} aria-pressed={!revisionOpen} onClick={() => setRevisionOpen(false)}>성취기준으로 문항 설계</button><button type="button" disabled={busy} aria-pressed={revisionOpen} onClick={() => setRevisionOpen(true)}>기존 문항·자료 개선</button></nav>
+    <div hidden={!revisionOpen}><RevisionStudio input={input} apiKey={apiKey} model={model} busy={busy} onBusy={setBusy} onOpenKey={() => setKeyModalOpen(true)} onApply={next => { checkpoint("기존 문항 개선안 가져오기 전"); update(() => next); setRevisionOpen(false); setError(null); }} /></div>
+    <div hidden={revisionOpen}>
     <div className="work-summary"><div className="work-summary-values"><b>{input.subject || "과목 미지정"}</b><span>{input.standardCode || "성취기준 미선택"}</span><span>{input.sourceMode === "reference" ? `교사 대조 출처 ${input.sources.filter(s => s.verified).length}개` : "합성 자료"}</span><span role="status">{saved ? "편집 내용 저장됨" : "저장 실패"}</span></div><nav className="step-nav" aria-label="문항 설계 단계">{STEPS.map((s,i) => <button key={s.id} type="button" disabled={busy || !available[s.id]} className={i === stepIndex ? "is-current" : ""} aria-current={i === stepIndex ? "step" : undefined} onClick={() => navigate(s.id)}>{i+1}. {s.label}</button>)}</nav></div>
     {!saved && <div className="editorial-alert" role="alert">브라우저 저장에 실패했습니다. 이 화면을 닫기 전에 성장 노트와 작업 백업을 내려받으세요.</div>}
     {error && <div className="editorial-alert" role="alert">{error}</div>}
@@ -189,6 +194,6 @@ export default function App() {
       {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} error={error} hasApiKey={!!apiKey} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} onGenerateFigure={runFigure} />}
       {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} onGenerateFigure={runFigure} /></>}
     </main>}
-    <footer className="editorial-footer"><p>참고 기준: 경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 교육과정</p><p>AI 사전 점검과 교사 원문 대조·최종 확인을 구분합니다.</p></footer>
+    </div><footer className="editorial-footer"><p>참고 기준: 경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 교육과정</p><p>AI 사전 점검과 교사 원문 대조·최종 확인을 구분합니다.</p></footer>
   </div>{keyModalOpen && <ApiKeyModal initialKey={apiKey} initialModel={model} onSave={saveKey} onClear={clearKey} onClose={() => setKeyModalOpen(false)} />}</div>;
 }

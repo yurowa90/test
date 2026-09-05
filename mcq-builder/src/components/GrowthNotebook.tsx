@@ -3,11 +3,13 @@ import type { Reflection, Revision, Workspace } from "../lib/workspace";
 import { revisionDifferences } from "../lib/workspace";
 import { downloadMarkdown, downloadText } from "../lib/export";
 
-export function notebookMarkdown(work: Workspace): string {
+function reflectionMarkdown(work: Workspace): string {
   return `\n\n## 교사의 출제 성찰\n\n- 발견한 문제: ${work.reflection.problem || "미기록"}\n- 바꾼 이유: ${work.reflection.reason || "미기록"}\n- 다음 문항에 적용할 원리: ${work.reflection.transfer || "미기록"}\n\n## 명제별 자료 연결·수정 이유\n\n${(work.bankDraft?.bank.propositions ?? []).map((p,i) => `- 명제 ${i+1}: ${p.text}\n  - 자료 연결: ${work.bankDraft?.notes[p.id]?.evidence || "미기록"}\n  - 수정 이유: ${work.bankDraft?.notes[p.id]?.revisionReason || "미기록"}`).join("\n")}`;
 }
 
-export default function GrowthNotebook({ work, revisions, onReflection, onCheckpoint, onRestore, busy, saved }: { work: Workspace; revisions: Revision[]; onReflection: (r: Reflection) => void; onCheckpoint: (label: string) => void; onRestore: (id: string) => void; busy: boolean; saved: boolean }) {
+export function notebookMarkdown(work: Workspace): string { return `${work.revisionRecord ? `\n\n${work.revisionRecord}` : ""}${reflectionMarkdown(work)}`; }
+
+export default function GrowthNotebook({ work, revisions, onReflection, onCheckpoint, onRestore, busy, saved }: { work: Workspace; revisions: Revision[]; onReflection: (r: Reflection) => void; onRestore: (id: string) => void; onCheckpoint: (label: string) => void; busy: boolean; saved: boolean }) {
   const [selected, setSelected] = useState("");
   const [label, setLabel] = useState("");
   const revision = revisions.find(r => r.id === selected) ?? revisions[0];

@@ -16,6 +16,7 @@ export interface BankDraft {
 export interface Reflection { problem: string; reason: string; transfer: string }
 export const EMPTY_REFLECTION: Reflection = { problem: "", reason: "", transfer: "" };
 export interface Workspace {
+  revisionRecord?: string;
   step: WizardStep;
   input: TeacherInput;
   analysis: AnalysisResult | null;
