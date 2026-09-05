@@ -1,4 +1,5 @@
 import type { AnalysisResult, Assembly, AssemblyContext, FinalItem, ItemBank, Proposition, Stimulus, TeacherInput, WizardStep } from "../types.ts";
+import { assemble } from "./assemble.ts";
 
 export interface Judgment { verdict: "" | "true" | "false" | "uncertain"; reason: string; revealed: boolean }
 export interface PropositionNote { evidence: string; revisionReason: string }
@@ -68,6 +69,25 @@ export function bankIssues(draft: BankDraft, input: TeacherInput): string[] {
   if (input.sourceMode === "reference" && (!st.sourceIds.length || st.sourceIds.some(id => !input.sources.some(s => s.id === id && s.verified && s.title.trim() && s.locator.trim() && s.dataExcerpt.trim())))) issues.push("교사가 원문을 확인한 출처를 자료에 연결하세요.");
   if (draft.practice) issues.push("판단 연습을 마친 뒤 편집 모드에서 조립하세요.");
   return issues;
+}
+
+/** One transition gate shared by the editor, step navigation and generation handler. */
+export function bankReadiness(draft: BankDraft, input: TeacherInput) {
+  const picks = draft.pickIds.map(id => draft.bank.propositions.find(p => p.id === id)).filter((p): p is Proposition => !!p);
+  const required = input.options.format === "hapdab" ? input.options.bogiCount : 5;
+  const assembly = assemble(input.options.format, picks, draft.context, draft.arrayIndex);
+  const issues = bankIssues(draft, input);
+  if (picks.length !== required) issues.unshift(`명제를 ${required}개 선택하세요. 현재 ${picks.length}개를 선택했습니다.`);
+  const blockers = assembly.warnings.filter(w => /정답이 없습니다|복수 정답 위험|비표준 배열|모든 〈보기〉가 참/.test(w));
+  if (picks.length === required) {
+    issues.push(...blockers);
+    if (assembly.answerIndex < 0 && !blockers.length) {
+      issues.push(input.options.format === "jeongdap" ? "정답형은 참 1개·거짓 4개로 선택하세요." : input.options.format === "bujeong" ? "부정형은 참 4개·거짓 1개로 선택하세요." : "정답을 만들 수 있는 명제 조합을 선택하세요.");
+    }
+  }
+  const pending = picks.filter(p => !draft.reviewedIds.includes(p.id));
+  return { assembly, required, picks, pending, issues: [...new Set(issues)], ready: issues.length === 0,
+    advisories: assembly.warnings.filter(w => !blockers.includes(w)) };
 }
 
 export function readSaved(raw: string | null, fallback: TeacherInput): SavedWorkspace {

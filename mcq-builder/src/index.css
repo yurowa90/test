@@ -102,6 +102,9 @@ body { margin: 0; background: #d5dbe3; color: #152238; font-family: var(--font-s
 .growth-notebook { background: #e9edf2; border-top-width: 1px; }
 .reflection-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
 .bank-layout { display: grid; grid-template-columns: minmax(0,2fr) minmax(320px,1fr); gap: 24px; }
+.bank-progress { border-left: 4px solid #2859b6; scroll-margin-top: 90px; }
+.bank-progress ul { list-style: disc; padding-left: 22px; margin: 10px 0; }
+.proposition-list > article { scroll-margin-top: 90px; }
 .proposition-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
 .bank-assembly { align-self: start; position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
 .bank-assembly ol > li { padding: 8px 0; border-bottom: 1px solid #b6c0cd; }

@@ -4,7 +4,7 @@ import type { AnalysisResult, Assembly, Stimulus, TeacherInput, WizardStep } fro
 import { DEFAULT_MODEL, GeminiError, generateAnalysis, generateBank, generateFinal } from "./lib/gemini";
 import { API_KEY_STORAGE, DRAFT_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
 import { copyToClipboard, downloadMarkdown, toStudentMarkdown, toTeacherMarkdown } from "./lib/export";
-import { createBankDraft, editAnalysis, editBank, editInput, readSaved, restoreRevision, startWorkspace } from "./lib/workspace";
+import { bankReadiness, createBankDraft, editAnalysis, editBank, editInput, readSaved, restoreRevision, startWorkspace } from "./lib/workspace";
 import type { BankDraft, Revision, SavedWorkspace, Workspace } from "./lib/workspace";
 import ApiKeyModal from "./components/ApiKeyModal";
 import InputForm from "./components/InputForm";
@@ -59,7 +59,14 @@ export default function App() {
     const revision = newRevision(work,label);
     setSavedWork(s => ({ ...s, revisions: [revision,...s.revisions] }));
   }
-  function navigate(next: WizardStep) { if (!busy) { update(w => ({ ...w, step: next })); setMobilePane("settings"); } }
+  function navigate(next: WizardStep) {
+    if (busy) return;
+    if (next === "result" && !final && bankDraft) {
+      void runFinal(bankDraft.bank.stimulus, bankReadiness(bankDraft,input).assembly);
+      return;
+    }
+    update(w => ({ ...w, step: next })); setMobilePane("settings");
+  }
   function inputChange(action: SetStateAction<TeacherInput>) {
     if (busy) return;
     if (analysis || bank || final) checkpoint("입력 수정 전");
@@ -76,6 +83,7 @@ export default function App() {
   }
   function bankChange(draft: BankDraft) {
     if (busy) return;
+    setError(null);
     if (final) checkpoint("완성 문항 수정 전");
     update(w => editBank(w,draft));
   }
@@ -105,6 +113,16 @@ export default function App() {
   }
   async function runFinal(st: Stimulus, asm: Assembly) {
     if (busy || !analysis || !scenario) return;
+    if (bankDraft) {
+      const gate = bankReadiness(bankDraft,input);
+      if (!gate.ready) {
+        update(w => ({ ...w, step: "bank" }));
+        setError("아직 진행 조건을 충족하지 않았습니다. 아래 ‘진행 전에 필요한 항목’을 확인하세요.");
+        requestAnimationFrame(() => { const panel = document.getElementById("bank-progress"); panel?.focus(); panel?.scrollIntoView({ block: "start" }); });
+        return;
+      }
+      st = bankDraft.bank.stimulus; asm = gate.assembly;
+    }
     if (!apiKey) { setKeyModalOpen(true); return; }
     checkpoint("해설·사전 점검 생성 전"); setBusy(true); setError(null);
     update(w => ({ ...w, final: null, teacherChecks: [false,false,false,false] }));
@@ -141,7 +159,7 @@ export default function App() {
     setError(removed ? null : "현재 창의 키는 지웠지만 브라우저 저장소 삭제에 실패했습니다. 브라우저 설정에서 이 사이트의 데이터를 삭제해 주세요.");
     setKeyModalOpen(false);
   }
-  const available = { input: true, analysis: !!analysis, bank: !!bankDraft, result: !!final };
+  const available = { input: true, analysis: !!analysis, bank: !!bankDraft, result: !!final || !!bankDraft };
   return <div className="editorial-shell"><div className="editorial-wrap">
     <header className="editorial-header"><div className="editorial-mast"><div><h1>학력평가형 문항 설계·성찰 도우미</h1><p>출제 원리를 이해하고, 근거를 대조하며, 고친 이유를 다음 문항에 연결합니다.</p></div><div className="editorial-stamp"><span>과학과</span><span>2022 개정</span><span>교사 성장</span></div></div></header>
     <section className="method-overview"><div className="method-overview-head"><div><span>설계 방식</span><h2>문항 구조를 보면서 단계적으로 설계합니다</h2><p>교육과정 분석 → 자료·명제 편집 → 근거 대조 → 교사 검토·성찰</p></div><button type="button" className="api-status" disabled={busy} onClick={() => setKeyModalOpen(true)}>{apiKey ? "API 설정 · 키 입력됨" : "API 키 설정"}</button></div><div className="method-cards"><article className="method-card"><strong>교사가 설계하고 판단합니다</strong><small>명제를 직접 작성·수정하고 자료와 대조해 진위를 확인합니다.</small></article><article className="method-card"><strong>수정 과정을 함께 남깁니다</strong><small>원본 비교·출처 변환 기록·성찰 노트가 하나의 작업에 쌓입니다.</small></article></div></section>
@@ -159,7 +177,7 @@ export default function App() {
         {step === "analysis" && analysis && <AnalysisReview value={analysis} onChange={analysisChange} initialScenarioIndex={scenarioIndex} onScenarioChange={scenarioChange} requireSourcePlan={input.sourceMode === "reference"} busy={busy} onBack={() => navigate("input")} onConfirm={runBank} />}
       </fieldset></aside>
     </div> : <main className="editorial-wide-stage"><PedagogyGuide step={step} />
-      {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} />}
+      {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} error={error} hasApiKey={!!apiKey} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} />}
       {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} /></>}
     </main>}
     <footer className="editorial-footer"><p>참고 기준: 경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 교육과정</p><p>AI 사전 점검과 교사 원문 대조·최종 확인을 구분합니다.</p></footer>

@@ -1,8 +1,8 @@
 import type { AnalysisResult, Assembly, ItemBank, Proposition, Stimulus, TeacherInput } from "../types";
 import { BEHAVIOR_DOMAINS, LEVEL_LABELS } from "../types";
 import type { BankDraft, Judgment } from "../lib/workspace";
-import { bankIssues, changeProposition, changeStimulus } from "../lib/workspace";
-import { assemble, CIRCLED, composeStem, pickLabel } from "../lib/assemble";
+import { bankReadiness, changeProposition, changeStimulus } from "../lib/workspace";
+import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
 import StimulusBody from "./StimulusBody";
 import StructureGuide from "./StructureGuide";
 
@@ -12,6 +12,8 @@ interface Props {
   input: TeacherInput;
   analysis: AnalysisResult | null;
   busy: boolean;
+  error: string | null;
+  hasApiKey: boolean;
   onChange: (draft: BankDraft) => void;
   onCheckpoint: (label: string) => void;
   onBack: () => void;
@@ -25,20 +27,15 @@ function neutralOrder(text: string): number {
   return n;
 }
 
-export default function BankSelect({ draft, original, input, analysis, busy, onChange, onCheckpoint, onBack, onRegenerate, onConfirm }: Props) {
+export default function BankSelect({ draft, original, input, analysis, busy, error, hasApiKey, onChange, onCheckpoint, onBack, onRegenerate, onConfirm }: Props) {
   const { bank, pickIds, practice } = draft;
   const { stimulus, propositions } = bank;
   const format = input.options.format;
-  const maxPicks = format === "hapdab" ? input.options.bogiCount : 5;
-  const picks = pickIds.map(id => propositions.find(p => p.id === id)).filter((p): p is Proposition => !!p);
-  const assembly = assemble(format, picks, draft.context, draft.arrayIndex);
-  const issues = bankIssues(draft, input);
-  const blocking = assembly.warnings.filter(w => /정답이 없습니다|복수 정답 위험|비표준 배열|모든 〈보기〉가 참/.test(w));
-  const ready = picks.length === maxPicks && assembly.answerIndex >= 0 && !issues.length && !blocking.length;
+  const { required: maxPicks, picks, assembly, issues, pending, ready, advisories } = bankReadiness(draft, input);
   const ordered = practice ? [...propositions].sort((a,b) => neutralOrder(a.text) - neutralOrder(b.text)) : propositions;
   const patch = (next: Partial<BankDraft>) => onChange({ ...draft, ...next });
   const judgment = (id: string, next: Partial<Judgment>) => patch({ judgments: { ...draft.judgments, [id]: { ...(draft.judgments[id] ?? EMPTY_JUDGMENT), ...next } } });
-  const note = (id: string, next: Partial<BankDraft["notes"][string]>) => patch({ notes: { ...draft.notes, [id]: { ...(draft.notes[id] ?? { evidence: "", revisionReason: "" }), ...next } }, reviewedIds: draft.reviewedIds.filter(x => x !== id) });
+  const note = (id: string, next: Partial<BankDraft["notes"][string]>) => patch({ notes: { ...draft.notes, [id]: { ...(draft.notes[id] ?? { evidence: "", revisionReason: "" }), ...next } } });
   function addProposition() {
     onCheckpoint("명제 직접 작성 전");
     const id = `T-${crypto.randomUUID()}`;
@@ -47,6 +44,18 @@ export default function BankSelect({ draft, original, input, analysis, busy, onC
   }
   return <fieldset disabled={busy} className="bank-editor">
     <legend className="sr-only">자료·명제 편집과 판단 연습</legend>
+    <section className="growth-panel bank-progress" id="bank-progress" tabIndex={-1} aria-labelledby="bank-progress-title">
+      <h2 id="bank-progress-title">4단계로 넘어가기</h2>
+      <p role="status">명제 선택 {picks.length}/{maxPicks}개 · 선택한 명제 확인 {picks.length - pending.length}/{picks.length}개</p>
+      <p className="growth-help">전체 후보를 모두 확인할 필요는 없습니다. 조립에 사용할 {maxPicks}개를 선택하고, 선택한 명제의 본문·근거 아래 ‘현재 자료로 진위와 근거를 다시 확인했습니다’를 체크하세요.</p>
+      {practice && <button type="button" onClick={() => patch({ practice: false })}>판단 연습을 마치고 편집·조립 모드로 전환</button>}
+      {issues.length > 0 && <div><h3>진행 전에 필요한 항목</h3><ul>{issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div>}
+      {!practice && pending.length > 0 && <div className="growth-actions">{pending.map(p => <a key={p.id} href={`#proposition-${p.id}`}>{pickLabel(format,pickIds.indexOf(p.id))} · 명제 {propositions.indexOf(p)+1} 확인하러 가기</a>)}</div>}
+      {!hasApiKey && <p className="growth-help">4단계 해설 생성에는 Gemini API 키가 필요합니다. 아래 버튼을 누르면 연결 설정을 엽니다.</p>}
+      {error && <p role="alert" className="editorial-alert">{error}</p>}
+      <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "해설 생성 중…" : ready ? "4단계로 — 해설·사전 점검 생성" : "진행 조건 확인"}</button>
+      <p className="growth-help">조건을 충족하면 해설을 생성한 후 4단계로 이동합니다. 실패한 경우 이곳에 오류가 표시되며 편집 내용은 유지됩니다.</p>
+    </section>
     <div className="growth-actions">
       <button type="button" aria-pressed={!practice} onClick={() => patch({ practice: false })}>편집·조립 모드</button>
       <button type="button" aria-pressed={practice} onClick={() => patch({ practice: true })}>내가 먼저 판단하기</button>
@@ -75,7 +84,7 @@ export default function BankSelect({ draft, original, input, analysis, busy, onC
           const baseline = original.propositions.find(x => x.id === p.id);
           const selected = pickIds.includes(p.id);
           const n = draft.notes[p.id];
-          return <article className="growth-panel" key={p.id}>
+          return <article className="growth-panel" id={`proposition-${p.id}`} key={p.id}>
             <h3>명제 {index + 1}{!practice && selected ? ` · ${pickLabel(format,pickIds.indexOf(p.id))}` : ""}</h3>
             {practice ? <>
               <p>{p.text || "본문이 없는 명제입니다. 편집 모드에서 작성하세요."}</p>
@@ -107,8 +116,10 @@ export default function BankSelect({ draft, original, input, analysis, busy, onC
           <p className="growth-help">사전 인지 복잡도 {assembly.difficulty.tier} · 경험적 난도나 학생의 성취수준 판정이 아닙니다.</p>
           <label>자료 복잡도<select value={draft.context.dataComplexity} onChange={e => patch({ context: { ...draft.context, dataComplexity: Number(e.target.value) as 0|1|2 } })}><option value={0}>단순</option><option value={1}>보통</option><option value={2}>복잡</option></select></label>
           <label className="growth-check"><input type="checkbox" checked={draft.context.fusion} onChange={e => patch({ context: { ...draft.context, fusion: e.target.checked } })} />교과 융합</label>
-          {[...issues,...assembly.warnings].length > 0 && <ul className="growth-feedback">{[...issues,...assembly.warnings].map(w => <li key={w}>{w}</li>)}</ul>}
-          <button type="button" className="growth-primary" disabled={!ready} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "생성 중…" : "확인한 조합으로 해설·사전 점검 생성"}</button>
+          {issues.length > 0 && <div><h3>진행 전에 필요한 항목</h3><ul className="growth-feedback">{issues.map(w => <li key={w}>{w}</li>)}</ul></div>}
+          {advisories.length > 0 && <details><summary>출제 개선 권고 (진행 가능)</summary><ul>{advisories.map(w => <li key={w}>{w}</li>)}</ul></details>}
+          {error && <p role="alert" className="editorial-alert">{error}</p>}
+          <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "생성 중…" : ready ? "4단계로 — 해설·사전 점검 생성" : "진행 조건 확인"}</button>
         </section>
         <StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={draft.notes} />
       </aside>}

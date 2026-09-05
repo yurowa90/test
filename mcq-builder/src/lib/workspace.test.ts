@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bankIssues, changeProposition, changeStimulus, editAnalysis, editBank, editInput, readSaved, restoreRevision, revisionDifferences } from "./workspace.ts";
+import { bankReadiness, bankIssues, changeProposition, changeStimulus, editAnalysis, editBank, editInput, readSaved, restoreRevision, revisionDifferences } from "./workspace.ts";
 import { exampleWorkspace } from "./example.ts";
 import { assemble } from "./assemble.ts";
 import { storage } from "./storage.ts";
@@ -42,6 +42,31 @@ test("확인되지 않은 명제와 유효하지 않은 출처 연결은 진행�
   assert.deepEqual(bankIssues(reviewed,w.input),[]);
   assert.ok(bankIssues(reviewed,{ ...w.input, sourceMode: "reference" }).some(x=>x.includes("출처")));
   assert.ok(bankIssues({ ...reviewed, practice: true },w.input).some(x=>x.includes("연습")));
+});
+test("단계 이동은 선택한 명제만 확인하면 허용하고 미선택 후보는 요구하지 않는다", () => {
+  const w = exampleWorkspace();
+  const draft = { ...w.bankDraft, practice: false, pickIds: ["demo-a","demo-b","demo-c"], reviewedIds: ["demo-a","demo-b","demo-c"] };
+  const gate = bankReadiness(draft,w.input);
+  assert.equal(gate.ready,true);
+  assert.deepEqual(gate.issues,[]);
+  assert.equal(gate.pending.length,0);
+  assert.equal(bankReadiness({ ...draft, pickIds: ["demo-a"] },w.input).ready,false);
+  const missing = bankReadiness({ ...draft, reviewedIds: ["demo-a"] },w.input);
+  assert.deepEqual(missing.pending.map(p=>p.id),["demo-b","demo-c"]);
+  assert.equal(missing.ready,false);
+  assert.equal(bankReadiness({ ...draft, practice: true },w.input).ready,false);
+});
+test("잘못된 정답형 조합과 자료 수정은 단계 이동을 차단하며 해결 조건을 안내한다", () => {
+  const w = exampleWorkspace();
+  const ids = w.bank.propositions.map(p=>p.id);
+  const draft = { ...w.bankDraft, practice: false, pickIds: ids, reviewedIds: ids };
+  const gate = bankReadiness(draft,{ ...w.input, options: { ...w.input.options, format: "jeongdap" } });
+  assert.equal(gate.ready,false);
+  assert.ok(gate.issues.some(x=>x.includes("참 1개·거짓 4개")));
+  const valid = { ...draft, pickIds: ids.slice(0,3) };
+  assert.equal(bankReadiness(valid,w.input).ready,true);
+  assert.equal(bankReadiness(changeStimulus(valid,{ body:"수정 자료" }),w.input).ready,false);
+  assert.equal(bankReadiness(valid,{ ...w.input, sourceMode:"reference" }).ready,false);
 });
 test("새로고침 데이터는 미확정 선택·성찰·연습 답안까지 유지한다", () => {
   const w = exampleWorkspace();
