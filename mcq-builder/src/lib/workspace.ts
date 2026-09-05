@@ -38,7 +38,9 @@ export function createBankDraft(bank: ItemBank, assembly?: Assembly | null): Ban
   return { bank, pickIds: assembly?.picks.map(p => p.id) ?? [], arrayIndex: assembly?.arrayIndex ?? 0, context: assembly?.context ?? { dataComplexity: bank.stimulus.complexity, fusion: false }, reviewedIds: [], practice: false, judgments: {}, notes: {} };
 }
 export function changeStimulus(draft: BankDraft, patch: Partial<Stimulus>): BankDraft {
-  return { ...draft, bank: { ...draft.bank, stimulus: { ...draft.bank.stimulus, ...patch } }, reviewedIds: [], judgments: {} };
+  // Any changed source text invalidates a previously drawn figure.
+  const redraw = !("figure" in patch) && ["body", "figureSpec", "conditions", "sourceIds", "indirectStem"].some(key => key in patch);
+  return { ...draft, bank: { ...draft.bank, stimulus: { ...draft.bank.stimulus, ...patch, ...(redraw ? { figure: undefined } : {}) } }, reviewedIds: [], judgments: {} };
 }
 export function changeProposition(draft: BankDraft, id: string, patch: Partial<Proposition>): BankDraft {
   const judgments = { ...draft.judgments };

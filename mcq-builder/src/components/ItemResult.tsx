@@ -9,9 +9,10 @@ import type {
 } from "../types";
 import { FORMAT_LABELS } from "../types";
 import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
-import { formatSource } from "../lib/export";
+import { downloadText, formatSource, sourceNote, toStudentHtml } from "../lib/export";
 import { TIER_CHIP } from "../lib/markers";
 import StimulusBody from "./StimulusBody";
+import ScientificFigure from "./ScientificFigure";
 
 interface Props {
   input: TeacherInput;
@@ -28,6 +29,7 @@ interface Props {
   onCopy: (mode: "student" | "teacher") => Promise<boolean>;
   onDownload: (mode: "student" | "teacher") => void;
   onRestart: () => void;
+  onGenerateFigure: () => void;
 }
 
 const TEACHER_CHECKS = [
@@ -65,6 +67,7 @@ export default function ItemResult({
   onCopy,
   onDownload,
   onRestart,
+  onGenerateFigure,
 }: Props) {
   const [copyStatus, setCopyStatus] = useState<"" | "학생용 복사됨" | "교사용 복사됨" | "복사 실패">("");
   const usedSourceIds = new Set(stimulus.sourceIds);
@@ -134,6 +137,7 @@ export default function ItemResult({
             {copyStatus}
           </span>
         )}
+        <button type="button" disabled={!approved} className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line disabled:opacity-40" onClick={() => downloadText("학생용_문항.html", toStudentHtml(input, stimulus, assembly, final), "text/html;charset=utf-8")}>학생용 HTML (그림 포함)</button>
         <button
           onClick={onRegenerate}
           disabled={busy}
@@ -185,13 +189,12 @@ export default function ItemResult({
           </p>
           <div className="mt-3 rounded-lg border border-ink/25 bg-paper/30 p-4">
             <StimulusBody text={final.body} />
+            <ScientificFigure figure={final.figure} source={sourceNote(input, stimulus)} controls />
           </div>
           {final.figureSpec && (
-            <p className="mt-2 rounded-lg border border-dashed border-thread/50 bg-thread-soft/30 px-3 py-2 text-xs leading-relaxed text-ink-soft">
-              <span className="font-semibold text-thread">그림·그래프 제작 지시(출제자용)</span>{" "}
-              {final.figureSpec}
-            </p>
+            <details className="mt-2 text-xs text-ink-soft"><summary>그림·그래프 제작 지시(출제자용)</summary><p>{final.figureSpec}</p></details>
           )}
+          <div className="figure-tools"><div className="growth-actions"><button type="button" disabled={busy} onClick={onGenerateFigure}>{final.figure ? "그림 다시 만들기" : "이 자료로 그림 만들기"}</button><button type="button" disabled={busy} onClick={onReselect}>3단계에서 그림 직접 작성·수정</button></div><p className="growth-help">그림 추가·수정 후 3단계에서 명제의 진위를 다시 확인합니다. HTML 파일은 브라우저에서 열어 인쇄하거나 PDF로 저장할 수 있습니다.</p></div>
           <p className="mt-2 text-[11px] leading-relaxed text-ink-soft">
             {input.sourceMode === "synthetic"
               ? "자료: 교육용으로 재구성한 합성 자료"

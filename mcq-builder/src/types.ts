@@ -132,6 +132,7 @@ export interface AnalysisResult {
 /* ── Pass 2a: 자료 + 참·거짓 명제 풀 ── */
 
 export interface Stimulus {
+  figure?: import("./lib/figure").ItemFigure;
   /** 간접 발문: "그림은 ~를 나타낸 것이다." */
   indirectStem: string;
   /** 자료 본문 (표는 Markdown 표, 실험은 (가)(나)(다) 과정, 그림·그래프는 묘사) */
@@ -230,6 +231,7 @@ export interface ReviewCheck {
 }
 
 export interface FinalItem {
+  figure?: import("./lib/figure").ItemFigure;
   indirectStem: string;
   body: string;
   figureSpec: string;

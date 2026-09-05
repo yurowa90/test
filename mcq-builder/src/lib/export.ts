@@ -10,6 +10,7 @@ import type {
 import { FORMAT_LABELS } from "../types.ts";
 import { CIRCLED, composeStem, pickLabel } from "./assemble.ts";
 import { designReferenceMarkdown } from "./design-references.ts";
+import { escapeXml, figureDataUrl, figureSvg, validFigure } from "./figure.ts";
 
 function selectedSources(input: TeacherInput, stimulus: Stimulus): SourceReference[] {
   const ids = new Set(stimulus.sourceIds);
@@ -23,7 +24,7 @@ export function formatSource(source: SourceReference): string {
   return [authorYear, source.title.trim(), source.locator.trim()].filter(Boolean).join(". ");
 }
 
-function sourceNote(input: TeacherInput, stimulus: Stimulus): string {
+export function sourceNote(input: TeacherInput, stimulus: Stimulus): string {
   if (input.sourceMode === "synthetic") return "자료: 교육용으로 재구성한 합성 자료";
   const sources = selectedSources(input, stimulus);
   return sources.length
@@ -42,6 +43,7 @@ export function renderItemText(
   lines.push(`1. ${content.indirectStem.trim()}`);
   lines.push("");
   lines.push(content.body.trim());
+  if (validFigure(stimulus.figure)) lines.push("", `[확정된 그림 데이터 — 본문·명제와 대조할 것] ${JSON.stringify(stimulus.figure)}`);
   if (content.figureSpec.trim()) {
     lines.push("");
     lines.push(`[그림·그래프 제작 지시] ${content.figureSpec.trim()}`);
@@ -76,7 +78,10 @@ export function toStudentMarkdown(
   L.push("");
   L.push(final.body.trim());
   L.push("");
-  if (final.figureSpec.trim()) {
+  if (validFigure(final.figure)) {
+    L.push(`![문항 그림](${figureDataUrl(final.figure, sourceNote(input, stimulus))})`);
+    L.push("");
+  } else if (final.figureSpec.trim()) {
     L.push("[그림·그래프 삽입 위치]");
     L.push("");
   }
@@ -125,6 +130,10 @@ export function toTeacherMarkdown(
   L.push("");
   L.push(final.body.trim());
   L.push("");
+  if (validFigure(final.figure)) {
+    L.push(`![문항 그림](${figureDataUrl(final.figure, sourceNote(input, stimulus))})`);
+    L.push(`> 그림 구성 근거(교사용): ${final.figure.evidence}`, "");
+  }
   if (final.figureSpec.trim()) {
     L.push(`> **그림·그래프 제작 지시(출제자용)**: ${final.figureSpec.trim()}`);
     L.push("");
@@ -214,6 +223,30 @@ export function toTeacherMarkdown(
 
 /** 기존 내부 호출과 외부 참조를 위한 호환 별칭 */
 export const toMarkdown = toTeacherMarkdown;
+
+function bodyHtml(body: string): string {
+  const result: string[] = [];
+  let rows: string[][] = [];
+  const flush = () => {
+    if (!rows.length) return;
+    result.push(`<table>${rows.map((row, i) => `<tr>${row.map(cell => `<${i === 0 ? "th" : "td"}>${escapeXml(cell)}</${i === 0 ? "th" : "td"}>`).join("")}</tr>`).join("")}</table>`);
+    rows = [];
+  };
+  for (const line of body.split(/\r?\n/)) {
+    if (line.trim().startsWith("|")) {
+      if (!/^\|(\s*:?-+:?\s*\|)+\s*$/.test(line.trim())) rows.push(line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim()));
+    } else { flush(); if (line.trim()) result.push(`<p>${escapeXml(line)}</p>`); }
+  }
+  flush(); return result.join("");
+}
+
+/** Standalone student document: safe text, embedded SVG, no answers or authoring notes. */
+export function toStudentHtml(input: TeacherInput, stimulus: Stimulus, assembly: Assembly, final: FinalItem): string {
+  const figure = validFigure(final.figure) ? figureSvg(final.figure, sourceNote(input, stimulus)) : final.figureSpec.trim() ? "<p>[그림 삽입 필요]</p>" : "";
+  const statements = final.statements.map((statement, i) => `<li>${escapeXml(pickLabel(assembly.format, i))}. ${escapeXml(statement)}</li>`).join("");
+  const choices = assembly.format === "hapdab" ? `<div class="choices">${assembly.choices.map((choice, i) => `<span>${CIRCLED[i]} ${escapeXml(choice)}</span>`).join("")}</div>` : "";
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>학생용 과학 문항</title><style>body{max-width:800px;margin:32px auto;padding:24px;color:#111;background:white;font:16px/1.7 sans-serif}table{border-collapse:collapse;width:100%;margin:16px 0}td,th{border:1px solid #888;padding:6px;text-align:center}svg{display:block;width:100%;height:auto;max-width:680px;margin:20px auto;break-inside:avoid}.bogi{border:1px solid #777;padding:16px;margin:16px 0}.bogi h2{text-align:center;font-size:16px}ul{list-style:none;padding:0}.choices{display:flex;flex-wrap:wrap;gap:24px}.source{font-size:12px}p{white-space:pre-wrap}@page{size:A4;margin:16mm}@media print{body{margin:0;padding:0;font-size:11pt}.bogi{break-inside:avoid}}</style></head><body><main><p>1. ${escapeXml(final.indirectStem)}</p>${bodyHtml(final.body)}${figure}<p class="source">${escapeXml(sourceNote(input, stimulus))}</p><p>${escapeXml(composeStem(stimulus.stemPrefix, assembly.directStem, final.conditions))}</p><section class="bogi">${assembly.format === "hapdab" ? "<h2>보 기</h2>" : ""}<ul>${statements}</ul></section>${choices}</main></body></html>`;
+}
 
 function escapeCell(text: string): string {
   return (text ?? "").replace(/\n+/g, " ").replace(/\|/g, "\\|").trim();

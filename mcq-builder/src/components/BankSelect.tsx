@@ -5,6 +5,9 @@ import { bankReadiness, changeProposition, changeStimulus } from "../lib/workspa
 import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
 import StimulusBody from "./StimulusBody";
 import StructureGuide from "./StructureGuide";
+import ScientificFigure from "./ScientificFigure";
+import FigureEditor from "./FigureEditor";
+import { sourceNote } from "../lib/export";
 
 interface Props {
   draft: BankDraft;
@@ -19,6 +22,7 @@ interface Props {
   onBack: () => void;
   onRegenerate: () => void;
   onConfirm: (stimulus: Stimulus, assembly: Assembly) => void;
+  onGenerateFigure: () => void;
 }
 const EMPTY_JUDGMENT: Judgment = { verdict: "", reason: "", revealed: false };
 function neutralOrder(text: string): number {
@@ -27,7 +31,7 @@ function neutralOrder(text: string): number {
   return n;
 }
 
-export default function BankSelect({ draft, original, input, analysis, busy, error, hasApiKey, onChange, onCheckpoint, onBack, onRegenerate, onConfirm }: Props) {
+export default function BankSelect({ draft, original, input, analysis, busy, error, hasApiKey, onChange, onCheckpoint, onBack, onRegenerate, onConfirm, onGenerateFigure }: Props) {
   const { bank, pickIds, practice } = draft;
   const { stimulus, propositions } = bank;
   const format = input.options.format;
@@ -66,8 +70,15 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
       <h2>자료 — 판단의 근거</h2>
       <p>{stimulus.indirectStem}</p>
       <StimulusBody text={stimulus.body} />
+      <ScientificFigure figure={stimulus.figure} source={sourceNote(input, stimulus)} controls={!practice} />
       {stimulus.conditions.filter(c => c.trim()).length > 0 && <p>조건: {stimulus.conditions.filter(c => c.trim()).join(" ")}</p>}
-      {stimulus.figureSpec && <p className="growth-help">그림 제작 대기: {stimulus.figureSpec}</p>}
+      {!practice && <>
+        {stimulus.figureSpec && <details><summary>그림 제작 지시 확인</summary><p>{stimulus.figureSpec}</p></details>}
+        {!stimulus.figure && stimulus.figureSpec && <p className="growth-help">아직 그림이 없습니다. 현재 자료로 만들거나 직접 작성하세요.</p>}
+        <div className="growth-actions"><button type="button" disabled={busy} onClick={onGenerateFigure}>{stimulus.figure ? "현재 자료로 그림 다시 만들기" : "이 자료로 그림 만들기"}</button>{stimulus.figure && <button type="button" onClick={() => { onCheckpoint("그림 제거 전"); onChange(changeStimulus(draft, { figure: undefined })); }}>그림 제거</button>}</div>
+        <p className="growth-help">막대·꺾은선·과정 모식도를 지원합니다. 그림 변경 후에는 선택한 명제를 다시 대조하세요. 본문·조건·출처를 수정하면 이전 그림이 해제됩니다.</p>
+        <FigureEditor key={JSON.stringify(stimulus.figure)} figure={stimulus.figure} onApply={figure => { onCheckpoint("그림 수정 전"); onChange(changeStimulus(draft, { figure })); }} />
+      </>}
       {!practice && <details>
         <summary>자료·발문 직접 수정</summary>
         {([ ["indirectStem", "간접 발문"], ["body", "자료 본문 (표는 Markdown 가능)"], ["stemPrefix", "직접 발문 앞부분"], ["figureSpec", "그림·그래프 제작 지시"] ] as const).map(([key,label]) => <label key={key}>{label}<textarea rows={key === "body" ? 6 : 2} value={stimulus[key]} onChange={e => onChange(changeStimulus(draft, { [key]: e.target.value }))} /></label>)}

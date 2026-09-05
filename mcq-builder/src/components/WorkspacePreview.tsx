@@ -9,6 +9,8 @@ import type {
 } from "../types";
 import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
 import StimulusBody from "./StimulusBody";
+import ScientificFigure from "./ScientificFigure";
+import { sourceNote } from "../lib/export";
 
 interface Props {
   step: WizardStep;
@@ -92,6 +94,7 @@ export default function WorkspacePreview({
           <p className="preview-indirect-stem">{final?.indirectStem || stimulus.indirectStem}</p>
           <div className="preview-stimulus">
             <StimulusBody text={final?.body || stimulus.body} />
+            <ScientificFigure figure={final?.figure ?? stimulus.figure} source={sourceNote(input, stimulus)} />
           </div>
           {assembly ? (
             <>

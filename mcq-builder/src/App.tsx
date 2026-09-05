@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import type { SetStateAction } from "react";
 import type { AnalysisResult, Assembly, Stimulus, TeacherInput, WizardStep } from "./types";
-import { DEFAULT_MODEL, GeminiError, generateAnalysis, generateBank, generateFinal } from "./lib/gemini";
+import { DEFAULT_MODEL, GeminiError, generateAnalysis, generateBank, generateFinal, generateFigure } from "./lib/gemini";
 import { API_KEY_STORAGE, DRAFT_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
 import { copyToClipboard, downloadMarkdown, toStudentMarkdown, toTeacherMarkdown } from "./lib/export";
-import { bankReadiness, createBankDraft, editAnalysis, editBank, editInput, readSaved, restoreRevision, startWorkspace } from "./lib/workspace";
+import { bankReadiness, changeStimulus, createBankDraft, editAnalysis, editBank, editInput, readSaved, restoreRevision, startWorkspace } from "./lib/workspace";
 import type { BankDraft, Revision, SavedWorkspace, Workspace } from "./lib/workspace";
 import ApiKeyModal from "./components/ApiKeyModal";
 import InputForm from "./components/InputForm";
@@ -111,6 +111,15 @@ export default function App() {
       setSavedWork(s => ({ ...s, current: generated, revisions: [baseline,...s.revisions] }));
     } catch (e) { report(e); } finally { setBusy(false); }
   }
+  async function runFigure() {
+    if (busy || !bankDraft) return;
+    if (!apiKey) { setKeyModalOpen(true); return; }
+    checkpoint("그림 생성 전"); setBusy(true); setError(null);
+    try {
+      const figure = await generateFigure(input, bankDraft.bank.stimulus, apiKey, model);
+      update(w => w.bankDraft ? { ...editBank(w, changeStimulus(w.bankDraft, { figure })), step: "bank" } : w);
+    } catch (e) { report(e); } finally { setBusy(false); }
+  }
   async function runFinal(st: Stimulus, asm: Assembly) {
     if (busy || !analysis || !scenario) return;
     if (bankDraft) {
@@ -177,8 +186,8 @@ export default function App() {
         {step === "analysis" && analysis && <AnalysisReview value={analysis} onChange={analysisChange} initialScenarioIndex={scenarioIndex} onScenarioChange={scenarioChange} requireSourcePlan={input.sourceMode === "reference"} busy={busy} onBack={() => navigate("input")} onConfirm={runBank} />}
       </fieldset></aside>
     </div> : <main className="editorial-wide-stage"><PedagogyGuide step={step} input={input} />
-      {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} error={error} hasApiKey={!!apiKey} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} />}
-      {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} /></>}
+      {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} error={error} hasApiKey={!!apiKey} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} onGenerateFigure={runFigure} />}
+      {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} onGenerateFigure={runFigure} /></>}
     </main>}
     <footer className="editorial-footer"><p>참고 기준: 경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 교육과정</p><p>AI 사전 점검과 교사 원문 대조·최종 확인을 구분합니다.</p></footer>
   </div>{keyModalOpen && <ApiKeyModal initialKey={apiKey} initialModel={model} onSave={saveKey} onClear={clearKey} onClose={() => setKeyModalOpen(false)} />}</div>;

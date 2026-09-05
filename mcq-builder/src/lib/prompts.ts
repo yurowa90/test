@@ -9,6 +9,7 @@ import { BEHAVIOR_DOMAINS, FORMAT_LABELS, LEVEL_LABELS, STIMULUS_TYPES } from ".
 import { CIRCLED, pickLabel } from "./assemble";
 import { renderItemText } from "./export";
 import { designReferencePrompt } from "./design-references";
+import { FIGURE_RULES, FIGURE_SCHEMA } from "./figure";
 import principles from "../knowledge/item_principles.md?raw";
 import structure from "../knowledge/item_structure.md?raw";
 import procedure from "../knowledge/item_procedure.md?raw";
@@ -104,6 +105,7 @@ export const BANK_SCHEMA = {
         indirectStem: { type: "string" },
         body: { type: "string" },
         figureSpec: { type: "string" },
+        figure: FIGURE_SCHEMA,
         conditions: stringArray(0, 4),
         stemPrefix: { type: "string" },
         complexity: { type: "integer" },
@@ -122,6 +124,7 @@ export const BANK_SCHEMA = {
         "indirectStem",
         "body",
         "figureSpec",
+        "figure",
         "conditions",
         "stemPrefix",
         "complexity",
@@ -431,6 +434,7 @@ ${designReferencePrompt(input, "bank")}
 - indirectStem: 자료의 사전 정보를 주는 간접 발문. "그림은 ~를 나타낸 것이다." / "표는 ~을 나타낸 것이다." / "다음은 ~에 대한 실험이다." / "다음은 ~에 대한 학생 A~C의 대화이다." 형식. 그림·표·그래프를 '다음'으로 지칭하지 않습니다.
 - body: 자료 본문. 표는 Markdown 표(| 구분 | … |, 공통 단위는 열 제목에 괄호)로, 실험은 "[실험 과정]" 아래 (가)(나)(다) 문장과 "[실험 결과]" 표로, 제시문·대화는 문장으로, 그림·그래프는 "〈그림〉" 아래에 학생이 보게 될 내용을 문장으로 정확히 묘사합니다. 조건 나열은 불릿 ◦. 기호는 (가)(나) / A, B, C / ㉠㉡ / Ⅰ, Ⅱ 중 네 가지 유형을 넘지 않게. 정량 자료는 값이 서로 모순되지 않게 검산합니다.
 - figureSpec: 그림·그래프가 있으면 제작 지시(축 제목·단위·틱·상댓값 표기·실선/점선·표시할 기호). 없으면 빈 문자열.
+- figure: 그림·그래프가 있으면 본문과 일치하는 실제 렌더링 데이터를 작성합니다. 그림이 필요 없거나 지원 유형으로 표현할 수 없는 경우 이 필드를 생략합니다. ${FIGURE_RULES}
 - conditions: "(단, …)"에 들어갈 단서 조항. 정답 확정에 필요한 것만, 각 항목은 "~한다." 문장. 정답을 찾는 데 이용될 단서는 금지.
 - stemPrefix: 직접 발문의 앞부분. "이에 대한 설명으로", "물체의 운동에 대한 설명으로", "이 자료에 대한 설명으로"처럼 **'설명으로'로 끝나야** 합니다(뒤에 "옳은 것만을 …"이 이어짐). '위 자료'는 쓰지 않습니다.
 - complexity: 0(자료 1개, 정성), 1(표·그래프 1개 또는 간단한 정량), 2(자료 2개 이상 또는 복합 정량 해석).
