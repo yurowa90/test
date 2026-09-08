@@ -15,16 +15,19 @@ interface Props {
 }
 
 function AutoTextarea({
+  label,
   value,
   onChange,
   rows = 2,
 }: {
+  label: string;
   value: string;
   onChange: (v: string) => void;
   rows?: number;
 }) {
   return (
     <textarea
+      aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       rows={rows}
@@ -102,7 +105,7 @@ export default function AnalysisReview({
               <span className="mt-2 select-none text-thread" aria-hidden>
                 ◦
               </span>
-              <AutoTextarea value={e} onChange={(v) => setElement(i, v)} rows={1} />
+              <AutoTextarea label={`필수 학습 요소 ${i + 1}`} value={e} onChange={(v) => setElement(i, v)} rows={1} />
               <button
                 type="button"
                 onClick={() => removeElement(i)}
@@ -130,7 +133,7 @@ export default function AnalysisReview({
         </h3>
         <div className="mt-2 rounded-lg border-l-4 border-thread bg-thread-soft/30 p-2">
           <AutoTextarea
-            value={draft.assessmentElement}
+            label="주 평가 요소" value={draft.assessmentElement}
             onChange={(v) => setDraft((d) => ({ ...d, assessmentElement: v }))}
             rows={2}
           />
@@ -143,7 +146,7 @@ export default function AnalysisReview({
         </p>
         <div className="mt-1">
           <AutoTextarea
-            value={draft.assessmentGoal}
+            label="평가 목표" value={draft.assessmentGoal}
             onChange={(v) => setDraft((d) => ({ ...d, assessmentGoal: v }))}
             rows={2}
           />
@@ -170,11 +173,11 @@ export default function AnalysisReview({
             className={`rounded-lg px-3 py-2 text-xs leading-relaxed ring-1 ${BEHAVIOR_CHIP[draft.behaviorDomain]}`}
           >
             행동 영역 선택 근거 (변경 시 다시 작성)
-            <AutoTextarea value={draft.behaviorRationale} onChange={v => setDraft(d => ({ ...d, behaviorRationale: v }))} />
+            <AutoTextarea label="행동 영역 선택 근거" value={draft.behaviorRationale} onChange={v => setDraft(d => ({ ...d, behaviorRationale: v }))} />
           </label>
         </div>
         <label className="growth-panel">이해를 확인할 학생 응답 증거 (선택)
-          <AutoTextarea value={draft.evidenceGoal ?? ""} onChange={v => setDraft(d => ({ ...d, evidenceGoal: v }))} />
+          <AutoTextarea label="학생 응답 증거" value={draft.evidenceGoal ?? ""} onChange={v => setDraft(d => ({ ...d, evidenceGoal: v }))} />
           <p className="text-xs">예: 두 조건의 값을 비교하고, 그 차이를 근거로 관계를 설명한다. 단순 정답 선택과 사고 과정의 증거를 구분합니다.</p>
         </label>
       </section>
@@ -221,7 +224,7 @@ export default function AnalysisReview({
                 </label>
                 <div className="mt-2 pl-7">
                   <AutoTextarea
-                    value={s.description}
+                    label={`장면 ${i + 1} 설명`} value={s.description}
                     onChange={(v) => setScenario(i, { description: v })}
                     rows={3}
                   />
@@ -229,7 +232,7 @@ export default function AnalysisReview({
                     자료에 반드시 담을 단서 (한 줄에 하나)
                   </p>
                   <AutoTextarea
-                    value={s.cues.join("\n")}
+                    label={`장면 ${i + 1} 필수 단서`} value={s.cues.join("\n")}
                     onChange={(v) =>
                       setScenario(i, {
                         cues: v.split("\n").map((c) => c.trim()).filter(Boolean),
@@ -241,7 +244,7 @@ export default function AnalysisReview({
                     출처 자료 활용 계획
                   </p>
                   <AutoTextarea
-                    value={s.sourcePlan ?? ""}
+                    label={`장면 ${i + 1} 출처 활용 계획`} value={s.sourcePlan ?? ""}
                     onChange={(v) => setScenario(i, { sourcePlan: v })}
                     rows={2}
                   />

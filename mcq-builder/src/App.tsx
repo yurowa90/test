@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { AnalysisResult, Assembly, Stimulus, TeacherInput, WizardStep } from "./types";
 import { DEFAULT_MODEL, GeminiError, generateAnalysis, generateBank, generateFinal, generateFigure } from "./lib/gemini";
@@ -15,7 +15,9 @@ import PedagogyGuide from "./components/PedagogyGuide";
 import WorkspacePreview from "./components/WorkspacePreview";
 import GrowthNotebook, { notebookMarkdown } from "./components/GrowthNotebook";
 import StructureGuide from "./components/StructureGuide";
-import { exampleWorkspace } from "./lib/example";
+import { finalFigureIssue, unresolvedReviews } from "./lib/integrity";
+import { readBackup } from "./lib/backup";
+import { exampleFinal, exampleWorkspace } from "./lib/example";
 import RevisionStudio from "./components/RevisionStudio";
 
 const EMPTY_INPUT: TeacherInput = {
@@ -39,7 +41,9 @@ export default function App() {
   const [model, setModel] = useState(() => storage.get(MODEL_STORAGE) ?? DEFAULT_MODEL);
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionOpen, setRevisionOpen] = useState(() => storage.get("revision-open") === "true");
+  useEffect(() => { storage.set("revision-open", String(revisionOpen)); }, [revisionOpen]);
+  const controller = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<"settings" | "preview">("settings");
   const scenario = analysis?.scenarios[scenarioIndex] ?? null;
@@ -93,9 +97,9 @@ export default function App() {
   async function handleInputSubmit(next: TeacherInput) {
     if (busy) return;
     if (!apiKey) { setKeyModalOpen(true); return; }
-    checkpoint("평가 요소 분석 전"); setBusy(true); setError(null);
+    checkpoint("평가 요소 분석 전"); setBusy(true); setError(null); controller.current = new AbortController();
     try {
-      const result = await generateAnalysis(next,apiKey,model);
+      const result = await generateAnalysis(next,apiKey,model,controller.current?.signal);
       const generated: Workspace = { ...editInput(work,next), analysis: result, step: "analysis" };
       const baseline = newRevision(generated,"AI 평가 요소 최초 초안");
       setSavedWork(s => ({ ...s, current: generated, revisions: [baseline,...s.revisions] }));
@@ -105,9 +109,9 @@ export default function App() {
   async function runBank(confirmed: AnalysisResult, index: number) {
     if (busy || !confirmed.scenarios[index]) return;
     if (!apiKey) { setKeyModalOpen(true); return; }
-    checkpoint("자료·명제 생성 전"); setBusy(true); setError(null);
+    checkpoint("자료·명제 생성 전"); setBusy(true); setError(null); controller.current = new AbortController();
     try {
-      const result = await generateBank(input,confirmed,confirmed.scenarios[index],apiKey,model);
+      const result = await generateBank(input,confirmed,confirmed.scenarios[index],apiKey,model,controller.current?.signal);
       const generated: Workspace = { ...editAnalysis(work,confirmed,index), bank: result, bankDraft: createBankDraft(result), step: "bank" };
       const baseline = newRevision(generated,"AI 자료·명제 최초 초안");
       setSavedWork(s => ({ ...s, current: generated, revisions: [baseline,...s.revisions] }));
@@ -116,9 +120,9 @@ export default function App() {
   async function runFigure() {
     if (busy || !bankDraft) return;
     if (!apiKey) { setKeyModalOpen(true); return; }
-    checkpoint("그림 생성 전"); setBusy(true); setError(null);
+    checkpoint("그림 생성 전"); setBusy(true); setError(null); controller.current = new AbortController();
     try {
-      const figure = await generateFigure(input, bankDraft.bank.stimulus, apiKey, model);
+      const figure = await generateFigure(input, bankDraft.bank.stimulus, apiKey, model,controller.current?.signal);
       update(w => w.bankDraft ? { ...editBank(w, changeStimulus(w.bankDraft, { figure })), step: "bank" } : w);
     } catch (e) { report(e); } finally { setBusy(false); }
   }
@@ -134,18 +138,25 @@ export default function App() {
       }
       st = bankDraft.bank.stimulus; asm = gate.assembly;
     }
+    if (bankDraft?.bank.origin === "example" && input.sourceMode === "synthetic") {
+      checkpoint("예시 해설로 이동 전");
+      const result = exampleFinal(input, analysis, st, asm);
+      update(w => ({ ...w, stimulus: st, assembly: asm, final: result, step: "result", reviewReasons: {}, teacherChecks: [false,false,false,false] }));
+      return;
+    }
     if (!apiKey) { setKeyModalOpen(true); return; }
-    checkpoint("해설·사전 점검 생성 전"); setBusy(true); setError(null);
+    checkpoint("해설·사전 점검 생성 전"); setBusy(true); setError(null); controller.current = new AbortController();
     update(w => ({ ...w, final: null, teacherChecks: [false,false,false,false] }));
     try {
-      const result = await generateFinal(input,analysis,scenario,st,asm,apiKey,model);
-      update(w => ({ ...w, stimulus: st, assembly: asm, final: result, step: "result", teacherChecks: [false,false,false,false] }));
+      const result = await generateFinal(input,analysis,scenario,st,asm,apiKey,model,controller.current?.signal);
+      update(w => ({ ...w, stimulus: st, assembly: asm, final: result, step: "result", reviewReasons: {}, teacherChecks: [false,false,false,false] }));
     } catch (e) { update(w => ({ ...w, step: "bank" })); report(e); } finally { setBusy(false); }
   }
   function markdown(mode: "student" | "teacher") {
     if (!analysis || !scenario || !stimulus || !assembly || !final || work.teacherChecks.length !== 4 || !work.teacherChecks.every(Boolean)) return null;
+    if (finalFigureIssue(final) || unresolvedReviews(final, work.reviewReasons).length) return null;
     const args = [input,analysis,scenario,stimulus,assembly,final] as const;
-    return mode === "student" ? toStudentMarkdown(...args) : toTeacherMarkdown(...args) + notebookMarkdown(work);
+    return mode === "student" ? toStudentMarkdown(...args) : toTeacherMarkdown(...args) + notebookMarkdown(work) + "\n\n## AI 점검에 대한 교사 판단\n" + final.review.filter(r => !r.pass).map(r => `- ${r.item}: ${work.reviewReasons?.[final.review.indexOf(r)] || "미기록"}`).join("\n");
   }
   async function handleCopy(mode: "student" | "teacher") { const md = markdown(mode); return md ? copyToClipboard(md) : false; }
   function handleDownload(mode: "student" | "teacher") { const md = markdown(mode); if (md) downloadMarkdown(`${mode === "student" ? "학생용" : "교사용"}_문항.md`,md); }
@@ -180,7 +191,17 @@ export default function App() {
     <div className="work-summary"><div className="work-summary-values"><b>{input.subject || "과목 미지정"}</b><span>{input.standardCode || "성취기준 미선택"}</span><span>{input.sourceMode === "reference" ? `교사 대조 출처 ${input.sources.filter(s => s.verified).length}개` : "합성 자료"}</span><span role="status">{saved ? "편집 내용 저장됨" : "저장 실패"}</span></div><nav className="step-nav" aria-label="문항 설계 단계">{STEPS.map((s,i) => <button key={s.id} type="button" disabled={busy || !available[s.id]} className={i === stepIndex ? "is-current" : ""} aria-current={i === stepIndex ? "step" : undefined} onClick={() => navigate(s.id)}>{i+1}. {s.label}</button>)}</nav></div>
     {!saved && <div className="editorial-alert" role="alert">브라우저 저장에 실패했습니다. 이 화면을 닫기 전에 성장 노트와 작업 백업을 내려받으세요.</div>}
     {error && <div className="editorial-alert" role="alert">{error}</div>}
-    {busy && <p className="growth-feedback" role="status">AI 응답을 기다리고 있습니다. 이전 버전과 편집 내용은 보존됩니다.</p>}
+    {busy && <p className="growth-feedback" role="status">AI 응답을 기다리고 있습니다. 이전 버전과 편집 내용은 보존됩니다. <button type="button" onClick={() => controller.current?.abort()}>생성 취소</button></p>}
+    <details className="growth-panel"><summary>작업 백업 복원</summary><p>현재 작업을 보관한 뒤 복원합니다. 복원본의 명제·출처·최종 승인은 다시 확인합니다.</p>
+      <label>JSON 백업 파일 (20MB 이내)<input type="file" accept=".json,application/json" disabled={busy} onChange={async e => {
+        const file = e.target.files?.[0]; e.target.value = ""; if (!file) return;
+        setBusy(true); setError(null);
+        try {
+          if (file.size > 20 * 1024 * 1024) throw new Error("백업은 20MB 이내로 선택하세요.");
+          const restored = readBackup(await file.text());
+          setSavedWork(s => ({ ...restored, revisions: [newRevision(s.current, "백업 복원 전"), ...restored.revisions, ...s.revisions] }));
+        } catch (e) { setError(e instanceof Error ? e.message : "백업 복원 실패"); } finally { setBusy(false); }
+      }} /></label></details>
     <GrowthNotebook work={work} revisions={revisions} onReflection={reflection => update(w => ({ ...w, reflection }))} onCheckpoint={checkpoint} onRestore={restore} busy={busy} saved={saved} />
     <div className="growth-actions"><button type="button" disabled={busy} onClick={() => { checkpoint("예시 체험 전"); update(() => exampleWorkspace()); setError(null); }}>API 키 없이 합성 자료로 출제 연습</button><button type="button" disabled={busy} onClick={restart}>현재 버전 보관 후 새 문항</button></div>
     {workbenchStep && <div className="mobile-tabs" aria-label="설정과 미리보기 전환"><button type="button" aria-pressed={mobilePane === "settings"} aria-selected={mobilePane === "settings"} onClick={() => setMobilePane("settings")}>설정</button><button type="button" aria-pressed={mobilePane === "preview"} aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>결과 미리보기</button></div>}
@@ -192,7 +213,7 @@ export default function App() {
       </fieldset></aside>
     </div> : <main className="editorial-wide-stage"><PedagogyGuide step={step} input={input} />
       {step === "bank" && bankDraft && bank && <BankSelect draft={bankDraft} original={bank} input={input} analysis={analysis} busy={busy} error={error} hasApiKey={!!apiKey} onChange={bankChange} onCheckpoint={checkpoint} onBack={() => navigate("analysis")} onRegenerate={() => analysis && runBank(analysis,scenarioIndex)} onConfirm={runFinal} onGenerateFigure={runFigure} />}
-      {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} onGenerateFigure={runFigure} /></>}
+      {step === "result" && analysis && scenario && stimulus && assembly && final && <><StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={bankDraft?.notes} /><ItemResult input={input} analysis={analysis} scenario={scenario} stimulus={stimulus} assembly={assembly} final={final} reviewReasons={work.reviewReasons ?? {}} onReviewReasons={reviewReasons => update(w => ({ ...w, reviewReasons, teacherChecks: [false,false,false,false] }))} teacherChecks={work.teacherChecks} onChecksChange={teacherChecks => update(w => ({ ...w, teacherChecks }))} busy={busy} onRegenerate={() => runFinal(stimulus,assembly)} onReselect={() => navigate("bank")} onCopy={handleCopy} onDownload={handleDownload} onRestart={restart} onGenerateFigure={runFigure} /></>}
     </main>}
     </div><footer className="editorial-footer"><p>참고 기준: 경기도교육청 『2024 평가문항 제작 방법』 · 2022 개정 과학과 교육과정</p><p>AI 사전 점검과 교사 원문 대조·최종 확인을 구분합니다.</p></footer>
   </div>{keyModalOpen && <ApiKeyModal initialKey={apiKey} initialModel={model} onSave={saveKey} onClear={clearKey} onClose={() => setKeyModalOpen(false)} />}</div>;

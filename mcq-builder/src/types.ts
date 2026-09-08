@@ -150,6 +150,8 @@ export interface Stimulus {
 }
 
 export interface Proposition {
+  levelConfirmed?: boolean;
+  behaviorConfirmed?: boolean;
   id: string;
   text: string;
   isTrue: boolean;
@@ -231,6 +233,7 @@ export interface ReviewCheck {
 }
 
 export interface FinalItem {
+  reviewOrigin?: "example";
   figure?: import("./lib/figure").ItemFigure;
   indirectStem: string;
   body: string;

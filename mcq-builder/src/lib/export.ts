@@ -187,7 +187,7 @@ export function toTeacherMarkdown(
   rows.forEach(([k, v]) => L.push(`| ${k} | ${escapeCell(v)} |`));
   L.push("");
 
-  L.push("## AI 사전 점검");
+  L.push(final.reviewOrigin === "example" ? "## 예시 문항 교사 점검 · AI 미실행" : "## AI 사전 점검");
   L.push("");
   final.review.forEach((r) =>
     L.push(`- [${r.pass ? "x" : " "}] ${r.item}${r.note ? ` — ${r.note}` : ""}`),

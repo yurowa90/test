@@ -16,8 +16,8 @@ export default function StructureGuide({ input, analysis, assembly, stimulus, no
       <summary>{pickLabel(assembly.format,i)}. {p.text}</summary>
       <p>자료 연결: {notes[p.id]?.evidence || "아직 기록하지 않았습니다. 판단에 필요한 자료값·조건을 지정해 보세요."}</p>
       <p>현재 판단 근거: {p.explanation}</p>
-      <p>구조 점검: 이 명제는 ‘{p.behavior}’로 분류되어 있습니다. 자료를 가려도 풀리는지, 이 행동을 실제로 요구하는지 확인하세요.</p>
-      {analysis && p.behavior !== analysis.behaviorDomain && <p className="growth-feedback">목표 행동 영역 ‘{analysis.behaviorDomain}’과 명제 분류가 다릅니다. 보조 역할인지, 목표에 맞게 수정할 대상인지 판단하세요.</p>}
+      <p>구조 점검: 이 명제는 ‘{p.behaviorConfirmed === false ? "분류 미확정" : p.behavior}’로 분류되어 있습니다. 자료를 가려도 풀리는지, 이 행동을 실제로 요구하는지 확인하세요.</p>
+      {analysis && p.behaviorConfirmed !== false && p.behavior !== analysis.behaviorDomain && <p className="growth-feedback">목표 행동 영역 ‘{analysis.behaviorDomain}’과 명제 분류가 다릅니다. 보조 역할인지, 목표에 맞게 수정할 대상인지 판단하세요.</p>}
       <p>수정 대안: 판단에 필요한 비교 대상·단위·조건을 명시하고, 다른 명제의 진위에 기대지 않도록 문장을 독립시켜 보세요.</p>
       {notes[p.id]?.revisionReason && <p>교사의 수정 이유: {notes[p.id].revisionReason}</p>}
     </details>)}

@@ -1,8 +1,9 @@
 import type { AnalysisResult, Assembly, ItemBank, Proposition, Stimulus, TeacherInput } from "../types";
 import { BEHAVIOR_DOMAINS, LEVEL_LABELS } from "../types";
 import type { BankDraft, Judgment } from "../lib/workspace";
-import { bankReadiness, changeProposition, changeStimulus } from "../lib/workspace";
+import { bankEvidence, bankSourceSignature, bankReadiness, changeProposition, changeStimulus } from "../lib/workspace";
 import { CIRCLED, composeStem, pickLabel } from "../lib/assemble";
+import { checkFigureSource } from "../lib/integrity";
 import StimulusBody from "./StimulusBody";
 import StructureGuide from "./StructureGuide";
 import ScientificFigure from "./ScientificFigure";
@@ -34,6 +35,12 @@ function neutralOrder(text: string): number {
 export default function BankSelect({ draft, original, input, analysis, busy, error, hasApiKey, onChange, onCheckpoint, onBack, onRegenerate, onConfirm, onGenerateFigure }: Props) {
   const { bank, pickIds, practice } = draft;
   const { stimulus, propositions } = bank;
+  const evidence = bankEvidence(draft, input);
+  const signature = bankSourceSignature(draft, input);
+  const sourceReason = draft.sourceReview?.reason ?? "";
+  const sourceChecked = draft.sourceReview?.signature === signature;
+  const figureMatch = stimulus.figure ? checkFigureSource(stimulus.figure, evidence) : null;
+  const nextLabel = bank.origin === "example" && input.sourceMode === "synthetic" ? "예시 해설로 4단계 체험" : "4단계로 — 해설·사전 점검 생성";
   const format = input.options.format;
   const { required: maxPicks, picks, assembly, issues, pending, ready, advisories } = bankReadiness(draft, input);
   const ordered = practice ? [...propositions].sort((a,b) => neutralOrder(a.text) - neutralOrder(b.text)) : propositions;
@@ -48,6 +55,12 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
   }
   return <fieldset disabled={busy} className="bank-editor">
     <legend className="sr-only">자료·명제 편집과 판단 연습</legend>
+    {input.sourceMode === "reference" && <details className="growth-panel" open>
+      <summary>원자료 대조</summary><pre className="source-evidence">{evidence || "연결된 원자료가 없습니다."}</pre>
+      <p className="growth-help">{figureMatch?.matched ? "인식한 표의 항목·수치가 그래프와 일치합니다. 단위와 조건은 직접 대조하세요." : "자동 대조 범위 밖의 설명·단위·조건은 원문과 직접 확인해야 합니다."}</p>
+      <label>원자료 대조 근거<textarea value={sourceReason} onChange={e => patch({ sourceReview: { signature: "", reason: e.target.value }, reviewedIds: [] })} /></label>
+      <label className="growth-check"><input type="checkbox" checked={sourceChecked} disabled={!sourceReason.trim() || !!figureMatch?.issues.length} onChange={e => patch({ sourceReview: { signature: e.target.checked ? signature : "", reason: sourceReason }, reviewedIds: [] })} />현재 자료의 항목·수치·단위·조건을 원문과 대조했습니다.</label>
+    </details>}
     <section className="growth-panel bank-progress" id="bank-progress" tabIndex={-1} aria-labelledby="bank-progress-title">
       <h2 id="bank-progress-title">4단계로 넘어가기</h2>
       <p role="status">명제 선택 {picks.length}/{maxPicks}개 · 선택한 명제 확인 {picks.length - pending.length}/{picks.length}개</p>
@@ -55,9 +68,9 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
       {practice && <button type="button" onClick={() => patch({ practice: false })}>판단 연습을 마치고 편집·조립 모드로 전환</button>}
       {issues.length > 0 && <div><h3>진행 전에 필요한 항목</h3><ul>{issues.map(issue => <li key={issue}>{issue}</li>)}</ul></div>}
       {!practice && pending.length > 0 && <div className="growth-actions">{pending.map(p => <a key={p.id} href={`#proposition-${p.id}`}>{pickLabel(format,pickIds.indexOf(p.id))} · 명제 {propositions.indexOf(p)+1} 확인하러 가기</a>)}</div>}
-      {!hasApiKey && <p className="growth-help">4단계 해설 생성에는 Gemini API 키가 필요합니다. 아래 버튼을 누르면 연결 설정을 엽니다.</p>}
+      {!hasApiKey && bank.origin !== "example" && <p className="growth-help">4단계 해설 생성에는 Gemini API 키가 필요합니다. 아래 버튼을 누르면 연결 설정을 엽니다.</p>}
       {error && <p role="alert" className="editorial-alert">{error}</p>}
-      <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "해설 생성 중…" : ready ? "4단계로 — 해설·사전 점검 생성" : "진행 조건 확인"}</button>
+      <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "해설 생성 중…" : ready ? nextLabel : "진행 조건 확인"}</button>
       <p className="growth-help">조건을 충족하면 해설을 생성한 후 4단계로 이동합니다. 실패한 경우 이곳에 오류가 표시되며 편집 내용은 유지됩니다.</p>
     </section>
     <div className="growth-actions">
@@ -107,8 +120,8 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
               <label className="growth-check"><input type="checkbox" checked={selected} disabled={!selected && picks.length >= maxPicks} onChange={() => patch({ pickIds: selected ? pickIds.filter(id => id !== p.id) : [...pickIds,p.id], arrayIndex: 0 })} />조립에 사용</label>
               <label>명제 본문<textarea value={p.text} onChange={e => onChange(changeProposition(draft,p.id,{ text: e.target.value }))} /></label>
               <div className="growth-row"><label>현재 진위<select value={String(p.isTrue)} onChange={e => onChange(changeProposition(draft,p.id,{ isTrue: e.target.value === "true" }))}><option value="true">참</option><option value="false">거짓</option></select></label>
-              <label>예상 수행 수준<select value={p.level} onChange={e => onChange(changeProposition(draft,p.id,{ level: e.target.value as Proposition["level"] }))}>{LEVEL_LABELS.map(l => <option key={l}>{l}</option>)}</select></label></div>
-              <label>행동 영역<select value={p.behavior} onChange={e => onChange(changeProposition(draft,p.id,{ behavior: e.target.value as Proposition["behavior"] }))}>{BEHAVIOR_DOMAINS.map(b => <option key={b}>{b}</option>)}</select></label>
+              <label>예상 수행 수준<select value={p.levelConfirmed === false ? "" : p.level} onChange={e => onChange(changeProposition(draft,p.id,{ level: e.target.value as Proposition["level"], levelConfirmed: true }))}><option value="" disabled>미분류 — 직접 선택</option>{LEVEL_LABELS.map(l => <option key={l}>{l}</option>)}</select></label></div>
+              <label>행동 영역<select value={p.behaviorConfirmed === false ? "" : p.behavior} onChange={e => onChange(changeProposition(draft,p.id,{ behavior: e.target.value as Proposition["behavior"], behaviorConfirmed: true }))}><option value="" disabled>미분류 — 직접 선택</option>{BEHAVIOR_DOMAINS.map(b => <option key={b}>{b}</option>)}</select></label>
               <label>진위 판단 근거·오개념 설명<textarea value={p.explanation} onChange={e => onChange(changeProposition(draft,p.id,{ explanation: e.target.value }))} /></label>
               <label>이 명제가 사용하는 자료의 값·조건 (선택)<textarea value={n?.evidence ?? ""} onChange={e => note(p.id, { evidence: e.target.value })} placeholder="예: 표 2의 A와 B, 같은 온도 조건에서의 측정값" /></label>
               <details><summary>원문 비교·수정 이유</summary><p>{baseline?.text || "교사가 새로 작성한 명제"}</p><label>수정 이유 (핵심 수정만 기록)<textarea value={n?.revisionReason ?? ""} onChange={e => note(p.id, { revisionReason: e.target.value })} /></label></details>
@@ -124,17 +137,18 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
           <p>{composeStem(stimulus.stemPrefix,assembly.directStem,stimulus.conditions)}</p>
           {picks.length === maxPicks && <><p>{assembly.choices.map((c,i) => `${CIRCLED[i]} ${c}`).join(" / ")}</p><p>확인 중인 정답: {assembly.answerIndex >= 0 ? CIRCLED[assembly.answerIndex] : "없음"}</p></>}
           {assembly.arrayOptions.length > 1 && <label>선택지 배열<select value={assembly.arrayIndex} onChange={e => patch({ arrayIndex: Number(e.target.value) })}>{assembly.arrayOptions.map((_,i) => <option key={i} value={i}>배열 {i+1}</option>)}</select></label>}
-          <p className="growth-help">사전 인지 복잡도 {assembly.difficulty.tier} · 경험적 난도나 학생의 성취수준 판정이 아닙니다.</p>
-          <label>자료 복잡도<select value={draft.context.dataComplexity} onChange={e => patch({ context: { ...draft.context, dataComplexity: Number(e.target.value) as 0|1|2 } })}><option value={0}>단순</option><option value={1}>보통</option><option value={2}>복잡</option></select></label>
+          <p className="growth-help">사전 인지 복잡도 {draft.complexityConfirmed === false || picks.some(p => p.levelConfirmed === false) ? "분류 미완료" : assembly.difficulty.tier} · 경험적 난도나 학생의 성취수준 판정이 아닙니다.</p>
+          <label>자료 복잡도<select value={draft.complexityConfirmed === false ? "" : draft.context.dataComplexity} onChange={e => patch({ complexityConfirmed: true, context: { ...draft.context, dataComplexity: Number(e.target.value) as 0|1|2 } })}><option value="" disabled>미분류 — 직접 선택</option><option value={0}>단순</option><option value={1}>보통</option><option value={2}>복잡</option></select></label>
           <label className="growth-check"><input type="checkbox" checked={draft.context.fusion} onChange={e => patch({ context: { ...draft.context, fusion: e.target.checked } })} />교과 융합</label>
           {issues.length > 0 && <div><h3>진행 전에 필요한 항목</h3><ul className="growth-feedback">{issues.map(w => <li key={w}>{w}</li>)}</ul></div>}
           {advisories.length > 0 && <details><summary>출제 개선 권고 (진행 가능)</summary><ul>{advisories.map(w => <li key={w}>{w}</li>)}</ul></details>}
           {error && <p role="alert" className="editorial-alert">{error}</p>}
-          <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "생성 중…" : ready ? "4단계로 — 해설·사전 점검 생성" : "진행 조건 확인"}</button>
+          <button type="button" className="growth-primary" disabled={busy} onClick={() => onConfirm(stimulus,assembly)}>{busy ? "생성 중…" : ready ? nextLabel : "진행 조건 확인"}</button>
         </section>
         <StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={draft.notes} />
       </aside>}
     </div>
     <div className="growth-actions"><button type="button" onClick={onBack}>← 평가 요소·장면</button><button type="button" onClick={onRegenerate}>현재 버전 보관 후 자료·명제 재생성</button></div>
+    <div className="mobile-bank-progress"><span>선택 {picks.length}/{maxPicks} · 확인 {picks.length - pending.length}/{picks.length}</span><button type="button" onClick={() => onConfirm(stimulus,assembly)}>{ready ? nextLabel : "진행 조건 확인"}</button></div>
   </fieldset>;
 }

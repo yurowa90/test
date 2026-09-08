@@ -1,3 +1,4 @@
+import { finalFigureIssue, unresolvedReviews } from "../lib/integrity";
 import { useState } from "react";
 import type {
   AnalysisResult,
@@ -23,6 +24,8 @@ interface Props {
   final: FinalItem;
   busy: boolean;
   teacherChecks: boolean[];
+  reviewReasons: Record<number, string>;
+  onReviewReasons: (reasons: Record<number, string>) => void;
   onChecksChange: (checks: boolean[]) => void;
   onRegenerate: () => void;
   onReselect: () => void;
@@ -61,6 +64,8 @@ export default function ItemResult({
   final,
   busy,
   teacherChecks,
+  reviewReasons,
+  onReviewReasons,
   onChecksChange,
   onRegenerate,
   onReselect,
@@ -72,8 +77,10 @@ export default function ItemResult({
   const [copyStatus, setCopyStatus] = useState<"" | "학생용 복사됨" | "교사용 복사됨" | "복사 실패">("");
   const usedSourceIds = new Set(stimulus.sourceIds);
   const usedSources = input.sources.filter((source) => usedSourceIds.has(source.id));
+  const figureError = finalFigureIssue(final);
+  const pendingReviews = unresolvedReviews(final, reviewReasons);
   const approved =
-    !busy && teacherChecks.length === 4 && teacherChecks.every(Boolean) &&
+    !busy && !figureError && !pendingReviews.length && teacherChecks.length === 4 && teacherChecks.every(Boolean) &&
     (input.sourceMode === "synthetic" || usedSources.length > 0);
   const handleCopy = async (mode: "student" | "teacher") => {
     const success = await onCopy(mode);
@@ -359,11 +366,13 @@ export default function ItemResult({
         </p>
       </section>
 
+      {figureError && <p className="editorial-alert" role="alert">{figureError}</p>}
+      {pendingReviews.length > 0 && <p className="editorial-alert" role="alert">확인이 필요한 점검 {pendingReviews.length}건에 대해 교사의 유지 근거를 기록하세요. 문항을 수정하려면 3단계로 돌아가 재검토합니다.</p>}
       {/* AI 사전 점검 */}
       <section className="mt-6">
-        <h2 className="serif text-lg font-bold text-blueprint">AI 사전 점검</h2>
+        <h2 className="serif text-lg font-bold text-blueprint">{final.reviewOrigin === "example" ? "예시 문항 교사 점검 · AI 미실행" : "AI 사전 점검"}</h2>
         <p className="mt-0.5 text-sm text-ink-soft">
-          지침 Ⅱ장 4절의 관점으로 생성 모델이 자기 점검한 결과입니다. 독립 검토가 아니며,
+          {final.reviewOrigin === "example" ? "체험용 문항과 교사 편집 내용입니다. AI 검토를 실행하지 않았습니다." : "지침 Ⅱ장 4절의 관점으로 생성 모델이 자기 점검한 결과입니다. 독립 검토가 아니며,"}
           이상 가능성을 찾는 보조 자료로만 사용합니다. 확인 필요 항목
           {failed.length > 0 ? ` ${failed.length}개` : "은 발견되지 않았습니다"}.
         </p>
@@ -386,6 +395,7 @@ export default function ItemResult({
               <span className="text-sm leading-relaxed text-ink">
                 {r.item}
                 {r.note && <span className="block text-xs text-ink-soft">{r.note}</span>}
+                {!r.pass && final.reviewOrigin !== "example" && <label className="block">교사의 검토·유지 근거<textarea disabled={busy} value={reviewReasons[i] ?? ""} onChange={e => onReviewReasons({ ...reviewReasons, [i]: e.target.value })} /></label>}
               </span>
             </li>
           ))}

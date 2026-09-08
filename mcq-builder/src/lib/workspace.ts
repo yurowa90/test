@@ -1,9 +1,12 @@
 import type { AnalysisResult, Assembly, AssemblyContext, FinalItem, ItemBank, Proposition, Stimulus, TeacherInput, WizardStep } from "../types.ts";
+import { checkFigureSource, materialIssues, materialSignature } from "./integrity.ts";
 import { assemble } from "./assemble.ts";
 
 export interface Judgment { verdict: "" | "true" | "false" | "uncertain"; reason: string; revealed: boolean }
 export interface PropositionNote { evidence: string; revisionReason: string }
 export interface BankDraft {
+  complexityConfirmed?: boolean;
+  sourceReview?: { signature: string; reason: string };
   bank: ItemBank;
   pickIds: string[];
   arrayIndex: number;
@@ -13,9 +16,10 @@ export interface BankDraft {
   judgments: Record<string, Judgment>;
   notes: Record<string, PropositionNote>;
 }
-export interface Reflection { problem: string; reason: string; transfer: string }
+export interface Reflection { application?: string; observed?: string; problem: string; reason: string; transfer: string }
 export const EMPTY_REFLECTION: Reflection = { problem: "", reason: "", transfer: "" };
 export interface Workspace {
+  reviewReasons?: Record<number, string>;
   revisionRecord?: string;
   step: WizardStep;
   input: TeacherInput;
@@ -70,9 +74,20 @@ export function bankIssues(draft: BankDraft, input: TeacherInput): string[] {
   if (picks.some(p => !p?.text.trim() || !p.explanation.trim())) issues.push("선택한 명제의 본문과 판단 근거를 입력하세요.");
   if (picks.some(p => p && !draft.reviewedIds.includes(p.id))) issues.push("선택한 모든 명제의 진위를 자료와 대조해 확인하세요.");
   if (input.sourceMode === "reference" && (!st.sourceIds.length || st.sourceIds.some(id => !input.sources.some(s => s.id === id && s.verified && s.title.trim() && s.locator.trim() && s.dataExcerpt.trim())))) issues.push("교사가 원문을 확인한 출처를 자료에 연결하세요.");
+  if (picks.some(p => p?.levelConfirmed === false || p?.behaviorConfirmed === false)) issues.push("가져온 명제의 수행 수준과 행동 영역을 직접 분류하세요.");
+  if (draft.complexityConfirmed === false) issues.push("가져온 자료의 복잡도를 직접 분류하세요.");
+  if (input.sourceMode === "reference") {
+    const evidence = bankEvidence(draft, input);
+    issues.push(...materialIssues(evidence, st.body + "\n" + st.conditions.join("\n")));
+    if (st.figure) issues.push(...checkFigureSource(st.figure, evidence).issues);
+    if (draft.sourceReview?.signature !== bankSourceSignature(draft, input) || !draft.sourceReview?.reason.trim()) issues.push("원자료와 현재 자료의 항목·수치·조건을 대조하고 근거를 기록하세요.");
+  }
   if (draft.practice) issues.push("판단 연습을 마친 뒤 편집 모드에서 조립하세요.");
   return issues;
 }
+
+export function bankEvidence(draft: BankDraft, input: TeacherInput): string { return input.sources.filter(s => draft.bank.stimulus.sourceIds.includes(s.id)).map(s => s.dataExcerpt).join("\n"); }
+export function bankSourceSignature(draft: BankDraft, input: TeacherInput): string { const s = draft.bank.stimulus; return materialSignature(s.body, s.conditions, s.figure, bankEvidence(draft, input)); }
 
 /** One transition gate shared by the editor, step navigation and generation handler. */
 export function bankReadiness(draft: BankDraft, input: TeacherInput) {

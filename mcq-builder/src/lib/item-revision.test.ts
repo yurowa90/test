@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { constrainRevision, emptyRevision, proposeRevision, readRevisionState, revisionToWorkspace } from "./item-revision.ts";
+import { changeRevision, revisionSourceSignature, constrainRevision, emptyRevision, proposeRevision, readRevisionState, revisionToWorkspace } from "./item-revision.ts";
 import type { RevisionState } from "./item-revision.ts";
 import { callGemini } from "./gemini-client.ts";
 import { exampleWorkspace } from "./example.ts";
@@ -9,7 +9,7 @@ import { bankReadiness } from "./workspace.ts";
 function fixture(): RevisionState {
   const w = exampleWorkspace(), s = w.bank.stimulus;
   const content = { intro: s.indirectStem, stemPrefix: s.stemPrefix, body: s.body, conditions: s.conditions, figureSpec: "", statements: w.bank.propositions.slice(0, 3).map(p => p.text) };
-  return { ...emptyRevision(w.input), sourceMode: "synthetic", reading: { content, notes: ["원문 정답 번호는 별도 기록"], location: "합성 예시" }, originalConfirmed: true, proposal: { content: { ...content, intro: "표는 세 시료의 측정 결과이다." }, diagnosis: "발문을 간결하게 정리", changes: [{ part: "stem", reason: "중복 설명 제거", principle: "핵심 조건은 유지" }], warnings: [], assessmentElement: "밀도 비교", assessmentGoal: "질량과 부피의 비를 비교한다", judgments: w.bank.propositions.slice(0, 3).map(p => ({ verdict: p.isTrue ? "참" : "거짓", reason: p.explanation })) } };
+  return { ...emptyRevision(w.input), targetBehavior: "자료 분석 및 해석", decision: "accept", decisionReason: "교사가 확인한 중복 설명 제거" , sourceMode: "synthetic", reading: { content, notes: ["원문 정답 번호는 별도 기록"], location: "합성 예시" }, originalConfirmed: true, proposal: { content: { ...content, intro: "표는 세 시료의 측정 결과이다." }, diagnosis: "발문을 간결하게 정리", changes: [{ part: "stem", reason: "중복 설명 제거", principle: "핵심 조건은 유지" }], warnings: [], assessmentElement: "밀도 비교", assessmentGoal: "질량과 부피의 비를 비교한다", judgments: w.bank.propositions.slice(0, 3).map(p => ({ verdict: p.isTrue ? "참" : "거짓", reason: p.explanation })) } };
 }
 
 test("선택하지 않은 부분의 문장·수치·보기는 모델이 바꾸어도 원문 그대로 보존한다", () => {
@@ -36,7 +36,8 @@ test("수정안 가져오기는 판독 확인·진위 보류·유형별 진술 �
   assert.equal(bankReadiness(work.bankDraft!, work.input).ready, false);
   assert.equal(work.bankDraft!.bank.propositions[2].isTrue, false);
   assert.match(work.revisionRecord!, /원문 확인본/);
-  assert.equal(work.reflection.reason, "발문: 중복 설명 제거");
+  assert.equal(work.reflection.reason, "교사가 확인한 중복 설명 제거");
+  assert.equal(work.bankDraft!.bank.propositions[0].levelConfirmed, false);
 });
 
 test("수정안의 새 성취기준에 이전 성취기준 코드·수준을 붙이지 않는다", () => {
@@ -75,4 +76,25 @@ test("모델이 고정 부분을 바꾸면 적용을 제거하고 진위 판정�
     assert.ok(result.judgments.every(j => j.verdict === "판단보류"));
     assert.ok(result.warnings.some(w => w.includes("원문을 보존")));
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("원문·수정안을 무효화하는 변경은 이전 내용을 보관한다", () => {
+  const before = fixture(), changed = changeRevision(before, { text: "새 자료", reading: null, proposal: null });
+  assert.deepEqual(changed.history![0].snapshot.reading, before.reading);
+  assert.deepEqual(changed.history![0].snapshot.proposal, before.proposal);
+});
+test("수치가 새로 생긴 수정안은 교사 확인 표시가 있어도 원자료 모드로 가져오지 못한다", () => {
+  const state = fixture(); state.sourceMode = "reference"; state.location = "교사가 대조한 원표";
+  state.proposal!.content = { ...state.proposal!.content, body: state.proposal!.content.body + "\n999" };
+  state.sourceReview = { signature: revisionSourceSignature(state), reason: "확인" };
+  assert.throws(() => revisionToWorkspace(state, exampleWorkspace().input), /원자료에 없는 수치/);
+});
+test("원자료 확인과 교사 판단을 마쳐도 개별 명제 분류는 별도로 요구한다", () => {
+  const state = fixture(); state.sourceMode = "reference"; state.location = "원표";
+  assert.throws(() => revisionToWorkspace(state, exampleWorkspace().input), /대조/);
+  state.sourceReview = { signature: revisionSourceSignature(state), reason: "원표의 모든 행·열과 조건 확인" };
+  const work = revisionToWorkspace(state, exampleWorkspace().input);
+  assert.equal(work.bankDraft!.complexityConfirmed, false);
+  assert.equal(work.bankDraft!.bank.propositions[0].behaviorConfirmed, false);
+  assert.throws(() => revisionToWorkspace({ ...state, decision: "hold" }, work.input), /판단 근거/);
 });

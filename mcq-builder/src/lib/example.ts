@@ -1,4 +1,4 @@
-import type { ItemBank, TeacherInput } from "../types";
+import type { AnalysisResult, Assembly, FinalItem, Stimulus, ItemBank, TeacherInput } from "../types.ts";
 import { createBankDraft, startWorkspace } from "./workspace.ts";
 
 /** Explicitly synthetic: no invented paper or curriculum code. Works without an API key. */
@@ -18,4 +18,12 @@ export function exampleWorkspace() {
   const draft = createBankDraft(bank);
   draft.practice = true;
   return { ...startWorkspace(input), step: "bank" as const, analysis: { contentElements: ["질량", "부피", "밀도"], assessmentElement: "질량과 부피 자료를 이용한 밀도 비교", assessmentGoal: "질량과 부피의 비를 계산하고 시료의 밀도를 비교할 수 있는지 평가한다.", behaviorDomain: "자료 분석 및 해석" as const, behaviorRationale: "두 변인의 비를 계산하고 시료 간 값을 비교한다.", evidenceGoal: "질량만 비교하지 않고 질량/부피를 근거로 답한다.", scenarios: [{ title: "세 시료의 질량과 부피", stimulusType: "표" as const, description: "같은 조건에서 얻은 측정값을 비교한다.", cues: ["질량", "부피", "같은 측정 조건"], inquiryContext: "순수과학" as const, sourcePlan: "앱 체험용 합성 자료" }] }, bank, bankDraft: draft };
+}
+
+export function exampleFinal(input: TeacherInput, analysis: AnalysisResult, stimulus: Stimulus, assembly: Assembly): FinalItem {
+  return { ...stimulus, reviewOrigin: "example", statements: assembly.picks.map(p => p.text),
+    explanations: assembly.picks.map((p, i) => ({ label: String(i + 1), verdict: p.isTrue ? "참" : "거짓", text: p.explanation })),
+    solution: "앱 체험용 예시와 교사 편집본입니다. 현재 선택한 진위와 근거로 조립했습니다. AI 검토는 실행하지 않았습니다.",
+    info: { subject: input.subject, contentArea: input.domain ?? "", contentElement: analysis.contentElements.join(", "), behaviorDomain: analysis.behaviorDomain, standardCode: input.standardCode ?? "", assessmentElement: analysis.assessmentElement, assessmentGoal: analysis.assessmentGoal, inquiryContext: input.options.inquiryContext, difficultyTier: assembly.difficulty.tier, answer: String(assembly.answerIndex + 1), intent: analysis.assessmentGoal },
+    review: ["정답 유일성", "명제 진위", "자료 충분성", "단위", "조건", "교육과정 범위", "발문", "오답 매력도"].map(item => ({ item, pass: false, note: "예시 체험입니다. 교사가 직접 확인하세요." })) };
 }

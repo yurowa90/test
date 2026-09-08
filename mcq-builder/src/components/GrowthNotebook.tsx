@@ -4,7 +4,7 @@ import { revisionDifferences } from "../lib/workspace";
 import { downloadMarkdown, downloadText } from "../lib/export";
 
 function reflectionMarkdown(work: Workspace): string {
-  return `\n\n## 교사의 출제 성찰\n\n- 발견한 문제: ${work.reflection.problem || "미기록"}\n- 바꾼 이유: ${work.reflection.reason || "미기록"}\n- 다음 문항에 적용할 원리: ${work.reflection.transfer || "미기록"}\n\n## 명제별 자료 연결·수정 이유\n\n${(work.bankDraft?.bank.propositions ?? []).map((p,i) => `- 명제 ${i+1}: ${p.text}\n  - 자료 연결: ${work.bankDraft?.notes[p.id]?.evidence || "미기록"}\n  - 수정 이유: ${work.bankDraft?.notes[p.id]?.revisionReason || "미기록"}`).join("\n")}`;
+  return `\n\n## 교사의 출제 성찰\n\n- 발견한 문제: ${work.reflection.problem || "미기록"}\n- 바꾼 이유: ${work.reflection.reason || "미기록"}\n- 다음 문항에 적용할 원리: ${work.reflection.transfer || "미기록"}\n- 수업 적용: ${work.reflection.application || "미기록"}\n- 관찰한 학생 반응: ${work.reflection.observed || "미기록"}\n\n## 명제별 자료 연결·수정 이유\n\n${(work.bankDraft?.bank.propositions ?? []).map((p,i) => `- 명제 ${i+1}: ${p.text}\n  - 자료 연결: ${work.bankDraft?.notes[p.id]?.evidence || "미기록"}\n  - 수정 이유: ${work.bankDraft?.notes[p.id]?.revisionReason || "미기록"}`).join("\n")}`;
 }
 
 export function notebookMarkdown(work: Workspace): string { return `${work.revisionRecord ? `\n\n${work.revisionRecord}` : ""}${reflectionMarkdown(work)}`; }
@@ -18,7 +18,7 @@ export default function GrowthNotebook({ work, revisions, onReflection, onCheckp
     <summary>출제 성장 노트 · 보관 버전 {revisions.length}개 · {saved ? "이 브라우저에 저장됨" : "저장 실패 — 기록을 내려받으세요"}</summary>
     <p>긴 보고서 대신 핵심 수정 한두 건만 남기세요. 편집은 자동 저장되고, 재생성·새 문항 시작 전에는 이전 버전을 보관합니다.</p>
     <fieldset disabled={busy}>
-      <div className="reflection-grid">{([ ["problem","발견한 문제"], ["reason","바꾼 이유"], ["transfer","다음 문항에 적용할 원리"] ] as const).map(([key,title]) => <label key={key}>{title}<textarea rows={3} value={work.reflection[key]} onChange={e => onReflection({ ...work.reflection, [key]: e.target.value })} /></label>)}</div>
+      <div className="reflection-grid">{([ ["problem","발견한 문제"], ["reason","바꾼 이유"], ["transfer","다음 문항에 적용할 원리"], ["application","수업·평가에 적용한 방법"], ["observed","학생 반응에서 확인한 점"] ] as const).map(([key,title]) => <label key={key}>{title}<textarea rows={3} value={work.reflection[key] ?? ""} onChange={e => onReflection({ ...work.reflection, [key]: e.target.value })} /></label>)}</div>
       <div className="growth-actions"><label>보관 이름 (선택)<input value={label} onChange={e => setLabel(e.target.value)} placeholder="예: 오답의 조건을 구체화" /></label><button type="button" onClick={() => onCheckpoint(label.trim() || "교사 수동 보관")}>현재 버전 보관</button><button type="button" onClick={() => downloadMarkdown("출제_성장_노트.md", `# 출제 성장 노트\n${notebookMarkdown(work)}\n\n${[...revisions].reverse().map(r => `## ${r.at} · ${r.label}\n\n${r.snapshot.input.subject} · ${r.snapshot.analysis?.assessmentElement || r.snapshot.input.standard}\n${notebookMarkdown(r.snapshot)}`).join("\n\n")}`)}>전체 성찰 기록 내려받기</button></div>
       {revision && <>
         <label>현재 작업과 비교할 버전<select value={revision.id} onChange={e => setSelected(e.target.value)}>{revisions.map(r => <option key={r.id} value={r.id}>{new Date(r.at).toLocaleString("ko-KR")} · {r.label} · {r.snapshot.input.subject}</option>)}</select></label>
