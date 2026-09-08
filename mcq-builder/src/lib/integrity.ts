@@ -4,6 +4,12 @@ import type { FinalItem } from '../types.ts';
 
 const norm = (s: string) => s.normalize('NFKC').replace(/\s/g, '').toLowerCase();
 const numbers = (s: string) => new Set((s.normalize('NFKC').replace(/−/g, '-').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, '').match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/gi) ?? []).map(Number));
+const numericCell = (s: string): number | null => {
+  const value = s.normalize('NFKC').trim().replace(/−/g, '-');
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
 export function sourceTables(text: string): string[][][] {
   const result: string[][][] = []; let rows: string[][] = [];
   const flush = () => { if (rows.length > 1 && rows.every(r => r.length === rows[0].length)) result.push(rows); rows = []; };
@@ -26,7 +32,7 @@ export function checkFigureSource(figure: ItemFigure, evidence: string): { issue
   for (const series of figure.series) {
     const col = table[0].findIndex(h => norm(h) === norm(series.name) || (figure.series.length === 1 && norm(h) === norm(figure.yLabel)));
     labels.forEach((label, i) => {
-      const rows = table.slice(1).filter(r => norm(r[0]) === norm(label));
+      const rows = table.slice(1).filter(r => figure.kind === 'line' ? numericCell(r[0]) === figure.xValues[i] : norm(r[0]) === norm(label));
       if (rows.length !== 1 || numbers(rows[0][col]).size !== 1 || !numbers(rows[0][col]).has(series.values[i])) issues.push(`${label} · ${series.name}: 원표의 항목과 수치가 일치하지 않습니다.`);
     });
   }

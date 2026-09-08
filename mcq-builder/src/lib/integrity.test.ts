@@ -13,6 +13,30 @@ test('그래프의 수치가 원표에 있어도 항목별 값이 뒤바뀌면 �
   assert.ok(checkFigureSource({ ...figure, series: [{ name: '질량(g)', values: [30,20] }] }, table).issues.length);
   assert.ok(materialIssues(table, table.replace('A | 20', 'A | 30').replace('B | 30', 'B | 20')).length);
 });
+test('꺾은선 x축은 소수·지수 표기가 달라도 같은 수치의 행과 대조한다', () => {
+  const line: ItemFigure = { ...figure, kind: 'line', xLabel: '시간(s)', categories: [], xValues: [0, 1] };
+  for (const labels of [['0.0', '1.0'], ['0e0', '1e0'], ['-0', '+1.000']]) {
+    const source = `| 시간(s) | 질량(g) |\n| --- | --- |\n| ${labels[0]} | 20 |\n| ${labels[1]} | 30 |`;
+    assert.deepEqual(checkFigureSource(line, source), { issues: [], matched: true });
+    assert.ok(checkFigureSource({ ...line, series: [{ name: '질량(g)', values: [30, 20] }] }, source).issues.length);
+  }
+});
+test('꺾은선 x축은 단위·범위·여러 수치·중복 행을 단일 수치로 인정하지 않는다', () => {
+  const line: ItemFigure = { ...figure, kind: 'line', xLabel: '시간(s)', categories: [], xValues: [0, 1] };
+  for (const first of ['0 s', '0~1', '0, 1', '0 1', '0 또는 1', '', 'Infinity', '1e999']) {
+    const source = `| 시간(s) | 질량(g) |\n| --- | --- |\n| ${first} | 20 |\n| 1.0 | 30 |`;
+    assert.equal(checkFigureSource(line, source).matched, false, first);
+    assert.ok(checkFigureSource(line, source).issues.length, first);
+  }
+  const duplicate = '| 시간(s) | 질량(g) |\n| --- | --- |\n| 0 | 20 |\n| 0.0 | 20 |\n| 1 | 30 |';
+  assert.ok(checkFigureSource(line, duplicate).issues.length);
+});
+test('막대그래프의 수치처럼 보이는 범주 이름은 문자열로 구분한다', () => {
+  const bars: ItemFigure = { ...figure, categories: ['0', '1'] };
+  const source = '| 시료 | 질량(g) |\n| --- | --- |\n| 0.0 | 20 |\n| 1.0 | 30 |';
+  assert.ok(checkFigureSource(bars, source).issues.length);
+  assert.equal(checkFigureSource({ ...bars, categories: ['0.0', '1.0'] }, source).matched, true);
+});
 test('자연어 자료는 수치가 있어도 표 대조 완료로 처리하지 않는다', () => {
   assert.equal(checkFigureSource(figure, 'A는 20g, B는 30g이다.').matched, false);
   assert.ok(materialIssues(table, table + '\n999').length);

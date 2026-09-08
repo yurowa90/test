@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { changeRevision, revisionSourceSignature, constrainRevision, emptyRevision, proposeRevision, readRevisionState, revisionToWorkspace } from "./item-revision.ts";
+import { changeRevision, revisionSourceIssues, revisionSourceSignature, constrainRevision, emptyRevision, proposeRevision, readRevisionState, revisionToWorkspace } from "./item-revision.ts";
 import type { RevisionState } from "./item-revision.ts";
+import type { ItemFigure } from "./figure.ts";
 import { callGemini } from "./gemini-client.ts";
 import { exampleWorkspace } from "./example.ts";
 import { bankReadiness } from "./workspace.ts";
@@ -48,6 +49,41 @@ test("수정안의 새 성취기준에 이전 성취기준 코드·수준을 붙
   const restored = readRevisionState(JSON.stringify(state), work.input);
   assert.deepEqual(restored.reading, state.reading);
   assert.deepEqual(restored.proposal, state.proposal);
+});
+
+test("개선안의 과목 또는 기준이 바뀌면 공식 선택기를 초기화하고 같은 기준이면 유지한다", () => {
+  const state = fixture();
+  const base = { ...exampleWorkspace().input, standardCode: "OLD-CODE", picker: { mode: "picker" as const, level: "고등학교", subject: "통합과학1", domain: "물질과 규칙성", code: "OLD-CODE" } };
+  for (const change of [{ subject: "생명과학" }, { standard: "다른 수업 목표" }]) {
+    const work = revisionToWorkspace({ ...state, ...change }, base);
+    assert.deepEqual(work.input.picker, { mode: "direct", level: "", subject: "", domain: "", code: "" });
+    assert.equal(work.input.standardCode, undefined);
+  }
+  const unchanged = revisionToWorkspace(state, base);
+  assert.deepEqual(unchanged.input.picker, base.picker);
+  assert.equal(unchanged.input.standardCode, base.standardCode);
+});
+
+test("조건에만 기록된 수치로 만든 그래프를 보존하고 원자료 대조 후 가져온다", () => {
+  const state = fixture();
+  const figure: ItemFigure = { kind: "bar", title: "질량 비교", xLabel: "시료", yLabel: "질량(g)", categories: ["A", "B"], xValues: [], series: [{ name: "질량(g)", values: [20, 30] }], steps: [], caption: "", evidence: "원문 조건의 시료별 질량" };
+  const content = { ...state.reading!.content, body: "각 시료의 질량은 조건에 제시하였다.", conditions: ["A의 질량은 20 g, B의 질량은 30 g이다."], statements: ["A의 질량은 20 g이다.", "B의 질량은 30 g이다.", "두 시료의 질량은 같다."], figureSpec: "시료별 질량 막대그래프" };
+  state.reading = { content, notes: [], location: "원문 조건" };
+  state.proposal = { ...state.proposal!, content: { ...content, figure }, judgments: [{ verdict: "참", reason: "A는 20 g이다." }, { verdict: "참", reason: "B는 30 g이다." }, { verdict: "거짓", reason: "두 질량은 다르다." }] };
+  state.sourceMode = "reference"; state.location = "원문 조건";
+  state.sourceReview = { signature: revisionSourceSignature(state), reason: "원문의 질량 조건을 대조함" };
+  assert.deepEqual(constrainRevision(content, state.proposal.content, ["material"]).figure, figure);
+  assert.deepEqual(revisionSourceIssues(state), []);
+  const work = revisionToWorkspace(state, exampleWorkspace().input);
+  assert.deepEqual(work.bankDraft!.bank.stimulus.figure, figure);
+  assert.match(work.input.sources[0].dataExcerpt, /A의 질량은 20 g, B의 질량은 30 g/);
+
+  const inventedFigure = { ...figure, series: [{ name: "질량(g)", values: [20, 999] }] };
+  assert.equal(constrainRevision(content, { ...content, figure: inventedFigure }, ["material"]).figure, undefined);
+  state.proposal = { ...state.proposal, content: { ...state.proposal.content, conditions: ["A의 질량은 20 g, B의 질량은 999 g이다."], figure: inventedFigure } };
+  state.sourceReview = { signature: revisionSourceSignature(state), reason: "확인 표시가 있어도 새 수치는 차단" };
+  assert.ok(revisionSourceIssues(state).length);
+  assert.throws(() => revisionToWorkspace(state, exampleWorkspace().input), /원문 확인본에서 찾지 못한 수치/);
 });
 
 test("PDF·이미지는 같은 인증·JSON 전송 경로를 사용하고 지원하지 않는 첨부는 전송 전에 거절한다", async () => {

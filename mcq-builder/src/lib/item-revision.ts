@@ -17,6 +17,7 @@ export interface RevisionProposal { content: RevisionContent; diagnosis: string;
 export interface RevisionState { targetBehavior?: BehaviorDomain; evidenceGoal?: string; teacherDiagnosis?: string; decision?: "accept" | "adapt" | "hold"; decisionReason?: string; transfer?: string; sourceReview?: { signature: string; reason: string }; history?: { at: string; snapshot: Omit<RevisionState, "history"> }[]; kind: string; text: string; location: string; request: string; mode: "polish" | "variant" | "idea"; targets: RevisionPart[]; subject: string; standard: string; format: TeacherInput["options"]["format"]; bogiCount: 3 | 4; sourceMode: "reference" | "synthetic"; reading: Reading | null; originalConfirmed: boolean; proposal: RevisionProposal | null }
 export const emptyRevision = (input: TeacherInput): RevisionState => ({ kind: "기출문제", text: "", location: "", request: "", mode: "polish", targets: ["stem", "material", "statements"], subject: input.subject, standard: input.standard, format: input.options.format, bogiCount: input.options.bogiCount, sourceMode: "reference", reading: null, originalConfirmed: false, proposal: null });
 export const emptyRevisionContent = (): RevisionContent => ({ intro: "", stemPrefix: "이에 대한 설명으로", body: "", conditions: [], statements: [], figureSpec: "" });
+const contentEvidence = (content: RevisionContent) => [content.body, ...content.conditions].join("\n");
 const string = { type: "string" };
 const strings = { type: "array", items: string };
 const CONTENT_SCHEMA = { type: "object", properties: { intro: string, stemPrefix: string, body: string, conditions: strings, statements: { ...strings, maxItems: 12 }, figureSpec: string, figure: FIGURE_SCHEMA }, required: ["intro", "stemPrefix", "body", "conditions", "statements", "figureSpec"] };
@@ -48,7 +49,7 @@ export async function readRevisionMaterial(state: RevisionState, attachments: { 
 export function constrainRevision(original: RevisionContent, proposed: RevisionContent, targets: RevisionPart[]): RevisionContent {
   return { ...original,
     ...(targets.includes("stem") ? { intro: proposed.intro, stemPrefix: proposed.stemPrefix } : {}),
-    ...(targets.includes("material") ? { body: proposed.body, conditions: proposed.conditions, figureSpec: proposed.figureSpec, figure: validFigure(proposed.figure) && !missingFigureValues(proposed.figure, proposed.body).length ? proposed.figure : undefined } : {}),
+    ...(targets.includes("material") ? { body: proposed.body, conditions: proposed.conditions, figureSpec: proposed.figureSpec, figure: validFigure(proposed.figure) && !missingFigureValues(proposed.figure, contentEvidence(proposed)).length ? proposed.figure : undefined } : {}),
     ...(targets.includes("statements") ? { statements: proposed.statements } : {}),
   };
 }
@@ -76,7 +77,7 @@ export function revisionToWorkspace(state: RevisionState, base: TeacherInput): W
   if (!c.intro.trim() || !c.body.trim() || !c.stemPrefix.trim() || c.statements.some(s => !s.trim())) throw new Error("자료 소개·본문·진술을 입력하고 직접 발문 앞부분을 입력하세요.");
   if (p.judgments.length !== count || p.judgments.some(j => j.verdict === "판단보류" || !j.reason.trim())) throw new Error("판단보류인 진술의 진위와 근거를 확인하세요. 3단계에서도 선택한 진술을 다시 대조합니다.");
   if (state.sourceMode === "reference" && !state.location.trim()) throw new Error("자료를 다시 찾을 수 있도록 출처·쪽수·문항 번호를 기록하세요.");
-  if (state.sourceMode === "reference" && validFigure(c.figure) && missingFigureValues(c.figure, state.reading.content.body).length) throw new Error("수정된 그래프에 원문 확인본에서 찾지 못한 수치가 있습니다. 원자료와 대조하거나 합성 자료로 구분하세요.");
+  if (state.sourceMode === "reference" && validFigure(c.figure) && missingFigureValues(c.figure, contentEvidence(state.reading.content)).length) throw new Error("수정된 그래프에 원문 확인본에서 찾지 못한 수치가 있습니다. 원자료와 대조하거나 합성 자료로 구분하세요.");
   if (!p.assessmentElement.trim() || !p.assessmentGoal.trim() || !state.targetBehavior || !BEHAVIOR_DOMAINS.includes(state.targetBehavior)) throw new Error("평가 요소·목표와 행동 영역을 확인하세요.");
   if (!state.decision || state.decision === "hold" || !state.decisionReason?.trim()) throw new Error("수정안 채택 여부와 교사의 판단 근거를 기록하세요.");
   if (state.sourceMode === "reference") {
@@ -84,8 +85,8 @@ export function revisionToWorkspace(state: RevisionState, base: TeacherInput): W
     if (issues.length) throw new Error(issues.join("\n"));
     if (state.sourceReview?.signature !== revisionSourceSignature(state) || !state.sourceReview?.reason.trim()) throw new Error("원자료와 수정안의 항목·수치·조건을 대조하고 확인 근거를 기록하세요.");
   }
-  const input: TeacherInput = { ...base, options: { ...base.options, format: state.format, bogiCount: state.bogiCount }, subject: state.subject, standard: state.standard, ...(state.standard !== base.standard || state.subject !== base.subject ? { standardCode: undefined, achievementLevels: undefined, domain: undefined } : {}), sourceMode: state.sourceMode, context: state.request,
-    sources: state.sourceMode === "reference" ? [{ id: "REV1", kind: state.kind === "논문" ? "논문" : state.kind === "교과서·전공서적" ? "전공서적" : "기타", title: state.location, creators: "", year: "", locator: state.location, use: "원자료 수치 재구성", rights: "교사 이용 조건 확인 필요", dataExcerpt: [state.reading.content.body, ...state.reading.content.conditions].join("\n"), verified: true, transformations: p.changes.map(ch => ch.reason).join(" / ") }] : [],
+  const input: TeacherInput = { ...base, options: { ...base.options, format: state.format, bogiCount: state.bogiCount }, subject: state.subject, standard: state.standard, ...(state.standard !== base.standard || state.subject !== base.subject ? { standardCode: undefined, achievementLevels: undefined, domain: undefined, picker: { mode: "direct" as const, level: "", subject: "", domain: "", code: "" } } : {}), sourceMode: state.sourceMode, context: state.request,
+    sources: state.sourceMode === "reference" ? [{ id: "REV1", kind: state.kind === "논문" ? "논문" : state.kind === "교과서·전공서적" ? "전공서적" : "기타", title: state.location, creators: "", year: "", locator: state.location, use: "원자료 수치 재구성", rights: "교사 이용 조건 확인 필요", dataExcerpt: contentEvidence(state.reading.content), verified: true, transformations: p.changes.map(ch => ch.reason).join(" / ") }] : [],
   };
   const stimulus = { indirectStem: c.intro, body: c.body, stemPrefix: c.stemPrefix, figureSpec: c.figureSpec, ...(validFigure(c.figure) ? { figure: c.figure } : {}), conditions: c.conditions, complexity: 1 as const, sourceIds: state.sourceMode === "reference" ? ["REV1"] : [] };
   const bank = { origin: "ai" as const, stimulus, propositions: c.statements.map((text, i) => ({ id: `R${i + 1}`, text, isTrue: p.judgments[i].verdict === "참", explanation: p.judgments[i].reason, level: "C" as const, levelConfirmed: false, behaviorConfirmed: false, behavior: state.targetBehavior! })) };
@@ -104,8 +105,8 @@ export function revisionSourceSignature(state: RevisionState): string {
 }
 export function revisionSourceIssues(state: RevisionState): string[] {
   if (!state.reading || !state.proposal) return ["원문과 수정안을 먼저 준비하세요."];
-  const original = [state.reading.content.body, ...state.reading.content.conditions].join("\n"), c = state.proposal.content;
-  return [...materialIssues(original, [c.body, ...c.conditions].join("\n")), ...(c.figure ? checkFigureSource(c.figure, original).issues : [])];
+  const original = contentEvidence(state.reading.content), c = state.proposal.content;
+  return [...materialIssues(original, contentEvidence(c)), ...(c.figure ? checkFigureSource(c.figure, original).issues : [])];
 }
 export function changeRevision(state: RevisionState, patch: Partial<RevisionState>): RevisionState {
   const { history = [], ...snapshot } = state;
