@@ -19,6 +19,9 @@ import { finalFigureIssue, unresolvedReviews } from "./lib/integrity";
 import { readBackup } from "./lib/backup";
 import { exampleFinal, exampleWorkspace } from "./lib/example";
 import RevisionStudio from "./components/RevisionStudio";
+import { readSourceOriginal } from "./lib/source-reading";
+import type { SourceReading } from "./lib/source-reading";
+import type { Attachment } from "./lib/attachments";
 
 const EMPTY_INPUT: TeacherInput = {
   subject: "", grade: "", standard: "", context: "", sourceMode: "reference",
@@ -41,6 +44,7 @@ export default function App() {
   const [model, setModel] = useState(() => storage.get(MODEL_STORAGE) ?? DEFAULT_MODEL);
   const [keyModalOpen, setKeyModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sourceSession, setSourceSession] = useState(0);
   const [revisionOpen, setRevisionOpen] = useState(() => storage.get("revision-open") === "true");
   useEffect(() => { storage.set("revision-open", String(revisionOpen)); }, [revisionOpen]);
   const controller = useRef<AbortController | null>(null);
@@ -60,6 +64,10 @@ export default function App() {
 
   function update(fn: (w: Workspace) => Workspace) {
     setSavedWork(s => ({ ...s, current: fn(s.current) }));
+  }
+  function replaceWorkspace(next: Workspace) {
+    setSourceSession(session => session + 1);
+    update(() => next);
   }
   function checkpoint(label: string) {
     const revision = newRevision(work,label);
@@ -94,6 +102,16 @@ export default function App() {
     update(w => editBank(w,draft));
   }
   function report(e: unknown) { setError(e instanceof GeminiError ? e.message : "처리하지 못했습니다. 작업은 보존되어 있습니다. 다시 시도해 주세요."); }
+  async function readSource(sourceId: string, attachments: Attachment[]): Promise<SourceReading | null> {
+    if (busy) return null;
+    const source = input.sources.find(source => source.id === sourceId);
+    if (!source) return null;
+    if (!apiKey) { setKeyModalOpen(true); return null; }
+    setBusy(true); setError(null); controller.current = new AbortController();
+    try { return await readSourceOriginal(source, attachments, apiKey, model, controller.current.signal); }
+    catch (e) { report(e); return null; }
+    finally { setBusy(false); }
+  }
   async function handleInputSubmit(next: TeacherInput) {
     if (busy) return;
     if (!apiKey) { setKeyModalOpen(true); return; }
@@ -161,12 +179,12 @@ export default function App() {
   async function handleCopy(mode: "student" | "teacher") { const md = markdown(mode); return md ? copyToClipboard(md) : false; }
   function handleDownload(mode: "student" | "teacher") { const md = markdown(mode); if (md) downloadMarkdown(`${mode === "student" ? "학생용" : "교사용"}_문항.md`,md); }
   function restart() {
-    checkpoint("새 문항 시작 전"); update(() => startWorkspace(EMPTY_INPUT)); setError(null); setMobilePane("settings");
+    checkpoint("새 문항 시작 전"); replaceWorkspace(startWorkspace(EMPTY_INPUT)); setError(null); setMobilePane("settings");
   }
   function restore(id: string) {
     const revision = revisions.find(r => r.id === id);
     if (!revision || busy) return;
-    checkpoint("이전 버전 복원 전"); update(() => restoreRevision(revision)); setError(null); setMobilePane("settings");
+    checkpoint("이전 버전 복원 전"); replaceWorkspace(restoreRevision(revision)); setError(null); setMobilePane("settings");
   }
   function saveKey(key: string, m: string) {
     setApiKey(key); setModel(m);
@@ -186,7 +204,7 @@ export default function App() {
     <header className="editorial-header"><div className="editorial-mast"><div><h1>학력평가형 문항 설계·성찰 도우미</h1><p>출제 원리를 이해하고, 근거를 대조하며, 고친 이유를 다음 문항에 연결합니다.</p></div><div className="editorial-stamp"><span>과학과</span><span>2022 개정</span><span>교사 성장</span></div></div></header>
     <section className="method-overview"><div className="method-overview-head"><div><span>설계 방식</span><h2>문항 구조를 보면서 단계적으로 설계합니다</h2><p>교육과정 분석 → 자료·명제 편집 → 근거 대조 → 교사 검토·성찰</p></div><button type="button" className="api-status" disabled={busy} onClick={() => setKeyModalOpen(true)}>{apiKey ? "API 설정 · 키 입력됨" : "API 키 설정"}</button></div><div className="method-cards"><article className="method-card"><strong>교사가 설계하고 판단합니다</strong><small>명제를 직접 작성·수정하고 자료와 대조해 진위를 확인합니다.</small></article><article className="method-card"><strong>수정 과정을 함께 남깁니다</strong><small>원본 비교·출처 변환 기록·성찰 노트가 하나의 작업에 쌓입니다.</small></article></div></section>
     <nav className="growth-actions revision-mode" aria-label="작업 방식"><button type="button" disabled={busy} aria-pressed={!revisionOpen} onClick={() => setRevisionOpen(false)}>성취기준으로 문항 설계</button><button type="button" disabled={busy} aria-pressed={revisionOpen} onClick={() => setRevisionOpen(true)}>기존 문항·자료 개선</button></nav>
-    <div hidden={!revisionOpen}><RevisionStudio input={input} apiKey={apiKey} model={model} busy={busy} onBusy={setBusy} onOpenKey={() => setKeyModalOpen(true)} onApply={next => { checkpoint("기존 문항 개선안 가져오기 전"); update(() => next); setRevisionOpen(false); setError(null); }} /></div>
+    <div hidden={!revisionOpen}><RevisionStudio input={input} apiKey={apiKey} model={model} busy={busy} onBusy={setBusy} onOpenKey={() => setKeyModalOpen(true)} onApply={next => { checkpoint("기존 문항 개선안 가져오기 전"); replaceWorkspace(next); setRevisionOpen(false); setError(null); }} /></div>
     <div hidden={revisionOpen}>
     <div className="work-summary"><div className="work-summary-values"><b>{input.subject || "과목 미지정"}</b><span>{input.standardCode || "성취기준 미선택"}</span><span>{input.sourceMode === "reference" ? `교사 대조 출처 ${input.sources.filter(s => s.verified).length}개` : "합성 자료"}</span><span role="status">{saved ? "편집 내용 저장됨" : "저장 실패"}</span></div><nav className="step-nav" aria-label="문항 설계 단계">{STEPS.map((s,i) => <button key={s.id} type="button" disabled={busy || !available[s.id]} className={i === stepIndex ? "is-current" : ""} aria-current={i === stepIndex ? "step" : undefined} onClick={() => navigate(s.id)}>{i+1}. {s.label}</button>)}</nav></div>
     {!saved && <div className="editorial-alert" role="alert">브라우저 저장에 실패했습니다. 이 화면을 닫기 전에 성장 노트와 작업 백업을 내려받으세요.</div>}
@@ -199,16 +217,17 @@ export default function App() {
         try {
           if (file.size > 20 * 1024 * 1024) throw new Error("백업은 20MB 이내로 선택하세요.");
           const restored = readBackup(await file.text());
+          setSourceSession(session => session + 1);
           setSavedWork(s => ({ ...restored, revisions: [newRevision(s.current, "백업 복원 전"), ...restored.revisions, ...s.revisions] }));
         } catch (e) { setError(e instanceof Error ? e.message : "백업 복원 실패"); } finally { setBusy(false); }
       }} /></label></details>
     <GrowthNotebook work={work} revisions={revisions} onReflection={reflection => update(w => ({ ...w, reflection }))} onCheckpoint={checkpoint} onRestore={restore} busy={busy} saved={saved} />
-    <div className="growth-actions"><button type="button" disabled={busy} onClick={() => { checkpoint("예시 체험 전"); update(() => exampleWorkspace()); setError(null); }}>API 키 없이 합성 자료로 출제 연습</button><button type="button" disabled={busy} onClick={restart}>현재 버전 보관 후 새 문항</button></div>
+    <div className="growth-actions"><button type="button" disabled={busy} onClick={() => { checkpoint("예시 체험 전"); replaceWorkspace(exampleWorkspace()); setError(null); }}>API 키 없이 합성 자료로 출제 연습</button><button type="button" disabled={busy} onClick={restart}>현재 버전 보관 후 새 문항</button></div>
     {workbenchStep && <div className="mobile-tabs" aria-label="설정과 미리보기 전환"><button type="button" aria-pressed={mobilePane === "settings"} aria-selected={mobilePane === "settings"} onClick={() => setMobilePane("settings")}>설정</button><button type="button" aria-pressed={mobilePane === "preview"} aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>결과 미리보기</button></div>}
     {workbenchStep ? <div className="editorial-workbench">
       <main className={`paper-pane ${mobilePane === "preview" ? "is-mobile-active" : ""}`}><WorkspacePreview step={step} input={input} analysis={analysis} scenario={scenario} stimulus={null} assembly={null} final={null} /></main>
       <aside className={`editorial-tools ${mobilePane === "settings" ? "is-mobile-active" : ""}`}><PedagogyGuide step={step} input={input} /><fieldset disabled={busy}><legend className="sr-only">문항 설계 설정</legend>
-        {step === "input" && <InputForm initial={input} onChange={inputChange} hasApiKey={!!apiKey} busy={busy} onOpenKey={() => setKeyModalOpen(true)} onSubmit={handleInputSubmit} />}
+        {step === "input" && <InputForm key={sourceSession} initial={input} onChange={inputChange} hasApiKey={!!apiKey} busy={busy} onOpenKey={() => setKeyModalOpen(true)} onSubmit={handleInputSubmit} onReadSource={readSource} />}
         {step === "analysis" && analysis && <AnalysisReview value={analysis} onChange={analysisChange} initialScenarioIndex={scenarioIndex} onScenarioChange={scenarioChange} requireSourcePlan={input.sourceMode === "reference"} busy={busy} onBack={() => navigate("input")} onConfirm={runBank} />}
       </fieldset></aside>
     </div> : <main className="editorial-wide-stage"><PedagogyGuide step={step} input={input} />

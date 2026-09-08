@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import ReferenceSearch from "./ReferenceSearch";
+import SourceOriginal from "./SourceOriginal";
+import type { Attachment } from "../lib/attachments";
+import type { SourceReading } from "../lib/source-reading";
 import type {
   BehaviorDomain,
   ItemFormat,
@@ -28,6 +31,7 @@ interface Props {
   busy: boolean;
   onOpenKey: () => void;
   onSubmit: (input: TeacherInput) => void;
+  onReadSource: (sourceId: string, attachments: Attachment[]) => Promise<SourceReading | null>;
 }
 
 type Mode = "picker" | "direct";
@@ -102,6 +106,7 @@ export default function InputForm({
   busy,
   onOpenKey,
   onSubmit,
+  onReadSource,
 }: Props) {
   const form = initial;
   const picker = form.picker ?? { mode: form.standard ? "direct" : "picker", level: "", subject: "", domain: "", code: "" };
@@ -642,6 +647,9 @@ export default function InputForm({
                         className={inputClass}
                       />
                     </label>
+                    <div className="sm:col-span-2">
+                      <SourceOriginal source={source} busy={busy} onChange={patch => updateSource(source.id, patch)} onRead={onReadSource} />
+                    </div>
                     <label className="block text-xs font-semibold text-ink sm:col-span-2">
                       확인한 수치·표·그림 구조 <span className="text-thread">*</span>
                       <textarea

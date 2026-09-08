@@ -9,9 +9,10 @@ import type { RevisionContent, RevisionPart, RevisionState } from "../lib/item-r
 import { downloadMarkdown } from "../lib/export";
 import ScientificFigure from "./ScientificFigure";
 import FigureEditor from "./FigureEditor";
+import { ATTACHMENT_ACCEPT, loadAttachments, releaseAttachments } from "../lib/attachments";
+import type { Attachment } from "../lib/attachments";
 
 const KEY = "item-revision-v1";
-type Attachment = { name: string; mimeType: string; data: string; url: string };
 function ContentFields({ content, onChange, prefix, targets }: { content: RevisionContent; onChange: (content: RevisionContent) => void; prefix: string; targets?: RevisionPart[] }) {
   const enabled = (part: RevisionPart) => !targets || targets.includes(part);
   return <div className="revision-fields">
@@ -32,21 +33,19 @@ export default function RevisionStudio({ input, apiKey, model, busy, onBusy, onO
   const [state, setState] = useState<RevisionState>(() => readRevisionState(storage.get(KEY), input));
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => attachments.forEach(a => URL.revokeObjectURL(a.url)), [attachments]);
+  useEffect(() => () => releaseAttachments(attachments), [attachments]);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(true);
   useEffect(() => { setSaved(storage.set(KEY, JSON.stringify(state))); }, [state]);
   const patch = (next: Partial<RevisionState>, archive = false) => { setError(""); setState(s => archive || (s.proposal && next.proposal === null) ? changeRevision(s, next) : { ...s, ...next }); };
   const resetSource = (next: Partial<RevisionState>) => patch({ ...next, reading: null, originalConfirmed: false, proposal: null }, true);
-  async function files(selected: FileList | null) {
-    if (!selected?.length) return;
-    const values = Array.from(selected);
-    if (values.length > 3 || values.reduce((n, f) => n + f.size, 0) > 8 * 1024 * 1024 || values.some(f => !["application/pdf", "image/png", "image/jpeg", "image/webp"].includes(f.type))) { setError("PDF·PNG·JPEG·WebP를 최대 3개, 합계 8MB 이내로 선택하세요. 큰 PDF는 사용할 페이지만 추려 주세요."); return; }
+  async function files(selected: File[]) {
+    if (!selected.length || busy) return;
     onBusy(true); setError(""); controller.current = new AbortController();
     try {
-      const loaded = await Promise.all(values.map(file => new Promise<Attachment>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ name: file.name, mimeType: file.type, data: String(reader.result).split(",")[1], url: URL.createObjectURL(file) }); reader.onerror = reject; reader.readAsDataURL(file); })));
+      const loaded = await loadAttachments(selected);
       setAttachments(loaded); resetSource({});
-    } catch { setError("첨부 파일을 읽지 못했습니다. 다시 선택하세요."); } finally { onBusy(false); }
+    } catch (e) { setError(e instanceof Error ? e.message : "첨부 파일을 읽지 못했습니다. 기존 파일은 유지했습니다."); } finally { onBusy(false); }
   }
   async function read() {
     if (!apiKey) { onOpenKey(); return; }
@@ -73,8 +72,10 @@ export default function RevisionStudio({ input, apiKey, model, busy, onBusy, onO
     <fieldset disabled={busy}>
       <div className="revision-meta"><label>입력 자료 유형<select value={state.kind} onChange={e => resetSource({ kind: e.target.value })}>{["기출문제", "교과서·전공서적", "논문", "아이디어"].map(kind => <option key={kind}>{kind}</option>)}</select></label><label>자료 사용 방식<select value={state.sourceMode} onChange={e => patch({ sourceMode: e.target.value as RevisionState["sourceMode"], proposal: null })}><option value="reference">원자료 수치·조건 보존</option><option value="synthetic">아이디어 기반 합성 자료</option></select></label></div>
       <label>원문·아이디어 또는 첨부에서 읽을 범위<textarea rows={5} value={state.text} onChange={e => resetSource({ text: e.target.value })} placeholder="문항 전체를 붙여넣거나, 첨부한 자료의 쪽수·문항 번호·그림 번호와 활용할 아이디어를 적으세요." /></label>
-      <label>PDF·문항 사진 첨부 (최대 3개, 합계 8MB)<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" multiple onChange={e => void files(e.target.files)} /></label>
-      {attachments.length > 0 && <div><ul>{attachments.map(a => <li key={a.name}>{a.name}</li>)}</ul><button type="button" onClick={() => { setAttachments([]); resetSource({}); }}>첨부 해제</button></div>}
+      <label>출처 원문 첨부 (PDF·PNG·JPG·JPEG·WebP)<input type="file" accept={ATTACHMENT_ACCEPT} multiple onChange={e => { const selected = Array.from(e.target.files ?? []); e.target.value = ""; void files(selected); }} /></label>
+      <p className="growth-help">최대 3개, 합계 8MB. 문항 사진·논문 그래프·교과서 그림을 첨부할 수 있습니다. 큰 PDF는 사용할 페이지만 추려 주세요.</p>
+      {attachments.length > 0 && <div><ul>{attachments.map(a => <li key={a.url}>{a.name}</li>)}</ul><button type="button" onClick={() => { setAttachments([]); resetSource({}); }}>첨부 해제</button></div>}
+      {!state.reading && attachments.length > 0 && <div className="source-original-previews">{attachments.map(a => <figure key={a.url}><figcaption>{a.name}</figcaption>{a.mimeType === "application/pdf" ? <object data={a.url} type="application/pdf" aria-label={a.name}><a href={a.url} target="_blank" rel="noreferrer">원문 PDF 열기</a></object> : <img src={a.url} alt={`출처 원문: ${a.name}`} />}<a href={a.url} target="_blank" rel="noreferrer">원문 크게 열기</a></figure>)}</div>}
       <label>출처·원문 위치<input value={state.location} onChange={e => patch({ location: e.target.value, sourceReview: undefined })} placeholder="예: 2024학년도 ○월 ○번 / 책명·쪽수 / 논문 DOI·Figure 2" /></label>
       <button type="button" onClick={() => patch({ subject: input.subject, standard: input.standard, proposal: null })}>현재 설계의 과목·성취기준 가져오기</button>
       <div className="revision-meta"><label>개선 문항 과목<input value={state.subject} onChange={e => patch({ subject: e.target.value, proposal: null })} /></label><label>개선 문항 성취기준·수업 범위<textarea value={state.standard} onChange={e => patch({ standard: e.target.value, proposal: null })} /></label></div>
