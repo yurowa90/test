@@ -41,6 +41,7 @@ function httpError(status: number, data: unknown): GeminiError {
   const diagnostic = JSON.stringify(error);
   if (/API_KEY_INVALID|API_KEY_EXPIRED|API key not valid/i.test(diagnostic) || status === 401)
     return new GeminiError("API 키가 유효하지 않거나 만료됐습니다. Google AI Studio에서 키를 확인한 뒤 다시 입력하세요.", "key");
+  if (status === 402) return new GeminiError("Google API가 결제 확인을 요구했습니다(402). 이 키가 연결된 프로젝트의 AI Studio 결제 화면에서 선불 크레딧 잔액과 결제 상태를 확인하세요. 키를 다시 붙여넣거나 잠시 기다리는 것만으로는 해결되지 않을 수 있습니다. 문항과 입력 내용은 유지됩니다.", "billing");
   if (status === 403) return new GeminiError("사용 권한이 없습니다(403). 키의 웹사이트 제한, Generative Language API 허용 여부와 Google 프로젝트 권한을 확인하세요.", "permission");
   if (status === 404) return new GeminiError("선택한 모델을 사용할 수 없습니다(404). API 설정에서 모델 목록을 새로 불러와 선택하고 연결 시험을 해 주세요.", "model");
   if (status === 429) return new GeminiError("요청 한도 또는 할당량을 초과했습니다(429). AI Studio에서 이 모델의 분당·일일 한도와 결제 상태를 확인하세요. 무료 한도가 0이면 기다려도 해결되지 않습니다.", "quota");

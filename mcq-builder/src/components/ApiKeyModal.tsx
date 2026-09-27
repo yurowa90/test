@@ -74,7 +74,7 @@ export default function ApiKeyModal({ initialKey, initialModel, onSave, onClear,
       <p className="mt-2 text-xs text-ink-soft">연결 시험은 짧은 예시만 전송하며 토큰 비용·할당량이 소모될 수 있습니다. 작성 중인 문항은 전송하지 않습니다.</p>
       <div role="status" aria-live="polite" className="mt-3 text-sm">{busy ? "Google API 확인 중입니다. 취소하면 요청을 중단합니다." : message}</div>
       {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
-      <p className="mt-4 text-xs"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline">AI Studio 키 관리</a> · <a href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer" className="underline">사용량·할당량 확인</a></p>
+      <p className="mt-4 text-xs"><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline">AI Studio 키 관리</a> · <a href="https://aistudio.google.com/usage" target="_blank" rel="noreferrer" className="underline">사용량·할당량 확인</a> · <a href="https://aistudio.google.com/billing" target="_blank" rel="noreferrer" className="underline">API 결제·크레딧 확인</a></p>
       <div className="mt-5 flex flex-wrap justify-end gap-2">
         {initialKey && <button type="button" disabled={busy} onClick={onClear} className="mr-auto px-3 py-2 text-sm text-rose-700">저장된 키 삭제</button>}
         <button type="button" onClick={onClose} className="px-3 py-2 text-sm">취소</button>

@@ -59,7 +59,7 @@ test("normalized copied key reaches model discovery instead of a local length re
 for (const [status, data, expected] of [
   [400, { error: { details: [{ reason: "API_KEY_INVALID" }], message: key } }, "key"],
   [400, { error: { status: "INVALID_ARGUMENT" } }, "request"],
-  [401, {}, "key"], [403, {}, "permission"], [404, {}, "model"], [429, {}, "quota"],
+  [402, { error: { message: key } }, "billing"], [401, {}, "key"], [403, {}, "permission"], [404, {}, "model"], [429, {}, "quota"],
 ] as const) test(`HTTP ${status} maps to ${expected} without exposing diagnostics`, async () => {
   let calls = 0;
   await assert.rejects(callGemini(options, { fetch: async () => { calls++; return json(data, status); } }), e => {
@@ -145,4 +145,17 @@ test("schema checks reject missing nested explanations and coerced truth", () =>
 test("connection test uses the generation transport and requires true", async () => {
   await testConnection(key, options.model, undefined, { fetch: async () => success() });
   await assert.rejects(testConnection(key, options.model, undefined, { fetch: async () => json({ candidates: [{ content: { parts: [{ text: '{"ok":false}' }] } }] }) }));
+});
+
+for (const body of [JSON.stringify({error:{status:"RESOURCE_EXHAUSTED",message:key}}), "Payment Required"]) test("model discovery 402 explains billing without leaking details or retrying", async () => {
+  let calls = 0;
+  await assert.rejects(listModels(key, undefined, {fetch: async () => {calls++; return new Response(body,{status:402});},sleep:async()=>assert.fail("must not retry")}), e => {
+    assert.equal((e as {kind:string}).kind,"billing");
+    assert.match((e as Error).message,/402/);
+    assert.match((e as Error).message,/크레딧/);
+    assert.ok(!(e as Error).message.includes(key));
+    assert.ok(!(e as Error).message.includes("잠시 후 다시"));
+    return true;
+  });
+  assert.equal(calls,1);
 });
