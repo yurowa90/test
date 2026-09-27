@@ -159,3 +159,16 @@ for (const body of [JSON.stringify({error:{status:"RESOURCE_EXHAUSTED",message:k
   });
   assert.equal(calls,1);
 });
+
+for (const [message,status,expected] of [
+  ['free tier not available', 'FAILED_PRECONDITION', 'precondition'],
+  ['response_schema has too many states', 'INVALID_ARGUMENT', 'schema-request'],
+  ['maxOutputTokens exceeds limit', 'INVALID_ARGUMENT', 'output-limit'],
+  ['input token count exceeds limit', 'INVALID_ARGUMENT', 'input-limit'],
+] as const) test(`400 diagnostic: ${expected}`,async()=>{
+  await assert.rejects(callGemini(options,{fetch:async()=>json({error:{message:message+' '+key,status}},400)}),e=>{
+    assert.equal((e as {kind:string}).kind,expected);
+    assert.match((e as Error).message,/gemini-2.5-flash/);
+    assert.ok(!(e as Error).message.includes(key));return true;
+  });
+});

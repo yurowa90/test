@@ -1,3 +1,4 @@
+import { EMPTY_START, START_OPTIONS, syntheticStartIssue } from "../lib/synthetic-start";
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import ReferenceSearch from "./ReferenceSearch";
@@ -211,7 +212,9 @@ export default function InputForm({
         s.dataExcerpt.trim() !== "" &&
         s.verified,
     );
-  const canSubmit = hasApiKey && form.standard.trim().length > 0 && sourceReady && !busy;
+  const start = form.syntheticStart ?? EMPTY_START;
+  const startIssue = syntheticStartIssue(form);
+  const canSubmit = hasApiKey && form.standard.trim().length > 0 && sourceReady && !startIssue && !busy;
 
   return (
     <form
@@ -708,10 +711,31 @@ export default function InputForm({
               )}
             </div>
           ) : (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-              합성 자료는 실제 연구 결과처럼 표현하지 않습니다. 결과물에 ‘교육용으로
-              재구성한 합성 자료’라고 표시됩니다.
-            </p>
+            <div className="mt-4 space-y-4">
+              <fieldset>
+                <legend className="text-sm font-bold text-blueprint">어디에서 출발할까요?</legend>
+                <div className="mt-2 grid gap-2" role="radiogroup" aria-label="합성 자료 출발 방식">
+                  {START_OPTIONS.map(option => <label key={option.value} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${start.mode === option.value ? "border-blueprint bg-blueprint/5" : "border-paper-line bg-white"}`}>
+                    <input type="radio" name="synthetic-start" value={option.value} checked={start.mode === option.value} onChange={() => set({ syntheticStart: { ...start, mode: option.value } })} className="mt-1 accent-blueprint" />
+                    <span><strong>{option.label}</strong><span className="mt-1 block text-xs font-normal text-ink-soft">{option.hint}</span></span>
+                  </label>)}
+                </div>
+              </fieldset>
+              {start.mode === "idea" && <label className="block text-sm font-semibold">주제·아이디어 <span className="text-thread">*</span>
+                <textarea aria-label="주제·아이디어" rows={4} value={start.idea} onChange={e => set({ syntheticStart: { ...start, idea: e.target.value } })} placeholder="예: 같은 질량의 두 물체를 가열할 때 온도 변화가 다른 이유를 그래프로 비교하게 하고 싶습니다." className={inputClass} />
+              </label>}
+              {start.mode === "transform" && <>
+                <label className="block text-sm font-semibold">변형할 기존 문항 <span className="text-thread">*</span>
+                  <textarea aria-label="변형할 기존 문항" rows={6} value={start.original} onChange={e => set({ syntheticStart: { ...start, original: e.target.value } })} placeholder="사용 가능한 공개·자작 문항의 발문, 제시 자료와 선택지를 붙여넣으세요. 정답·해설이 있으면 함께 입력하세요." className={inputClass} />
+                </label>
+                <label className="block text-sm font-semibold">유지할 점·바꿀 점 <span className="text-thread">*</span>
+                  <textarea aria-label="유지할 점·바꿀 점" rows={3} value={start.changes} onChange={e => set({ syntheticStart: { ...start, changes: e.target.value } })} placeholder="예: 비열을 비교하는 평가 요소는 유지하고, 물질과 수치를 바꾸며 질량이 다른 조건의 오답을 추가합니다." className={inputClass} />
+                </label>
+                <p className="text-xs text-ink-soft">원문을 바탕으로 새 문항을 설계합니다. 원문의 오류도 다시 검토하며, 새 수치와 상황은 합성 자료로 표시합니다.</p>
+              </>}
+              {startIssue && <p className="text-xs text-amber-900" role="status">{startIssue}</p>}
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">합성 자료는 실제 연구 결과처럼 표현하지 않습니다. 결과물에 ‘교육용으로 재구성한 합성 자료’라고 표시됩니다. 방식을 전환해도 입력한 내용은 보존됩니다.</p>
+            </div>
           )}
         </section>
 

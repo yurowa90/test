@@ -131,6 +131,7 @@ export function revisionDifferences(before: Workspace, after: Workspace): { labe
     if (x !== y) rows.push({ label, before: x || "(없음)", after: y || "(없음)" });
   };
   add("성취기준", before.input.standard, after.input.standard);
+  add("합성 자료 출발 방식·입력", before.input.syntheticStart, after.input.syntheticStart);
   add("출제 맥락", before.input.context, after.input.context);
   add("문항 조건", before.input.options, after.input.options);
   add("평가 요소", before.analysis?.assessmentElement, after.analysis?.assessmentElement);

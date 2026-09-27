@@ -1,3 +1,4 @@
+import { syntheticStartPrompt } from "./synthetic-start";
 import type {
   AnalysisResult,
   Assembly,
@@ -336,7 +337,7 @@ ${sources}
 function standardBlock(input: TeacherInput): string {
   return `교과: ${input.subject || "(미지정)"} / 학년: ${input.grade || "(미지정)"}${input.domain ? ` / 영역: ${input.domain}` : ""}
 성취기준${input.standardCode ? ` [${input.standardCode}]` : ""}:
-${input.standard.trim()}${levelsBlock(input)}${sourcesBlock(input)}${input.context ? `\n\n출제 맥락 메모:\n${input.context}` : ""}`;
+${input.standard.trim()}${levelsBlock(input)}${sourcesBlock(input)}${syntheticStartPrompt(input)}${input.context ? `\n\n출제 맥락 메모:\n${input.context}` : ""}`;
 }
 
 /* ── Pass 1: 교육과정 분석 → 평가 요소·문제 장면 ───────── */

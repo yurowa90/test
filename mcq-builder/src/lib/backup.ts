@@ -14,6 +14,7 @@ export function validWorkspace(w: unknown): w is Workspace {
   if (!object(w) || !member(w.step, ['input','analysis','bank','result']) || !Number.isInteger(w.scenarioIndex) || w.scenarioIndex < 0) return false;
   const i = w.input;
   if (!fields(i, ['subject','grade','standard','context']) || !object(i) || !member(i.sourceMode, ['reference','synthetic']) || !Array.isArray(i.sources) || !object(i.options)) return false;
+  if (i.syntheticStart !== undefined && (!fields(i.syntheticStart,["idea","original","changes"]) || !member(i.syntheticStart.mode,["standard","idea","transform"]))) return false;
   if (!optionalStrings(i, ['standardCode','domain'])) return false;
   if (i.picker !== undefined && (!fields(i.picker, ['mode','level','subject','domain','code']) || !member(i.picker.mode, ['picker','direct']))) return false;
   if (i.achievementLevels !== undefined && (!fields(i.achievementLevels, ['A','B','C','D','E']) || !member(i.achievementLevels.system, [3,5]))) return false;

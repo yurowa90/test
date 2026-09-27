@@ -45,7 +45,13 @@ function httpError(status: number, data: unknown): GeminiError {
   if (status === 403) return new GeminiError("사용 권한이 없습니다(403). 키의 웹사이트 제한, Generative Language API 허용 여부와 Google 프로젝트 권한을 확인하세요.", "permission");
   if (status === 404) return new GeminiError("선택한 모델을 사용할 수 없습니다(404). API 설정에서 모델 목록을 새로 불러와 선택하고 연결 시험을 해 주세요.", "model");
   if (status === 429) return new GeminiError("요청 한도 또는 할당량을 초과했습니다(429). AI Studio에서 이 모델의 분당·일일 한도와 결제 상태를 확인하세요. 무료 한도가 0이면 기다려도 해결되지 않습니다.", "quota");
-  if (status === 400) return new GeminiError("요청을 처리하지 못했습니다(400). 모델의 JSON 출력 지원, 입력 길이, 이용 지역과 결제 설정을 확인하세요. API 설정의 연결 시험으로 모델 호환성을 먼저 확인할 수 있습니다.", "request");
+  if (status === 400) {
+    if (/FAILED_PRECONDITION/i.test(diagnostic)) return new GeminiError("Google 이용 조건 오류(400 · FAILED_PRECONDITION)입니다. AI Studio에서 이 프로젝트의 이용 지역·무료 등급 지원 여부와 결제 설정을 확인하세요.", "precondition");
+    if (/response[_ ]?schema|responseJsonSchema|propertyOrdering|too many states|schema.*complex/i.test(diagnostic)) return new GeminiError("생성 결과 형식이 거부됐습니다(400 · 응답 스키마). 간단한 연결 시험은 통과해도 실제 문항의 복잡한 출력 형식은 거부될 수 있습니다. 선택한 모델 이름과 오류가 난 생성 단계를 알려주세요.", "schema-request");
+    if (/max[_ ]?output[_ ]?tokens|output.*token.*limit/i.test(diagnostic)) return new GeminiError("출력 길이 설정이 모델 한도를 넘었습니다(400 · 출력 토큰). API 설정에서 모델 목록을 다시 조회하고 해당 모델의 지원 한도를 확인하세요.", "output-limit");
+    if (/input.*token|token.*limit|request.*too large/i.test(diagnostic)) return new GeminiError("입력 길이가 모델 한도를 넘었습니다(400 · 입력 길이). 원문·자료의 범위를 줄여 주세요.", "input-limit");
+    return new GeminiError("요청 형식이 거부됐습니다(400 · INVALID_ARGUMENT). 선택한 모델과 실제 생성 요청의 호환성을 확인해야 합니다. 오류가 난 단계와 모델 이름을 알려주세요. 키나 문항 원문은 공유하지 마세요.", "request");
+  }
   return new GeminiError(`Google 응답 오류(HTTP ${status})입니다. 잠시 후 다시 시도해 주세요. 입력한 작업은 유지됩니다.`, "server");
 }
 function retryDelay(response: Response, data: unknown): number | null {
@@ -102,7 +108,9 @@ async function request(url: string, apiKey: string, body: unknown | undefined, s
       await (runtime.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms))))(delay);
       continue;
     }
-    throw httpError(response.status, data);
+    const error = httpError(response.status, data);
+    const operation = body === undefined ? "모델 목록 조회" : `생성 요청 · ${new URL(url).pathname.split('/').at(-1)?.split(':')[0]}`;
+    throw new GeminiError(`${operation}: ${error.message}`, error.kind);
   }
   throw new GeminiError("요청을 완료하지 못했습니다.");
 }

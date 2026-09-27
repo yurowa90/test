@@ -97,6 +97,7 @@ export interface TeacherInput {
   standardCode?: string;
   domain?: string;
   achievementLevels?: AchievementLevels;
+  syntheticStart?: { mode: "standard" | "idea" | "transform"; idea: string; original: string; changes: string };
   sourceMode: SourceMode;
   sources: SourceReference[];
   options: ItemOptions;

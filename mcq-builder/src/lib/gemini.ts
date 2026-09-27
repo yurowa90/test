@@ -1,3 +1,4 @@
+import { syntheticStartIssue } from "./synthetic-start";
 import type {
   AnalysisResult,
   Assembly,
@@ -39,6 +40,8 @@ export async function generateAnalysis(
   model: string,
   signal?: AbortSignal,
 ): Promise<AnalysisResult> {
+  const issue = syntheticStartIssue(input);
+  if (issue) throw new GeminiError(issue, "request");
   const raw = await callGemini<Partial<AnalysisResult>>({
     apiKey,
     model,
