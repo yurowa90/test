@@ -1,3 +1,4 @@
+import { useAutosave } from "../hooks/useAutosave";
 import { useEffect, useRef, useState } from "react";
 import { BEHAVIOR_DOMAINS } from "../types";
 import type { TeacherInput } from "../types";
@@ -35,8 +36,8 @@ export default function RevisionStudio({ input, apiKey, model, busy, onBusy, onO
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => releaseAttachments(attachments), [attachments]);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(true);
-  useEffect(() => { setSaved(storage.set(KEY, JSON.stringify(state))); }, [state]);
+  const autosave = useAutosave(KEY, state);
+  const saved = autosave.status !== "error";
   const patch = (next: Partial<RevisionState>, archive = false) => { setError(""); setState(s => archive || (s.proposal && next.proposal === null) ? changeRevision(s, next) : { ...s, ...next }); };
   const resetSource = (next: Partial<RevisionState>) => patch({ ...next, reading: null, originalConfirmed: false, proposal: null }, true);
   async function files(selected: File[]) {
@@ -68,6 +69,7 @@ export default function RevisionStudio({ input, apiKey, model, busy, onBusy, onO
   return <section className="revision-studio editorial-wide-stage" aria-label="기존 문항·자료 개선">
     <h2>기존 문항·자료 개선</h2><p>원자료 읽기 → 교사 대조 → 부분 수정 → 원본 비교 → 문항 검토로 연결합니다.</p>
     <p className="growth-help">입력·첨부는 읽기 버튼을 누르면 Google Gemini로 전송됩니다. 미공개 시험 원안과 공동출제 기밀은 입력하지 마세요. 첨부 파일 자체는 새로고침 후 다시 선택해야 하며, 읽어 낸 내용과 수정안은 이 브라우저에 저장됩니다.</p>
+    <p role="status">{autosave.status === "pending" ? "입력 내용 저장 대기 중" : saved ? "입력 내용 저장됨" : "입력 내용 저장 실패"}</p>
     {!saved && <p role="alert" className="editorial-alert">자동 저장에 실패했습니다. 개선 기록을 내려받으세요.</p>}
     <fieldset disabled={busy}>
       <div className="revision-meta"><label>입력 자료 유형<select value={state.kind} onChange={e => resetSource({ kind: e.target.value })}>{["기출문제", "교과서·전공서적", "논문", "아이디어"].map(kind => <option key={kind}>{kind}</option>)}</select></label><label>자료 사용 방식<select value={state.sourceMode} onChange={e => patch({ sourceMode: e.target.value as RevisionState["sourceMode"], proposal: null })}><option value="reference">원자료 수치·조건 보존</option><option value="synthetic">아이디어 기반 합성 자료</option></select></label></div>

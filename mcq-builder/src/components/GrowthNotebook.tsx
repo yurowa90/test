@@ -9,20 +9,24 @@ function reflectionMarkdown(work: Workspace): string {
 
 export function notebookMarkdown(work: Workspace): string { return `${work.revisionRecord ? `\n\n${work.revisionRecord}` : ""}${reflectionMarkdown(work)}`; }
 
-export default function GrowthNotebook({ work, revisions, onReflection, onCheckpoint, onRestore, busy, saved }: { work: Workspace; revisions: Revision[]; onReflection: (r: Reflection) => void; onRestore: (id: string) => void; onCheckpoint: (label: string) => void; busy: boolean; saved: boolean }) {
+export default function GrowthNotebook({ work, revisions, onReflection, onCheckpoint, onRestore, busy, saved, saveStatus, storageBytes, onSave, onDelete }: { work: Workspace; revisions: Revision[]; onReflection: (r: Reflection) => void; onRestore: (id: string) => void; onCheckpoint: (label: string) => void; busy: boolean; saved: boolean; saveStatus?: string; storageBytes: number; onSave: () => void; onDelete: (id: string) => void }) {
   const [selected, setSelected] = useState("");
   const [label, setLabel] = useState("");
   const revision = revisions.find(r => r.id === selected) ?? revisions[0];
   const changes = revision ? revisionDifferences(revision.snapshot,work) : [];
   return <details className="growth-panel growth-notebook">
-    <summary>출제 성장 노트 · 보관 버전 {revisions.length}개 · {saved ? "이 브라우저에 저장됨" : "저장 실패 — 기록을 내려받으세요"}</summary>
+    <summary>출제 성장 노트 · 보관 버전 {revisions.length}개 · {saveStatus || (saved ? "이 브라우저에 저장됨" : "저장 실패 — 기록을 내려받으세요")}</summary>
     <p>긴 보고서 대신 핵심 수정 한두 건만 남기세요. 편집은 자동 저장되고, 재생성·새 문항 시작 전에는 이전 버전을 보관합니다.</p>
+    <p role="status">작업 저장 크기 약 {(storageBytes / 1024).toFixed(0)}KB · 보관 버전 {revisions.length}개. 버전은 자동 삭제하지 않습니다.</p>
+    {(storageBytes > 2 * 1024 * 1024 || revisions.length > 50) && <p className="editorial-alert">기록이 많습니다. 전체 백업을 내려받고 필요 없는 보관 버전을 정리하면 저장 부담을 줄일 수 있습니다.</p>}
+    <button type="button" onClick={onSave}>지금 저장</button>
     <fieldset disabled={busy}>
-      <div className="reflection-grid">{([ ["problem","발견한 문제"], ["reason","바꾼 이유"], ["transfer","다음 문항에 적용할 원리"], ["application","수업·평가에 적용한 방법"], ["observed","학생 반응에서 확인한 점"] ] as const).map(([key,title]) => <label key={key}>{title}<textarea rows={3} value={work.reflection[key] ?? ""} onChange={e => onReflection({ ...work.reflection, [key]: e.target.value })} /></label>)}</div>
+      <div className="reflection-grid">{([ ["problem","발견한 문제"], ["reason","바꾼 이유"], ["transfer","다음 문항에 적용할 원리"], ["application","수업·평가에 적용한 방법"], ["observed","학생 반응에서 확인한 점"] ] as const).map(([key,title]) => <label key={key}>{title}<textarea aria-label={title} rows={3} value={work.reflection[key] ?? ""} onChange={e => onReflection({ ...work.reflection, [key]: e.target.value })} /></label>)}</div>
       <div className="growth-actions"><label>보관 이름 (선택)<input value={label} onChange={e => setLabel(e.target.value)} placeholder="예: 오답의 조건을 구체화" /></label><button type="button" onClick={() => onCheckpoint(label.trim() || "교사 수동 보관")}>현재 버전 보관</button><button type="button" onClick={() => downloadMarkdown("출제_성장_노트.md", `# 출제 성장 노트\n${notebookMarkdown(work)}\n\n${[...revisions].reverse().map(r => `## ${r.at} · ${r.label}\n\n${r.snapshot.input.subject} · ${r.snapshot.analysis?.assessmentElement || r.snapshot.input.standard}\n${notebookMarkdown(r.snapshot)}`).join("\n\n")}`)}>전체 성찰 기록 내려받기</button></div>
       {revision && <>
         <label>현재 작업과 비교할 버전<select value={revision.id} onChange={e => setSelected(e.target.value)}>{revisions.map(r => <option key={r.id} value={r.id}>{new Date(r.at).toLocaleString("ko-KR")} · {r.label} · {r.snapshot.input.subject}</option>)}</select></label>
         <button type="button" onClick={() => onRestore(revision.id)}>현재 작업 보관 후 이 버전 복원</button>
+        <button type="button" onClick={() => onDelete(revision.id)}>선택한 보관 버전 삭제</button>
         <p className="growth-help">복원하면 교사 최종 확인을 다시 받습니다. 변경 없는 이동은 기록을 만들지 않습니다.</p>
         {changes.length ? changes.map(row => <details key={row.label}><summary>{row.label} 변경</summary><div className="comparison"><div><h4>보관 버전</h4><pre>{row.before}</pre></div><div><h4>현재 작업</h4><pre>{row.after}</pre></div></div></details>) : <p>비교 대상과 편집 내용이 같습니다.</p>}
       </>}

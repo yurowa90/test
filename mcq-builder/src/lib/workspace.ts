@@ -1,3 +1,4 @@
+import { validStoredWorkspace, safeRestore } from "./backup.ts";
 import type { AnalysisResult, Assembly, AssemblyContext, FinalItem, ItemBank, Proposition, Stimulus, TeacherInput, WizardStep } from "../types.ts";
 import { checkFigureSource, materialIssues, materialSignature } from "./integrity.ts";
 import { assemble } from "./assemble.ts";
@@ -113,13 +114,13 @@ export function readSaved(raw: string | null, fallback: TeacherInput): SavedWork
   if (!raw) return empty;
   try {
     const data = JSON.parse(raw);
-    if (data.version === 3 && data.current?.input?.options && Array.isArray(data.current.input.sources) && Array.isArray(data.revisions)) return data;
+    if (data.version === 3 && data.current?.input?.options && Array.isArray(data.current.input.sources) && Array.isArray(data.revisions) && validStoredWorkspace(data.current) && data.revisions.every((r: Revision) => r && typeof r.id === "string" && typeof r.at === "string" && typeof r.label === "string" && validStoredWorkspace(r.snapshot))) return data;
     if (data.version === 2 && data.input?.options && Array.isArray(data.input.sources)) {
       const migrated = { ...startWorkspace(data.input), ...data, bankDraft: data.bank ? createBankDraft(data.bank, data.assembly) : null };
-      return { ...empty, current: migrated };
+      if (validStoredWorkspace(migrated)) return { ...empty, current: migrated };
     }
-  } catch { /* Keep invalid raw data in its original storage key until a successful new save. */ }
-  return empty;
+  } catch { /* The caller preserves invalid raw data and pauses automatic writes. */ }
+  throw new Error("저장된 작업 형식이 손상되었습니다. 원본을 내려받고 백업으로 복원하세요.");
 }
 
 export function revisionDifferences(before: Workspace, after: Workspace): { label: string; before: string; after: string }[] {
@@ -149,4 +150,19 @@ export function revisionDifferences(before: Workspace, after: Workspace): { labe
   add("자료 연결·수정 이유", before.bankDraft?.notes, after.bankDraft?.notes);
   add("성찰 기록", before.reflection, after.reflection);
   return rows;
+}
+
+/** Reimporting the same backup does not multiply archived work. Distinct content survives ID collisions. */
+export function mergeRevisions(...lists: Revision[][]): Revision[] {
+  const seen = new Set<string>(), ids = new Set<string>();
+  const result: Revision[] = [];
+  for (const revision of lists.flat()) {
+    const fingerprint = JSON.stringify([revision.at, revision.label, safeRestore(revision.snapshot)]);
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    let id = revision.id;
+    for(let suffix=1; ids.has(id); suffix++) id = `${revision.id}:copy:${suffix}`;
+    ids.add(id); result.push({...revision,id});
+  }
+  return result;
 }

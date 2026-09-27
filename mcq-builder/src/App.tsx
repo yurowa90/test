@@ -1,10 +1,12 @@
+import { useAutosave } from "./hooks/useAutosave";
+import { downloadText } from "./lib/export";
 import { useEffect, useRef, useState } from "react";
 import type { SetStateAction } from "react";
 import type { AnalysisResult, Assembly, Stimulus, TeacherInput, WizardStep } from "./types";
 import { DEFAULT_MODEL, GeminiError, generateAnalysis, generateBank, generateFinal, generateFigure } from "./lib/gemini";
 import { API_KEY_STORAGE, DRAFT_STORAGE, MODEL_STORAGE, storage } from "./lib/storage";
 import { copyToClipboard, downloadMarkdown, toStudentMarkdown, toTeacherMarkdown } from "./lib/export";
-import { bankReadiness, changeStimulus, createBankDraft, editAnalysis, editBank, editInput, readSaved, restoreRevision, startWorkspace } from "./lib/workspace";
+import { bankReadiness, changeStimulus, createBankDraft, editAnalysis, editBank, editInput, readSaved, mergeRevisions, restoreRevision, startWorkspace } from "./lib/workspace";
 import type { BankDraft, Revision, SavedWorkspace, Workspace } from "./lib/workspace";
 import ApiKeyModal from "./components/ApiKeyModal";
 import InputForm from "./components/InputForm";
@@ -36,10 +38,17 @@ function newRevision(work: Workspace, label: string): Revision {
 }
 
 export default function App() {
-  const [savedWork, setSavedWork] = useState<SavedWorkspace>(() => readSaved(storage.get(SAVE_KEY) ?? storage.get(DRAFT_STORAGE), EMPTY_INPUT));
+  const [initial] = useState(() => {
+    const raw = storage.get(SAVE_KEY) ?? storage.get(DRAFT_STORAGE);
+    try { return { work: readSaved(raw, EMPTY_INPUT), damaged: null as string | null }; }
+    catch { return { work: readSaved(null, EMPTY_INPUT), damaged: raw }; }
+  });
+  const [damagedRaw, setDamagedRaw] = useState(initial.damaged);
+  const [savedWork, setSavedWork] = useState<SavedWorkspace>(initial.work);
+  const autosave = useAutosave(SAVE_KEY, savedWork, damagedRaw === null);
   const { current: work, revisions } = savedWork;
   const { step, input, analysis, scenarioIndex, bank, bankDraft, stimulus, assembly, final } = work;
-  const [saved, setSaved] = useState(true);
+  const saved = damagedRaw === null && autosave.status === "saved";
   const [apiKey, setApiKey] = useState(() => storage.get(API_KEY_STORAGE) ?? "");
   const [model, setModel] = useState(() => storage.get(MODEL_STORAGE) ?? DEFAULT_MODEL);
   const [keyModalOpen, setKeyModalOpen] = useState(false);
@@ -54,13 +63,6 @@ export default function App() {
   const stepIndex = STEPS.findIndex(s => s.id === step);
   const workbenchStep = step === "input" || step === "analysis";
 
-  useEffect(() => {
-    // Flush every committed edit and flush again on page exit. No debounce can discard a final keystroke.
-    const persist = () => storage.set(SAVE_KEY, JSON.stringify(savedWork));
-    setSaved(persist());
-    window.addEventListener("pagehide", persist);
-    return () => { persist(); window.removeEventListener("pagehide", persist); };
-  }, [savedWork]);
 
   function update(fn: (w: Workspace) => Workspace) {
     setSavedWork(s => ({ ...s, current: fn(s.current) }));
@@ -206,8 +208,9 @@ export default function App() {
     <nav className="growth-actions revision-mode" aria-label="작업 방식"><button type="button" disabled={busy} aria-pressed={!revisionOpen} onClick={() => setRevisionOpen(false)}>성취기준으로 문항 설계</button><button type="button" disabled={busy} aria-pressed={revisionOpen} onClick={() => setRevisionOpen(true)}>기존 문항·자료 개선</button></nav>
     <div hidden={!revisionOpen}><RevisionStudio input={input} apiKey={apiKey} model={model} busy={busy} onBusy={setBusy} onOpenKey={() => setKeyModalOpen(true)} onApply={next => { checkpoint("기존 문항 개선안 가져오기 전"); replaceWorkspace(next); setRevisionOpen(false); setError(null); }} /></div>
     <div hidden={revisionOpen}>
-    <div className="work-summary"><div className="work-summary-values"><b>{input.subject || "과목 미지정"}</b><span>{input.standardCode || "성취기준 미선택"}</span><span>{input.sourceMode === "reference" ? `교사 대조 출처 ${input.sources.filter(s => s.verified).length}개` : "합성 자료"}</span><span role="status">{saved ? "편집 내용 저장됨" : "저장 실패"}</span></div><nav className="step-nav" aria-label="문항 설계 단계">{STEPS.map((s,i) => <button key={s.id} type="button" disabled={busy || !available[s.id]} className={i === stepIndex ? "is-current" : ""} aria-current={i === stepIndex ? "step" : undefined} onClick={() => navigate(s.id)}>{i+1}. {s.label}</button>)}</nav></div>
-    {!saved && <div className="editorial-alert" role="alert">브라우저 저장에 실패했습니다. 이 화면을 닫기 전에 성장 노트와 작업 백업을 내려받으세요.</div>}
+    <div className="work-summary"><div className="work-summary-values"><b>{input.subject || "과목 미지정"}</b><span>{input.standardCode || "성취기준 미선택"}</span><span>{input.sourceMode === "reference" ? `교사 대조 출처 ${input.sources.filter(s => s.verified).length}개` : "합성 자료"}</span><span role="status">{damagedRaw !== null ? "원본 보존 중" : autosave.status === "pending" ? "저장 대기 중" : saved ? "편집 내용 저장됨" : "저장 실패"}</span></div><nav className="step-nav" aria-label="문항 설계 단계">{STEPS.map((s,i) => <button key={s.id} type="button" disabled={busy || !available[s.id]} className={i === stepIndex ? "is-current" : ""} aria-current={i === stepIndex ? "step" : undefined} onClick={() => navigate(s.id)}>{i+1}. {s.label}</button>)}</nav></div>
+    {autosave.status === "error" && <div className="editorial-alert" role="alert">브라우저 저장에 실패했습니다. 이 화면을 닫기 전에 성장 노트와 작업 백업을 내려받으세요.</div>}
+    {damagedRaw !== null && <div className="editorial-alert" role="alert">저장된 작업을 읽지 못해 자동 저장을 멈췄습니다. 원본은 덮어쓰지 않았습니다. <button type="button" onClick={() => downloadText("복구용_원본.json",damagedRaw,"application/json")}>원본 내려받기</button> <button type="button" onClick={() => { if(window.confirm("원본을 별도로 보관했나요? 현재 화면의 작업으로 저장본을 바꿉니다.")) setDamagedRaw(null); }}>현재 작업으로 저장 재개</button></div>}
     {error && <div className="editorial-alert" role="alert">{error}</div>}
     {busy && <p className="growth-feedback" role="status">AI 응답을 기다리고 있습니다. 이전 버전과 편집 내용은 보존됩니다. <button type="button" onClick={() => controller.current?.abort()}>생성 취소</button></p>}
     <details className="growth-panel"><summary>작업 백업 복원</summary><p>현재 작업을 보관한 뒤 복원합니다. 복원본의 명제·출처·최종 승인은 다시 확인합니다.</p>
@@ -218,10 +221,12 @@ export default function App() {
           if (file.size > 20 * 1024 * 1024) throw new Error("백업은 20MB 이내로 선택하세요.");
           const restored = readBackup(await file.text());
           setSourceSession(session => session + 1);
-          setSavedWork(s => ({ ...restored, revisions: [newRevision(s.current, "백업 복원 전"), ...restored.revisions, ...s.revisions] }));
+          setSavedWork(s => ({ ...restored, revisions: mergeRevisions(JSON.stringify(s.current) === JSON.stringify(restored.current) ? [] : [newRevision(s.current, "백업 복원 전")], restored.revisions, s.revisions) }));
         } catch (e) { setError(e instanceof Error ? e.message : "백업 복원 실패"); } finally { setBusy(false); }
       }} /></label></details>
-    <GrowthNotebook work={work} revisions={revisions} onReflection={reflection => update(w => ({ ...w, reflection }))} onCheckpoint={checkpoint} onRestore={restore} busy={busy} saved={saved} />
+    <GrowthNotebook work={work} revisions={revisions} onReflection={reflection => update(w => ({ ...w, reflection }))} onCheckpoint={checkpoint} onRestore={restore} busy={busy} saved={saved} saveStatus={damagedRaw !== null ? "원본 보존 중" : autosave.status === "pending" ? "저장 대기 중" : undefined} storageBytes={autosave.bytes} onSave={autosave.flush} onDelete={id => {
+      if (window.confirm("선택한 보관 버전을 삭제할까요? 현재 편집 중인 문항은 유지됩니다. 필요한 버전은 먼저 전체 백업을 내려받으세요.")) setSavedWork(s => ({...s,revisions:s.revisions.filter(r => r.id !== id)}));
+    }} />
     <div className="growth-actions"><button type="button" disabled={busy} onClick={() => { checkpoint("예시 체험 전"); replaceWorkspace(exampleWorkspace()); setError(null); }}>API 키 없이 합성 자료로 출제 연습</button><button type="button" disabled={busy} onClick={restart}>현재 버전 보관 후 새 문항</button></div>
     {workbenchStep && <div className="mobile-tabs" aria-label="설정과 미리보기 전환"><button type="button" aria-pressed={mobilePane === "settings"} aria-selected={mobilePane === "settings"} onClick={() => setMobilePane("settings")}>설정</button><button type="button" aria-pressed={mobilePane === "preview"} aria-selected={mobilePane === "preview"} onClick={() => setMobilePane("preview")}>결과 미리보기</button></div>}
     {workbenchStep ? <div className="editorial-workbench">
