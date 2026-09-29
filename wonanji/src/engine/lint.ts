@@ -5,6 +5,7 @@ import { HeaderIndex } from "./header";
 import { negationSpans } from "./normalize";
 import { collectSymbols, mergeProfiles, SYMBOL_LABEL, symbolMismatches } from "./symbols";
 import { deepText, itemsOf } from "./text";
+import { UNSURE_COLOR } from "./unsure";
 import type { FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./types";
 
 export const SOURCES = {
@@ -230,13 +231,26 @@ export function lint(
     if (/["']/.test(q.text)) add("info", "따옴표", `${num(q, numbers)}: 곧은 따옴표(" ')가 있습니다. 인용 문장은 “ ”, 어구는 ‘ ’`, cite.quotes, q);
     const h = idx(q.fileIdx);
     const colors = new Set<string>();
+    let unsure = "";
+    let unsureN = 0;
     for (const p of q.paras.flatMap((x) => [x, ...descendants(x, "p")])) {
+      let run = "";
       for (const it of itemsOf(p)) {
         if (it.kind !== "ch" || !it.ch.trim()) continue;
         const c = h.charPr(it.cp.split("|")[0])?.getAttribute("textColor");
+        if (c && c.toUpperCase() === UNSURE_COLOR) {
+          run += it.ch;
+          unsureN++;
+          continue;
+        }
+        if (run) unsure += (unsure ? " · " : "") + run;
+        run = "";
         if (c && !/^#?000000$/i.test(c)) colors.add(c);
       }
+      if (run) unsure += (unsure ? " · " : "") + run;
     }
+    // 이미지에서 인식한 글자 가운데 확신이 낮아 빨갛게 둔 것: 원본과 대조해야 합니다.
+    if (unsureN) add("warn", "글자 인식 확인", `${num(q, numbers)}: 이미지에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. 원본과 대조해 고친 뒤 검정으로 바꾸세요.`, "이미지 글자 인식(OCR) 결과", q);
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
 
     // 기호: 양식(없으면 출제 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.

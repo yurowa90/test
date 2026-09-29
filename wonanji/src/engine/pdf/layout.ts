@@ -375,7 +375,7 @@ function toParas(lines: Line[], area: Box, body: number, base = area.x0, obstacl
     const merged: Run[] = [];
     for (const r of runs) {
       const last = merged[merged.length - 1];
-      if (last && !last.eq && !last.crop && !r.eq && !r.crop && !!last.sub === !!r.sub && !!last.sup === !!r.sup && !!last.underline === !!r.underline) last.text += r.text;
+      if (last && !last.eq && !last.crop && !r.eq && !r.crop && !!last.sub === !!r.sub && !!last.sup === !!r.sup && !!last.underline === !!r.underline && !!last.unsure === !!r.unsure) last.text += r.text;
       else merged.push({ ...r });
     }
     const w = first.x1 - first.x0;

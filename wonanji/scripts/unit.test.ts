@@ -15,6 +15,8 @@ import { HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMP
 import { kids } from "../src/engine/dom";
 import { objWidth } from "../src/engine/objects";
 import { validateHwpx } from "./validate";
+import { classifyJamo, findCircles } from "../src/engine/ocr/detect";
+import { columnSplit, components } from "../src/engine/ocr/raster";
 
 let failed = 0;
 async function test(name: string, fn: () => void | Promise<void>) {
@@ -263,6 +265,50 @@ await test("번호를 글자로 쓰는 양식: 결과 문항 앞에 '1. ' 글자
   assert.ok(t.some((x) => x.startsWith("1. 지구 역사에서")), t.join(" | "));
   assert.ok(t.some((x) => x.startsWith("3. 다음 중 광합성")));
   assert.deepEqual(validateHwpx(r.hwpx), []);
+});
+
+// ── 이미지 글자 인식 보조(합성 그림) ──
+/** 흰 바탕 W×H에 칠할 픽셀을 받아 흑백 배열을 만듭니다. */
+function bitmap(W: number, H: number, on: (x: number, y: number) => boolean) {
+  const b = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (on(x, y)) b[y * W + x] = 1;
+  return b;
+}
+await test("선지 자모 모양 판별: ㄱ·ㄴ·ㄷ", () => {
+  const W = 30;
+  const H = 24;
+  const box = { x0: 2, y0: 2, x1: 26, y1: 20 };
+  const t = 3;
+  const inB = (x: number, y: number) => x >= box.x0 && x < box.x1 && y >= box.y0 && y < box.y1;
+  const top = (x: number, y: number) => inB(x, y) && y < box.y0 + t;
+  const bottom = (x: number, y: number) => inB(x, y) && y >= box.y1 - t;
+  const left = (x: number, y: number) => inB(x, y) && x < box.x0 + t;
+  const right = (x: number, y: number) => inB(x, y) && x >= box.x1 - t;
+  assert.equal(classifyJamo(bitmap(W, H, (x, y) => top(x, y) || right(x, y)), W, box), "ㄱ");
+  assert.equal(classifyJamo(bitmap(W, H, (x, y) => left(x, y) || bottom(x, y)), W, box), "ㄴ");
+  assert.equal(classifyJamo(bitmap(W, H, (x, y) => top(x, y) || left(x, y) || bottom(x, y)), W, box), "ㄷ");
+  assert.equal(classifyJamo(bitmap(W, H, (x, y) => inB(x, y)), W, box), null);
+});
+await test("동그라미 기호 찾기: 안 글자가 고리에 닿아도 찾고 '닿음'으로 표시", () => {
+  const W = 120;
+  const H = 50;
+  const em = 36;
+  const ring = (cx: number, cy: number, r: number) => (x: number, y: number) => Math.abs(Math.hypot(x + 0.5 - cx, y + 0.5 - cy) - r) < 1.4;
+  const a = ring(25, 25, 16);
+  const b = ring(80, 25, 16);
+  // 두 번째 고리 안에 고리에 닿는 가로획(②의 밑획처럼)
+  const touch = (x: number, y: number) => y >= 33 && y < 36 && x >= 70 && x < 95 && Math.hypot(x - 80, y - 25) < 16;
+  const bin = bitmap(W, H, (x, y) => a(x, y) || b(x, y) || touch(x, y));
+  const { comps, labels } = components(bin, W, H);
+  const cs = findCircles(comps, labels, W, em);
+  assert.equal(cs.length, 2);
+  assert.ok(cs.some((c) => c.touching));
+});
+await test("2단 나누기: 가운데 세로 구분선", () => {
+  const W = 400;
+  const H = 400;
+  const bin = bitmap(W, H, (x, y) => (x === 201 && y > 40 && y < 380) || ((y % 20) < 8 && (x % 12) < 7 && (x < 190 || x > 212) && y > 60 && y < 360));
+  assert.ok(Math.abs((columnSplit(bin, W, H, 10) ?? 0) - 201) <= 1);
 });
 
 console.log(failed ? `\n${failed}개 실패` : "\n모두 통과");

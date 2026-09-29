@@ -6,6 +6,8 @@ export interface Run {
   sub?: boolean;
   sup?: boolean;
   underline?: boolean;
+  /** 인식이 불확실한 글자(빨간색) */
+  unsure?: boolean;
   /** 한글 수식 스크립트(분수 등). 있으면 text 대신 수식 개체로 넣습니다. */
   eq?: string;
   /** 글자로 읽지 못한 기호: 그 자리를 잘라 넣을 그림 영역 */
@@ -21,6 +23,7 @@ export interface Glyph {
   sub?: boolean;
   sup?: boolean;
   ul?: boolean;
+  unsure?: boolean;
   eq?: string;
   crop?: { page: number; box: Box };
 }
@@ -63,7 +66,7 @@ export function toGlyphs(t: PText): Glyph[] {
   let x = t.x;
   chars.forEach((ch, i) => {
     const w = (t.w * em[i]) / total;
-    out.push({ ch, x, w, y: t.y, size: t.size });
+    out.push({ ch, x, w, y: t.y, size: t.size, unsure: t.uncertain || undefined });
     x += w;
   });
   return out;
@@ -268,9 +271,9 @@ export function lineRuns(l: Line): Run[] {
       continue;
     }
     const last = runs[runs.length - 1];
-    const same = last && !last.eq && !last.crop && !!last.sub === !!g.sub && !!last.sup === !!g.sup && !!last.underline === !!g.ul;
+    const same = last && !last.eq && !last.crop && !!last.sub === !!g.sub && !!last.sup === !!g.sup && !!last.underline === !!g.ul && !!last.unsure === !!g.unsure;
     if (same) last.text += g.ch;
-    else runs.push({ text: g.ch, sub: g.sub || undefined, sup: g.sup || undefined, underline: g.ul || undefined });
+    else runs.push({ text: g.ch, sub: g.sub || undefined, sup: g.sup || undefined, underline: g.ul || undefined, unsure: g.unsure || undefined });
   }
   return runs;
 }

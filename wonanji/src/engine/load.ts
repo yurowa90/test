@@ -101,7 +101,7 @@ export async function loadDocument(name: string, bytes: Uint8Array): Promise<Loa
     return { name, format, bytes, pkg: HwpxPackage.fromBytes(r.hwpx), loss: { count: 0, items: [] }, pages: r.pages, highlights: 0, notes: r.notes, numbers: r.numbers, columnWidthHU: r.columnWidthHU };
   }
   if (format === "image") {
-    const { imageToHwpx } = await import("./ocr");
+    const { imageToHwpx } = await import("./ocr/index");
     const r = await imageToHwpx(name, bytes);
     return { name, format, bytes, pkg: HwpxPackage.fromBytes(r.hwpx), loss: { count: 0, items: [] }, pages: 1, highlights: 0, notes: r.notes, numbers: r.numbers, columnWidthHU: r.columnWidthHU };
   }

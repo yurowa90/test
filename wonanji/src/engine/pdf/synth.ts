@@ -1,7 +1,8 @@
-// PDF에서 읽은 문항 구조를 HWPX 출제 파일로 만듭니다(글자는 입력한 글자로, 그림은 잘라 낸 이미지로).
+// PDF·이미지에서 읽은 문항 구조를 HWPX 출제 파일로 만듭니다(글자는 입력한 글자로, 그림은 잘라 낸 이미지로).
 // 이렇게 만든 파일은 HWP 출제 파일과 똑같이 문항 분할·서식 통일·조립 과정을 거칩니다.
 import { strToU8 } from "fflate";
 import { zip } from "../zip";
+import { UNSURE_COLOR } from "../unsure";
 import type { Box, Run } from "./lines";
 import type { Block, BoxBlock, FigureBlock, ParaBlock, PdfLayout, TableBlock } from "./layout";
 
@@ -34,9 +35,10 @@ class Registry {
   }
 }
 
-function charPrXml(id: number, h: number, o: { sub?: boolean; sup?: boolean; ul?: boolean; bold?: boolean }) {
+
+function charPrXml(id: number, h: number, o: { sub?: boolean; sup?: boolean; ul?: boolean; bold?: boolean; unsure?: boolean }) {
   const all = (v: string | number) => LANGS.map((l) => `${l.toLowerCase()}="${v}"`).join(" ");
-  return `<hh:charPr id="${id}" height="${h}" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef ${all(0)}/><hh:ratio ${all(100)}/><hh:spacing ${all(0)}/><hh:relSz ${all(100)}/><hh:offset ${all(0)}/>${o.bold ? "<hh:bold/>" : ""}<hh:underline type="${o.ul ? "BOTTOM" : "NONE"}" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/>${o.sup ? "<hh:supscript/>" : ""}${o.sub ? "<hh:subscript/>" : ""}</hh:charPr>`;
+  return `<hh:charPr id="${id}" height="${h}" textColor="${o.unsure ? UNSURE_COLOR : "#000000"}" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef ${all(0)}/><hh:ratio ${all(100)}/><hh:spacing ${all(0)}/><hh:relSz ${all(100)}/><hh:offset ${all(0)}/>${o.bold ? "<hh:bold/>" : ""}<hh:underline type="${o.ul ? "BOTTOM" : "NONE"}" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/>${o.sup ? "<hh:supscript/>" : ""}${o.sub ? "<hh:subscript/>" : ""}</hh:charPr>`;
 }
 
 function paraPrXml(id: number, o: { align: string; left: number; intent: number; outline: boolean }) {
@@ -105,7 +107,9 @@ export async function synthesizeHwpx(layout: PdfLayout, crop: CropFn): Promise<S
   let equations = 0;
 
   const cp = (h: number, r: Partial<Run> & { bold?: boolean } = {}) =>
-    chars.get(`${h}|${r.sub ? 1 : 0}|${r.sup ? 1 : 0}|${r.underline ? 1 : 0}|${r.bold ? 1 : 0}`, (id) => charPrXml(id, h, { sub: r.sub, sup: r.sup, ul: r.underline, bold: r.bold }));
+    chars.get(`${h}|${r.sub ? 1 : 0}|${r.sup ? 1 : 0}|${r.underline ? 1 : 0}|${r.bold ? 1 : 0}|${r.unsure ? 1 : 0}`, (id) =>
+      charPrXml(id, h, { sub: r.sub, sup: r.sup, ul: r.underline, bold: r.bold, unsure: r.unsure }),
+    );
   const pp = (align: string, left = 0, intent = 0, outline = false) => {
     const a = align === "center" ? "CENTER" : align === "right" ? "RIGHT" : align === "left" ? "LEFT" : "JUSTIFY";
     const L = Math.round(left * HU);
@@ -269,7 +273,7 @@ export async function synthesizeHwpx(layout: PdfLayout, crop: CropFn): Promise<S
     ...files,
   ]);
   const notes: string[] = [];
-  notes.push(`PDF에서 ${layout.questions.length}문항을 읽었습니다(그림 ${figures}개는 잘라 넣고, 분수 ${equations}개는 수식으로 입력).`);
+  notes.push(`${layout.questions.length}문항을 읽었습니다(그림 ${figures}개는 잘라 넣고, 분수 ${equations}개는 수식으로 입력).`);
   if (unknownGlyphs) notes.push(`글자로 읽지 못한 기호 ${unknownGlyphs}곳(그리스 문자 등)은 원본 모양 그대로 작은 그림으로 넣었습니다. 한글에서 글자로 바꿔 주세요.`);
   return { bytes: zip(all), numbers, notes: [...layout.notes, ...notes], columnWidthHU: colW };
 }

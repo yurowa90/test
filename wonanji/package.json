@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@rhwp/core": "0.8.6",
+    "@tesseract.js-data/eng": "^1.0.0",
     "@tesseract.js-data/kor": "^1.0.0",
     "cfb": "^1.2.2",
     "fflate": "^0.8.2",

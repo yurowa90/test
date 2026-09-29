@@ -31,5 +31,7 @@ copy(path.join(tess, "dist/worker.min.js"), path.join(out, "ocr/worker.min.js"))
 for (const f of ["tesseract-core-lstm.wasm.js", "tesseract-core-simd-lstm.wasm.js", "tesseract-core-relaxedsimd-lstm.wasm.js"]) {
   copy(path.join(core, f), path.join(out, "ocr/core", f));
 }
-copy(path.join(pkgDir("@tesseract.js-data/kor"), "4.0.0_best_int/kor.traineddata.gz"), path.join(out, "ocr/lang/kor.traineddata.gz"));
+for (const lang of ["kor", "eng"]) {
+  copy(path.join(pkgDir(`@tesseract.js-data/${lang}`), `4.0.0_best_int/${lang}.traineddata.gz`), path.join(out, `ocr/lang/${lang}.traineddata.gz`));
+}
 console.log("vendor assets →", path.relative(process.cwd(), out));

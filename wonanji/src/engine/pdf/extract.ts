@@ -15,6 +15,8 @@ export interface PText {
   page: number;
   /** 글꼴에 유니코드 대응이 없어 글자를 알 수 없는 조각(그리스 문자 등) → 그 자리를 그림으로 */
   unknown?: boolean;
+  /** 사진 글자 인식(OCR)에서 확신이 낮은 글자 → 결과에 빨간색으로 표시 */
+  uncertain?: boolean;
   /** 글자 조각이 차지하는 영역(회전 글자 포함) */
   bbox: { x0: number; y0: number; x1: number; y1: number };
 }

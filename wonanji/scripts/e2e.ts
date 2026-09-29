@@ -3,6 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { readBytes } from "./node-env";
+import "./pdf-node";
+import "./ocr-node";
 import { loadDocument } from "../src/engine/load";
 import { analyzeTemplate } from "../src/engine/template";
 import { analyzeSource } from "../src/engine/segment";
