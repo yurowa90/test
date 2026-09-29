@@ -1,7 +1,7 @@
 // 문항 한 개를 양식 문서로 옮기면서 편집 규격을 입힙니다.
 // 글자를 새로 쓰는 일은 배점 표기·번호·공백 정리처럼 형식에 한정하고, 문항 내용은 바꾸지 않습니다.
 import { circledIndex, inTable, RX } from "./classify";
-import { hp, kid, kids } from "./dom";
+import { descendants, hp, kid, kids } from "./dom";
 import { getMargin, type Importer } from "./header";
 import { floatRight, isInline, objKind, objWidth, setObjWidth, shrinkFloatOffset, topObjects } from "./objects";
 import { charPositions } from "./pagectl";
@@ -208,7 +208,14 @@ const pct = (a: number, b: number) => `${Math.round((a / b) * 100)}%`;
  * - 자료 표·그림(그림 배치 표 포함): 단(문단 여백 제외)을 넘으면 비율대로 줄임. 늘리지는 않습니다(화질·글자 크기 보존)
  * - 떠 있는 개체(어울림 그림 상자 등): 가로 위치와 폭을 같은 비율로 줄여, 옆에 흐르는 글과의 비율을 지킴
  */
-function fitObjects(p: Element, avail: number, spec: FormatSpec, log: (kind: string, detail: string) => void, warn: (msg: string) => void) {
+function fitObjects(
+  p: Element,
+  avail: number,
+  spec: FormatSpec,
+  log: (kind: string, detail: string) => void,
+  warn: (msg: string) => void,
+  srcFontHU?: (tbl: Element) => number | null,
+) {
   const label = (kind: string) => (kind === "box" ? "〈보기〉 상자" : kind === "table" ? "표" : "그림");
   for (const o of topObjects(p)) {
     const kind = objKind(o);
@@ -238,6 +245,12 @@ function fitObjects(p: Element, avail: number, spec: FormatSpec, log: (kind: str
     let target = w;
     if (kind === "box" && spec.boxWidthHU) target = Math.min(spec.boxWidthHU, room);
     else if (w > room) target = room;
+    else if (kind === "table" && spec.cellMode === "normalize" && srcFontHU) {
+      // 표 글자를 본문 크기로 키우면 좁은 칸에서 줄이 넘어가므로, 글자가 커진 비율만큼 표를 넓힙니다(단 폭 안에서).
+      const h = srcFontHU(o);
+      const ratio = h ? (spec.sizePt * 100) / h : 1;
+      if (ratio > 1.05) target = Math.min(room, Math.round(w * ratio));
+    }
     if (Math.abs(target - w) >= 100) {
       if (setObjWidth(o, target)) log("크기", `${label(kind)} 폭 ${pct(w, spec.columnWidthHU)} → ${pct(target, spec.columnWidthHU)}(단 폭 대비)`);
       else if (w > room) warn(`${label(kind)} 폭이 단의 ${pct(w, spec.columnWidthHU)}인데, 선·도형으로 그린 개체가 들어 있어 자동으로 줄이지 못했습니다. 한글에서 크기를 줄여 주세요.`);
@@ -315,6 +328,19 @@ function splitAfterWideObject(p: Element): Element | null {
     return tail;
   }
   return null;
+}
+
+/** 표 안에서 가장 많이 쓰인 글자 크기(원본 글자 모양 기준, HWPUNIT) */
+function tableFontHU(tbl: Element, importer: Importer): number | null {
+  const count = new Map<number, number>();
+  for (const q of descendants(tbl, "p")) {
+    for (const it of itemsOf(q)) {
+      if (it.kind !== "ch" || !it.ch.trim()) continue;
+      const h = importer.src.charHeight(it.cp.split("|")[0]);
+      if (h) count.set(h, (count.get(h) ?? 0) + 1);
+    }
+  }
+  return [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }
 
 /** 문단 맨 앞 떠 있는 개체(어울림 그림 상자 등) 뒤의 공백도 지웁니다(글줄에는 공백이 맨 앞에 옵니다). */
@@ -525,7 +551,7 @@ export function buildQuestion(
       // 머리 문단 첫 줄에는 번호가 들어가므로 두 글자 폭을 남깁니다.
       const numberRoom = tok === "@head" ? 2 * em : 0;
       const avail = spec.columnWidthHU - Math.max(0, left) - Math.max(0, right) - Math.max(0, intent) - numberRoom - 60;
-      fitObjects(p, avail, spec, log, warn);
+      fitObjects(p, avail, spec, log, warn, (tbl) => tableFontHU(tbl, importer));
     }
   }
 

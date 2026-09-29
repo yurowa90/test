@@ -169,8 +169,9 @@ export function analyzeSource(fileIdx: number, doc: LoadedDoc, tpl: TemplateAnal
         placeholders.push(outline);
         continue;
       }
-      count(auto === "outline" ? `개요 번호 ${level + 1}수준` : "문단 번호");
-      open({ kind: "mcq", num: outline, src: "outline", paras: [p] });
+      count(doc.format === "pdf" ? "PDF 문항 번호" : doc.format === "image" ? "이미지 문항 번호" : auto === "outline" ? `개요 번호 ${level + 1}수준` : "문단 번호");
+      // PDF·이미지에서 만든 문서는 원래 번호를 따로 받아 둡니다(시험지 중간 문항만 있어도 번호 유지).
+      open({ kind: "mcq", num: doc.numbers?.[outline - 1] ?? outline, src: "outline", paras: [p] });
       continue;
     }
     const en = essayNumber(p.text);
@@ -243,7 +244,7 @@ export function analyzeSource(fileIdx: number, doc: LoadedDoc, tpl: TemplateAnal
     highlights: doc.highlights,
     loss: doc.loss,
     notes,
-    columnWidthHU: pageOf(doc.pkg).colW,
+    columnWidthHU: doc.columnWidthHU ?? pageOf(doc.pkg).colW,
     headStyle,
   };
 }

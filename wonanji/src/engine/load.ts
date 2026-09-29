@@ -8,13 +8,17 @@ import { sniffFormat } from "./zip";
 
 export interface LoadedDoc {
   name: string;
-  format: "hwp" | "hwpx";
+  format: "hwp" | "hwpx" | "pdf" | "image";
   bytes: Uint8Array;
   pkg: HwpxPackage;
   loss: LossReport;
   pages: number;
   highlights: number;
   notes: string[];
+  /** PDF·이미지에서 읽은 문항의 원래 번호(순서대로) */
+  numbers?: number[];
+  /** 단 폭(HWPUNIT). PDF에서 만든 문서는 원본 단 폭 */
+  columnWidthHU?: number;
 }
 
 /** 구역 안의 모든 문단(표·글상자·머리말 안 포함)을 전위 순서로. */
@@ -90,7 +94,17 @@ function applyMarks(pkg: HwpxPackage, marks: ParaMarks[][]): { applied: number; 
 
 export async function loadDocument(name: string, bytes: Uint8Array): Promise<LoadedDoc> {
   const format = sniffFormat(bytes);
-  if (format === "unknown") throw new Error(`${name}: HWP/HWPX 파일이 아닙니다.`);
+  if (format === "unknown") throw new Error(`${name}: HWP·HWPX·PDF·이미지 파일이 아닙니다.`);
+  if (format === "pdf") {
+    const { pdfToHwpx } = await import("./pdf");
+    const r = await pdfToHwpx(bytes);
+    return { name, format, bytes, pkg: HwpxPackage.fromBytes(r.hwpx), loss: { count: 0, items: [] }, pages: r.pages, highlights: 0, notes: r.notes, numbers: r.numbers, columnWidthHU: r.columnWidthHU };
+  }
+  if (format === "image") {
+    const { imageToHwpx } = await import("./ocr");
+    const r = await imageToHwpx(name, bytes);
+    return { name, format, bytes, pkg: HwpxPackage.fromBytes(r.hwpx), loss: { count: 0, items: [] }, pages: 1, highlights: 0, notes: r.notes, numbers: r.numbers, columnWidthHU: r.columnWidthHU };
+  }
   const notes: string[] = [];
   let marks: ParaMarks[][] = [];
   try {
