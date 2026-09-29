@@ -357,6 +357,8 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     keepTogether: true,
     normalizeEquationSize: true,
     headerFrom: "template",
+    wordWrap: true,
+    tracking: true,
   };
 
   // 양식 상용구(출제 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.

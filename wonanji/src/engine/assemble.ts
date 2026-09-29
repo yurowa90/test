@@ -31,6 +31,47 @@ export interface AssembleResult {
   essayCount: number;
   /** 미리보기(rhwp)에서 번호가 보이지 않을 수 있는 문항(머리 문단이 어울림 개체로 시작) */
   previewNoNumber: string[];
+  /** 조립된 문서(자간 트래킹 등 후처리가 고쳐서 다시 직렬화할 수 있게) */
+  pkg: HwpxPackage;
+  root: Element;
+  header: OutputHeader;
+  /** 최상위 문단 → 그 문단이 속한 문항 ID */
+  owners: Map<Element, string>;
+  /** 미리보기에서 줄 배치를 새로 계산하는(캐시를 지운) 문단 */
+  fresh: Set<Element>;
+}
+
+/**
+ * 세 가지 바이트 사본을 만듭니다. DOM의 줄 배치 캐시(linesegarray)는 떼었다가 다시 붙여 그대로 남깁니다.
+ * - forRhwp: 캐시 유지 — rhwp는 캐시가 없으면 그림이 든 문단·떠 있는 개체를 잘못 배치합니다.
+ * - forPreview: 개체 없는 본문 문단의 낡은 캐시만 지움(글꼴·단 폭이 바뀌어 rhwp가 다시 계산해야 함).
+ *   단, 떠 있는 개체 바로 뒤 3문단은 rhwp가 캐시 위치로 개체 아래에 놓으므로 남깁니다.
+ * - hwpx(내려받기): 캐시 모두 지움 — 한글이 열 때 바뀐 서식으로 줄 배치를 새로 계산합니다.
+ */
+export function serializeVariants(out: HwpxPackage, root: Element): { hwpx: Uint8Array; forRhwp: Uint8Array; forPreview: Uint8Array; fresh: Set<Element> } {
+  const forRhwp = out.toBytes();
+  const detached: { el: Element; parent: Node; next: Node | null }[] = [];
+  const detach = (el: Element) => {
+    detached.push({ el, parent: el.parentNode!, next: el.nextSibling });
+    removeEl(el);
+  };
+  const fresh = new Set<Element>();
+  let sinceFloat = 99;
+  for (const p of kids(root)) {
+    if (p.localName !== "p") continue;
+    const objs = kids(p).filter((r) => r.localName === "run").flatMap((r) => kids(r).filter((c) => c.localName !== "t"));
+    if (objs.some((o) => kid(o, "pos")?.getAttribute("treatAsChar") === "0")) sinceFloat = 0;
+    else sinceFloat++;
+    if (objs.length || sinceFloat <= 3) continue;
+    fresh.add(p);
+    const arr = kid(p, "linesegarray");
+    if (arr) detach(arr);
+  }
+  const forPreview = out.toBytes();
+  for (const ls of descendants(root, "linesegarray")) detach(ls);
+  const hwpx = out.toBytes();
+  for (const d of detached.reverse()) d.parent.insertBefore(d.el, d.next);
+  return { hwpx, forRhwp, forPreview, fresh };
 }
 
 const OBJECT_TAGS = new Set(["tbl", "pic", "equation", "rect", "ellipse", "arc", "polygon", "curve", "line", "connectLine", "container", "ole", "textart", "chart", "video"]);
@@ -139,11 +180,13 @@ export function assemble(input: AssembleInput): AssembleResult {
   const numbers = new Map<string, number>();
   const issues: Issue[] = [];
   const previewNoNumber: string[] = [];
+  const owners = new Map<Element, string>();
 
   mcqs.forEach((q, i) => {
     if (i > 0) gap(spec.gapLines);
     const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
     r.paras.forEach(append);
+    r.paras.forEach((p) => owners.set(p, q.id));
     changes.push(...r.changes);
     issues.push(...r.issues);
     numbers.set(q.id, i + 1);
@@ -161,6 +204,7 @@ export function assemble(input: AssembleInput): AssembleResult {
       if (i > 0) gap(1);
       const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
       r.paras.forEach(append);
+      r.paras.forEach((p) => owners.set(p, q.id));
       changes.push(...r.changes);
       issues.push(...r.issues);
       numbers.set(q.id, i + 1);
@@ -182,31 +226,27 @@ export function assemble(input: AssembleInput): AssembleResult {
       if (e.hasAttribute("instid")) e.setAttribute("instid", String(oid++));
     }
   });
+  // 어절 단위 줄바꿈·외톨이줄 보호: 양식에서 온 문단 모양(빈 줄·머리·꼬리 포함)에도 적용합니다.
+  if (spec.wordWrap) {
+    let n = 0;
+    for (const pp of descendants(out.header.documentElement, "paraPr")) {
+      const bs = kid(pp, "breakSetting");
+      if (!bs) continue;
+      if (bs.getAttribute("breakNonLatinWord") !== "KEEP_WORD" || bs.getAttribute("breakLatinWord") !== "KEEP_WORD" || bs.getAttribute("widowOrphan") !== "1") n++;
+      bs.setAttribute("breakLatinWord", "KEEP_WORD");
+      bs.setAttribute("breakNonLatinWord", "KEEP_WORD");
+      bs.setAttribute("widowOrphan", "1");
+    }
+    if (n) changes.push({ questionId: null, kind: "줄바꿈", detail: `문단 모양 ${n}개를 어절 단위 줄바꿈·외톨이줄 보호로` });
+  }
   header.finalize();
 
   const preview = deepText(root).replace(/\s+/g, " ").slice(0, 1000);
   out.files.set("Preview/PrvText.txt", strToU8Bytes(preview));
 
-  // 줄 배치 캐시(linesegarray)
-  // - rhwp(미리보기·HWP 변환)는 캐시가 없으면 그림이 든 문단·떠 있는 개체를 잘못 배치하므로 원본 캐시를 둔 사본을 씁니다.
-  // - 내려받는 HWPX는 캐시를 모두 지워, 한글이 열 때 바뀐 서식으로 줄 배치를 새로 계산하게 합니다.
-  const forRhwp = out.toBytes();
-  // 미리보기 사본: 개체 없는 본문 문단은 글꼴·단 폭이 바뀌어 캐시가 낡았으므로 지워 rhwp가 다시 계산하게 합니다
-  // (표·그림이 든 문단과 표 안 문단은 rhwp가 캐시 없이는 잘못 그리므로 둡니다).
-  // 단, 떠 있는 개체(위아래·어울림 배치) 바로 뒤 문단은 rhwp가 캐시 위치로 개체 아래에 놓으므로 남깁니다.
-  let sinceFloat = 99;
-  for (const p of kids(root)) {
-    if (p.localName !== "p") continue;
-    const objs = kids(p).filter((r) => r.localName === "run").flatMap((r) => kids(r).filter((c) => c.localName !== "t"));
-    if (objs.some((o) => kid(o, "pos")?.getAttribute("treatAsChar") === "0")) sinceFloat = 0;
-    else sinceFloat++;
-    const arr = kid(p, "linesegarray");
-    if (!objs.length && arr && sinceFloat > 3) removeEl(arr);
-  }
-  const forPreview = out.toBytes();
-  for (const ls of descendants(root, "linesegarray")) removeEl(ls);
-  const hwpx = out.toBytes();
-  return { hwpx, forRhwp, forPreview, changes, issues, numbers, mcqCount: mcqs.length, essayCount: essays.length, previewNoNumber };
+  const v = serializeVariants(out, root);
+  return { ...v, changes, issues, numbers, mcqCount: mcqs.length, essayCount: essays.length, previewNoNumber, pkg: out, root, header, owners };
+
 }
 
 /** 기본 순서: 선택형 번호순 → 논술형 번호순, 같은 번호는 파일 순서. */

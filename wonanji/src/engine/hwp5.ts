@@ -213,3 +213,4 @@ export function stripHwpLineSegs(bytes: Uint8Array): Uint8Array {
   const written = CFB.write(cfb, { type: "array" }) as ArrayLike<number>;
   return written instanceof Uint8Array ? written : new Uint8Array(written);
 }
+

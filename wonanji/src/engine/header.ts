@@ -570,6 +570,12 @@ export class Importer {
       }
       const bs = kid(c, "breakSetting");
       if (bs) bs.setAttribute("keepWithNext", keepNext ? "1" : "0");
+      if (bs && spec.wordWrap) {
+        // 어절 단위 줄바꿈(단어 안에서 끊지 않음)·외톨이줄 보호 — 한글이 줄을 나눌 때 적용하는 문단 속성
+        bs.setAttribute("breakLatinWord", "KEEP_WORD");
+        bs.setAttribute("breakNonLatinWord", "KEEP_WORD");
+        bs.setAttribute("widowOrphan", "1");
+      }
       return this.out.add("paraProperties", c);
     });
   }

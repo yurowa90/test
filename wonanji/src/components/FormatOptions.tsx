@@ -37,6 +37,10 @@ export default function FormatOptions({ spec, sources, onChange }: Props) {
             ]}
           />
         </Field>
+        <div className="space-y-2 md:col-span-2">
+          <Check checked={spec.wordWrap} onChange={(v) => set("wordWrap", v)} label="어절 단위 줄바꿈(단어 안에서 끊지 않음)과 외톨이줄 보호(문단 첫·끝 줄이 쪽·단 끝에 홀로 남지 않게)" />
+          <Check checked={spec.tracking} onChange={(v) => set("tracking", v)} label="고아 줄 줄이기: 마지막 줄에 두세 글자만 남는 문단은 자간을 −3~−6% 줄여 앞 줄로(미리보기 엔진으로 어림하므로 한글에서 확인)" />
+        </div>
         <Field label="표·〈보기〉 안 글자" hint="통일하면 글꼴·크기·줄간격을 본문과 맞춥니다. 그림이 든 칸과 빈 칸은 원래 간격을 지킵니다.">
           <Select
             value={spec.cellMode}

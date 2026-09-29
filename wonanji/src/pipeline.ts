@@ -3,9 +3,10 @@ import { assemble } from "./engine/assemble";
 import { stripHwpLineSegs } from "./engine/hwp5";
 import { loadDocument, type LoadedDoc } from "./engine/load";
 import { lint } from "./engine/lint";
-import { hwpxToHwp, renderPages, type LossReport } from "./engine/rhwp";
+import { hwpxToHwp, lineStarts, renderPages, type LossReport } from "./engine/rhwp";
 import { analyzeSource } from "./engine/segment";
 import { analyzeTemplate } from "./engine/template";
+import { tightenOrphans } from "./engine/tracking";
 import type { Change, FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./engine/types";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -41,6 +42,8 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
   await tick();
   const res = assemble({ template: tpl, sources, order, spec });
   await tick();
+  const tracking = await tightenOrphans(res, spec, lineStarts);
+  await tick();
   const out = await hwpxToHwp(res.forRhwp);
   await tick();
   const svgs = await renderPages(res.forPreview);
@@ -53,7 +56,7 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
     svgs,
     pages: out.pages,
     loss: out.loss,
-    changes: res.changes,
+    changes: [...res.changes, ...tracking.changes],
     issues,
     numbers: res.numbers,
     previewNoNumber: res.previewNoNumber.map((id) => res.numbers.get(id) ?? 0).filter(Boolean),

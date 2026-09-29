@@ -83,6 +83,28 @@ export async function hwpxToHwp(hwpx: Uint8Array): Promise<{ hwp: Uint8Array; lo
   });
 }
 
+/**
+ * 최상위 문단마다 줄이 시작하는 글자 위치(UTF-16 코드 유닛)를 돌려줍니다(첫 구역).
+ * 캐시가 없는 문단은 rhwp가 줄 배치를 다시 계산합니다. 미리보기와 같은 글꼴 폭 어림을 쓰므로 한글과 조금 다를 수 있습니다.
+ */
+export async function lineStarts(hwpx: Uint8Array): Promise<number[][]> {
+  const mod = await getRhwp();
+  return withDoc(mod, hwpx, (doc) => {
+    doc.reflowLinesegs();
+    const n = doc.getParagraphCount(0);
+    const out: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      try {
+        const v = JSON.parse(doc.getLineStarts(0, i)) as unknown;
+        out.push(Array.isArray(v) ? v.map(Number) : []);
+      } catch {
+        out.push([]);
+      }
+    }
+    return out;
+  });
+}
+
 export async function renderPages(bytes: Uint8Array, maxPages = 40): Promise<string[]> {
   const mod = await getRhwp();
   return withDoc(mod, bytes, (doc) => {

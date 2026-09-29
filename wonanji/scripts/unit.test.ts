@@ -17,6 +17,8 @@ import { objWidth } from "../src/engine/objects";
 import { validateHwpx } from "./validate";
 import { classifyJamo, findCircles } from "../src/engine/ocr/detect";
 import { columnSplit, components } from "../src/engine/ocr/raster";
+import { lineStarts } from "../src/engine/rhwp";
+import { tightenOrphans } from "../src/engine/tracking";
 
 let failed = 0;
 async function test(name: string, fn: () => void | Promise<void>) {
@@ -309,6 +311,29 @@ await test("2단 나누기: 가운데 세로 구분선", () => {
   const H = 400;
   const bin = bitmap(W, H, (x, y) => (x === 201 && y > 40 && y < 380) || ((y % 20) < 8 && (x % 12) < 7 && (x < 190 || x > 212) && y > 60 && y < 360));
   assert.ok(Math.abs((columnSplit(bin, W, H, 10) ?? 0) - 201) <= 1);
+});
+
+await test("줄바꿈: 결과 문단 모양은 어절 단위·외톨이줄 보호", () => {
+  const r = assemble({ template: tpl, sources: [s1, s2], order, spec: tpl.spec });
+  const h = new HeaderIndex(HwpxPackage.fromBytes(r.hwpx));
+  const ids = new Set(HwpxPackage.fromBytes(r.hwpx).topParagraphs().map((p) => p.getAttribute("paraPrIDRef") ?? "0"));
+  assert.ok(ids.size > 1);
+  for (const id of ids) {
+    const bs = kid(h.paraPr(id)!, "breakSetting")!;
+    assert.equal(bs.getAttribute("breakNonLatinWord"), "KEEP_WORD", `paraPr ${id}`);
+    assert.equal(bs.getAttribute("widowOrphan"), "1", `paraPr ${id}`);
+  }
+});
+await test("자간 트래킹: rhwp 줄 배치를 문단마다 읽고, 고친 뒤에도 구조가 유효", async () => {
+  const r = assemble({ template: tpl, sources: [s1, s2], order, spec: tpl.spec });
+  const segs = await lineStarts(r.forPreview);
+  assert.equal(segs.length, kids(r.root).filter((e) => e.localName === "p").length);
+  assert.ok(segs.some((s) => s.length >= 1));
+  const tr = await tightenOrphans(r, tpl.spec, lineStarts);
+  assert.ok(tr.changes.every((c) => c.kind === "자간 트래킹"));
+  assert.deepEqual(validateHwpx(r.hwpx), []);
+  // 캐시는 forRhwp에 남고 내려받기 HWPX에는 없어야
+  assert.ok(!HwpxPackage.fromBytes(r.hwpx).topParagraphs().some((p) => kid(p, "linesegarray")));
 });
 
 console.log(failed ? `\n${failed}개 실패` : "\n모두 통과");

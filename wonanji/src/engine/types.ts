@@ -43,6 +43,10 @@ export interface FormatSpec {
   boxWidthHU: number | null;
   /** 표·그림을 단 폭에 맞게 줄이기 */
   fitObjects: boolean;
+  /** 어절 단위 줄바꿈(단어 안에서 끊지 않음)과 외톨이줄 보호(문단 첫·끝 줄이 쪽·단 끝에 홀로 남지 않게) */
+  wordWrap: boolean;
+  /** 고아 줄 줄이기: 마지막 줄에 두세 글자만 남는 문단의 자간을 조금 줄여 앞 줄로 끌어올림 */
+  tracking: boolean;
 }
 
 /** 양식의 문항 번호 방식 */
