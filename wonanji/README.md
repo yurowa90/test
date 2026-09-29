@@ -66,7 +66,7 @@ npx tsx scripts/validate.ts out/merged.hwpx                        # 결과 HWPX
 
 `samples/`, `out/`, `*.hwp`, `*.hwpx`는 `.gitignore`에 들어 있습니다. **실제 출제 파일·원안지는 저장소에 올리지 마세요.**
 
-배포: Vercel에서 Root Directory를 `wonanji`로 지정하면 됩니다(`vercel.json` 포함). rhwp WASM(약 9.9MB, gzip 3.7MB)은 처음 파일을 열 때 한 번 내려받습니다.
+배포: Vercel은 Root Directory를 `wonanji`로 지정하고(`vercel.json` 포함), Netlify는 Base directory를 `wonanji`로 지정합니다(`netlify.toml` 포함). rhwp WASM(약 9.9MB, gzip 3.7MB)은 처음 파일을 열 때 한 번 내려받습니다.
 
 ## 쓰인 도구와 참고 자료
 
