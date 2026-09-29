@@ -154,6 +154,8 @@ export interface ParaPos {
   /** 마지막 줄(또는 개체) 아래 끝. 문단이 다음 쪽·단으로 이어지면 lastPage가 page와 다릅니다. */
   bottomHU: number;
   lastPage: number;
+  /** 마지막 줄의 x(단이 바뀌었는지 보는 용도) */
+  lastXHU: number;
 }
 
 /** 최상위 문단마다 쪽 번호와 세로 위치(HWPUNIT, 쪽 위 기준). 단 균등 배치의 검산용. */
@@ -180,7 +182,7 @@ export async function layoutPositions(hwpx: Uint8Array): Promise<ParaPos[]> {
       try {
         const info = JSON.parse(doc.getLineInfo(0, i, 0)) as { lineCount?: number };
         const first = JSON.parse(doc.getCursorRectOnLine(0, i, 0, false, -1, -1, -1, -1)) as { pageIndex: number; x: number; y: number; height: number };
-        const last = JSON.parse(doc.getCursorRectOnLine(0, i, Math.max(0, (info.lineCount ?? 1) - 1), true, -1, -1, -1, -1)) as { pageIndex: number; y: number; height: number };
+        const last = JSON.parse(doc.getCursorRectOnLine(0, i, Math.max(0, (info.lineCount ?? 1) - 1), true, -1, -1, -1, -1)) as { pageIndex: number; x: number; y: number; height: number };
         let bottom = (last.y + last.height) * 75;
         let lastPage = last.pageIndex;
         for (const c of ctrlBottom.get(i) ?? []) {
@@ -189,9 +191,9 @@ export async function layoutPositions(hwpx: Uint8Array): Promise<ParaPos[]> {
             lastPage = c.page;
           }
         }
-        out.push({ page: first.pageIndex, xHU: first.x * 75, topHU: first.y * 75, bottomHU: bottom, lastPage });
+        out.push({ page: first.pageIndex, xHU: first.x * 75, topHU: first.y * 75, bottomHU: bottom, lastPage, lastXHU: (last.x ?? first.x) * 75 });
       } catch {
-        out.push({ page: -1, xHU: 0, topHU: 0, bottomHU: 0, lastPage: -1 });
+        out.push({ page: -1, xHU: 0, topHU: 0, bottomHU: 0, lastPage: -1, lastXHU: 0 });
       }
     }
     return out;

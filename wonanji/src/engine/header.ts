@@ -659,6 +659,8 @@ export class Importer {
       });
     }
     const blankCell = new Set<Element>();
+    // 정말 빈 칸 문단(장식 행 등)만: 글자 크기를 원본대로 두어 행 높이가 커지지 않게. 그림 표의 글 문단은 여기 들지 않습니다.
+    const blankOnly = new Set<Element>();
     walk(root, (e) => {
       const ln = e.localName;
       if (ln === "p") {
@@ -666,6 +668,7 @@ export class Importer {
         const ctx = ctxOf(e);
         const blank = isBlank(e);
         if ((ctx !== "body" && blank) || frozen.has(e)) blankCell.add(e);
+        if (ctx !== "body" && blank) blankOnly.add(e);
         const hasFigure = kids(e).some((r) => r.localName === "run" && kids(r).some((c) => FIGURE_TAGS.has(c.localName)));
         if (mode === "raw") e.setAttribute("paraPrIDRef", this.paraPrRaw(pp));
         else e.setAttribute("paraPrIDRef", this.paraPrNorm(pp, ctx, keepNextOf ? keepNextOf(e) : false, hasFigure || blankCell.has(e)));
@@ -677,8 +680,9 @@ export class Importer {
           e.setAttribute("charPrIDRef", splitCp(cp).base);
           return;
         }
-        const inBlankCell = e.parentNode && blankCell.has(e.parentNode as Element);
-        e.setAttribute("charPrIDRef", mode === "raw" ? this.charPrRaw(splitCp(cp).base) : this.charPrNorm(cp, inBlankCell ? "blank" : ctxOf(e)));
+        const par = e.parentNode as Element | null;
+        const runCtx: ParaCtx = par && blankOnly.has(par) ? "blank" : par && blankCell.has(par) ? "box" : ctxOf(e);
+        e.setAttribute("charPrIDRef", mode === "raw" ? this.charPrRaw(splitCp(cp).base) : this.charPrNorm(cp, runCtx));
       } else {
         const bf = e.getAttribute("borderFillIDRef");
         if (bf != null) e.setAttribute("borderFillIDRef", this.borderFill(bf));

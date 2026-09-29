@@ -12,7 +12,7 @@ import { HwpxPackage } from "../src/engine/pkg";
 import { analyzeSource } from "../src/engine/segment";
 import { analyzeTemplate } from "../src/engine/template";
 import { deepText as deepTextOf, itemsOf, ownText, restyle } from "../src/engine/text";
-import { BOX_SOURCE, BOX_TEMPLATE, HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMPLATE, UNNUMBERED } from "./fixtures";
+import { BOX_SOURCE, BOX_SOURCE_FIGURE, BOX_TEMPLATE, HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMPLATE, UNNUMBERED } from "./fixtures";
 import { kids } from "../src/engine/dom";
 import { isBogiBox, objWidth } from "../src/engine/objects";
 import { getMargin } from "../src/engine/header";
@@ -302,6 +302,31 @@ await test("검수: 틀로 바꾼 상자의 표시는 ‘기호 불일치’로 
   const box = descendants(HwpxPackage.fromBytes(kept.hwpx).sections[0].documentElement, "tbl").filter(isBogiBox)[0];
   assert.equal(box.getAttribute("rowCnt"), "1", "원본 상자 유지");
   assert.ok(lint(boxTpl, [boxSrc], boxOrder, keep, kept.numbers).some((i) => i.rule === "기호 불일치" && i.message.includes("상자 표시")));
+});
+
+await test("도형이 든 상자: 항목 글은 본문 크기(11pt)로 통일, 빈 문단만 원본 글자 크기 유지, 항목 칸 행은 최소 높이", () => {
+  const src = analyzeSource(0, doc("도형상자.hwpx", makeHwpx(BOX_SOURCE_FIGURE)), boxTpl);
+  const r = assemble({ template: boxTpl, sources: [src], order: defaultOrder([src]), spec: boxTpl.spec });
+  assert.deepEqual(validateHwpx(r.hwpx), []);
+  const out = HwpxPackage.fromBytes(r.hwpx);
+  const h = new HeaderIndex(out);
+  const box = descendants(out.sections[0].documentElement, "tbl").filter(isBogiBox)[0];
+  assert.ok(box, "상자");
+  const heightOf = (p: Element) => Number(h.charPr(kids(p).find((x) => x.localName === "run")!.getAttribute("charPrIDRef")!)!.getAttribute("height"));
+  const paras = descendants(box, "p");
+  const items = paras.filter((p) => /^[ㄱㄴ]\./.test(ownText(p)));
+  assert.equal(items.length, 2);
+  for (const p of items) assert.equal(heightOf(p), 1100, "항목 글은 본문 크기");
+  const blank = paras.find((p) => ownText(p) === "" && !descendants(p, "rect").length && kids(p).some((x) => x.localName === "run" && x.getAttribute("charPrIDRef")));
+  assert.ok(blank, "빈 문단");
+  assert.equal(heightOf(blank!), 1000, "빈 문단은 원본 크기(10pt) 유지");
+  assert.ok(descendants(box, "rect").length === 1, "도형 유지");
+  // 항목 칸이 든 행: 모든 rowSpan=1 칸이 최소 높이(한 줄 + 여백)
+  const rows = kids(box).filter((e) => e.localName === "tr");
+  const bodyRow = rows.find((tr) => descendants(tr, "p").some((p) => /^ㄱ\./.test(ownText(p))))!;
+  const hs = kids(bodyRow).filter((e) => e.localName === "tc").map((tc) => Number(kid(tc, "cellSz")!.getAttribute("height")));
+  assert.ok(hs.every((v) => v === hs[0] && v < 2500), `행 칸 높이 ${hs.join(",")}`);
+  assert.equal(Number(kid(box, "sz")!.getAttribute("height")), rows.reduce((a, tr) => a + Math.max(...kids(tr).filter((e) => e.localName === "tc" && (kid(e, "cellSpan")?.getAttribute("rowSpan") ?? "1") === "1").map((tc) => Number(kid(tc, "cellSz")!.getAttribute("height")))), 0), "표 높이 = 행 높이 합");
 });
 
 const litTpl = analyzeTemplate(doc("직접번호.hwpx", makeHwpx(LITERAL_TEMPLATE)));

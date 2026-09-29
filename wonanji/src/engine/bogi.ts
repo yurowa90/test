@@ -8,7 +8,8 @@ import { deepText, isBlank, ownText } from "./text";
 import type { FormatSpec } from "./types";
 
 const LABEL_RE = /^[<〈(［[《＜]?\s*보\s*기\s*[>〉)］\]》＞]?$/;
-const ITEM_RE = /^\s*[ㄱ-ㅎ]\s*[.．)）]/;
+/** 항목 문단: ㄱ. ㄴ) 처럼 자모 뒤에 마침표·괄호, 또는 사진 인식에서 마침표가 빠진 "ㄷ (다)…"처럼 자모 뒤 공백 */
+const ITEM_RE = /^\s*[ㄱ-ㅎ]\s*(?:[.．)）]|\s)/;
 
 export interface BoxProto {
   /** 양식 예시 상자(표). 결과 문서에 복제해 씁니다. */
@@ -127,6 +128,10 @@ export function rebuildBox(old: Element, proto: BoxProto, header: OutputHeader, 
   if (!moving.length) return null;
   const nt = doc.importNode(proto.tbl, true) as Element;
   for (const seg of descendants(nt, "linesegarray")) seg.parentNode?.removeChild(seg);
+  // 폭은 옛 상자(이미 단 폭에 맞춘 것)와 같게 — 글을 옮기기 전에 틀만 줄여, 옮긴 그림·표가 다시 줄지 않게.
+  // 양식 상자 폭과 거의 같으면(±150) 양식 폭 그대로 두어 문서 안의 상자 폭이 하나로 통일되게 합니다.
+  const oldW = objWidth(old);
+  if (oldW && Math.abs(objWidth(nt) - oldW) > 150) setObjWidth(nt, oldW);
   const cells = cellsOf(nt);
   const body = cells.find((c) => c.body);
   const label = cells.find((c) => c.label);
@@ -137,17 +142,22 @@ export function rebuildBox(old: Element, proto: BoxProto, header: OutputHeader, 
   const ppId = itemParaPr(header, proto, spec);
   for (const p of moving) {
     if (ITEM_RE.test(ownText(p))) p.setAttribute("paraPrIDRef", ppId);
+    // 원본 상자에서의 줄 배치 캐시는 폭이 달라 맞지 않으므로 지웁니다(미리보기가 새로 계산).
+    for (const seg of [...descendants(p, "linesegarray")]) seg.parentNode?.removeChild(seg);
     body.sub.appendChild(p);
   }
-  // 항목 칸 높이는 한 줄 + 여백만 두고, 표 높이는 행 높이 합으로 (한글이 글에 맞춰 늘림)
+  // 항목 칸이 든 행의 높이는 한 줄 + 여백만(같은 행의 가는 칸도 함께 — 행 높이는 칸 높이의 최댓값이므로),
+  // 표 높이는 행 높이 합으로. 한글·미리보기가 글에 맞춰 늘립니다.
   const cm = kid(body.tc, "cellMargin");
   const minH = Math.round((spec.sizePt * 100 * spec.lineSpacing) / 100) + Number(cm?.getAttribute("top") ?? 0) + Number(cm?.getAttribute("bottom") ?? 0);
-  const cs = kid(body.tc, "cellSz");
-  if (cs && (kid(body.tc, "cellSpan")?.getAttribute("rowSpan") ?? "1") === "1") cs.setAttribute("height", String(minH));
+  const row = body.tc.parentNode as Element | null;
+  for (const tc of row ? kids(row) : [body.tc]) {
+    if (tc.localName !== "tc") continue;
+    const cs = kid(tc, "cellSz");
+    if (cs && (kid(tc, "cellSpan")?.getAttribute("rowSpan") ?? "1") === "1") cs.setAttribute("height", String(minH));
+  }
   kid(nt, "sz")?.setAttribute("height", String(Math.max(minH, rowHeights(nt))));
-  const target = objWidth(old);
   old.parentNode.replaceChild(nt, old);
-  if (target && Math.abs(objWidth(nt) - target) >= 50) setObjWidth(nt, target);
   return nt;
 }
 

@@ -9,10 +9,10 @@ const SHAPE_TAGS = new Set(["rect", "ellipse", "arc", "polygon", "curve", "line"
 
 export type ObjKind = "box" | "table" | "figure" | "equation" | "other";
 
-/** 〈보기〉 상자: 표의 첫 글이 "〈보 기〉"류이고 ㄱ. 항목이 있는 것 */
+/** 〈보기〉 상자: 표의 첫 글이 "〈보 기〉"류이고 ㄱ.(사진 인식에서 ㄱ이 깨졌을 수 있어 ㄴ.·ㄷ.도 인정) 항목이 있는 것 */
 export function isBogiBox(tbl: Element): boolean {
   const n = normText(deepText(tbl));
-  return /^[<〈(［[]?보기[>〉)］\]]?/.test(n) && /ㄱ[.．]/.test(n);
+  return /^[<〈(［[]?보기[>〉)］\]]?/.test(n) && /[ㄱ-ㅎ][.．]/.test(n);
 }
 
 function hasFigure(el: Element): boolean {

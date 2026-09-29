@@ -244,8 +244,13 @@ export async function balanceColumns(res: AssembleResult, spec: FormatSpec, meas
       if (f0 && f0.page === 0 && f0.topHU > 0 && limit - f0.topHU > bodyAdv * 6) cap0 = limit - f0.topHU;
       cap1 = cap0 + headCol1;
       if (colCount > 1) {
-        const i1 = tops.findIndex((p, i) => res.owners.has(p) && (info.lines[i]?.length ?? 0) > 0 && pos[i].page === 0 && pos[i].xHU > pageW / 2 && pos[i].topHU > 0);
-        if (i1 >= 0 && limit - pos[i1].topHU > bodyAdv * 6) cap1 = Math.min(cap1, limit - pos[i1].topHU);
+        const owned = (i: number) => res.owners.has(tops[i]) && (info.lines[i]?.length ?? 0) > 0;
+        const i1 = tops.findIndex((_, i) => owned(i) && pos[i].page === 0 && pos[i].xHU > pageW / 2 && pos[i].topHU > 0);
+        // 바로 앞 문단이 왼쪽 단에서 시작해 오른쪽 단으로 이어졌으면(마지막 줄이 오른쪽 단) 잰 위치가 단 위가 아니므로 쓰지 않습니다.
+        let j = i1 - 1;
+        while (j >= 0 && !owned(j)) j--;
+        const straddles = j >= 0 && pos[j].page === 0 && (pos[j].lastPage !== 0 || pos[j].lastXHU > pageW / 2 || pos[j].bottomHU < pos[j].topHU);
+        if (i1 >= 0 && !straddles && limit - pos[i1].topHU > bodyAdv * 6) cap1 = Math.min(cap1, limit - pos[i1].topHU);
       }
     }
   } catch {

@@ -39,7 +39,7 @@ function header(faces: string[]) {
 
 type Run = [cp: number, text: string];
 /** bogi: 〈보기〉 상자. grid = 이름표 칸(1행) + 항목 칸(2행), cell = 한 칸에 이름표 문단과 항목 문단(PDF·사진에서 만든 상자 모양) */
-export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[]; tableWidth?: number; bogi?: { label: string; items: string[]; style: "grid" | "cell" } };
+export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[]; tableWidth?: number; bogi?: { label: string; items: string[]; style: "grid" | "cell"; cp?: number; shape?: boolean } };
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -68,7 +68,9 @@ function para(p: Para): string {
     const tc = (inner: string, row: number, h: number) =>
       `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${inner}</hp:subList><hp:cellAddr colAddr="0" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${tw}" height="${h}"/><hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>`;
     const labelP = para({ pp: 6, text: p.bogi.label });
-    const itemPs = p.bogi.items.map((t) => para({ pp: p.bogi!.style === "cell" ? 7 : 4, text: t })).join("");
+    const RECT = `<hp:rect id="${800 + pid}" zOrder="2" numberingType="PICTURE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${850 + pid}" ratio="0"><hp:offset x="0" y="0"/><hp:orgSz width="3000" height="1500"/><hp:curSz width="3000" height="1500"/><hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="1500" centerY="750" rotateimage="1"/><hp:renderingInfo><hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/></hp:renderingInfo><hp:lineShape color="#000000" width="12" style="SOLID" endCap="FLAT" headStyle="NORMAL" tailStyle="NORMAL" headfill="1" tailfill="1" headSz="SMALL_SMALL" tailSz="SMALL_SMALL" outlineStyle="NORMAL" alpha="0"/><hp:sz width="3000" widthRelTo="ABSOLUTE" height="1500" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>사각형</hp:shapeComment><hc:pt0 x="0" y="0"/><hc:pt1 x="3000" y="0"/><hc:pt2 x="3000" y="1500"/><hc:pt3 x="0" y="1500"/></hp:rect>`;
+    const shapeP = p.bogi.shape ? `<hp:p id="${pid++}" paraPrIDRef="6" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${RECT}<hp:t/></hp:run></hp:p>` : "";
+    const itemPs = p.bogi.items.map((t) => para({ pp: p.bogi!.style === "cell" ? 7 : 4, text: t, cp: p.bogi!.cp })).join("") + shapeP;
     const rows = p.bogi.style === "grid" ? `<hp:tr>${tc(labelP, 0, 1800)}</hp:tr><hp:tr>${tc(itemPs, 1, 5400)}</hp:tr>` : `<hp:tr>${tc(labelP + itemPs, 0, 7200)}</hp:tr>`;
     body += `<hp:run charPrIDRef="0"><hp:tbl id="${900 + pid}" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${p.bogi.style === "grid" ? 2 : 1}" colCnt="1" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${tw}" widthRelTo="ABSOLUTE" height="7200" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="284" bottom="284"/><hp:inMargin left="141" right="141" top="141" bottom="141"/>${rows}</hp:tbl></hp:run>`;
   }
@@ -237,6 +239,17 @@ export const BOX_SOURCE: Para[] = [
   { text: "" },
   { pp: 1, text: "다음 중 옳은 것은? [2.0점]" },
   { runs: [[0, " "], [3, "①"], [0, " 가\t\t② 나\t\t③ 다"]] },
+  { text: "" },
+  { table: ["* 확인 사항 답안지의 해당란에 필요한 내용을 정확히 기입했는지 확인하시오."] },
+];
+
+/** 10pt 다른 글꼴 항목 + 빈 문단 + 도형이 든 1칸 상자(그림 표로 취급되는 경우): 글은 본문 크기로, 빈 문단은 원본 크기 유지 */
+export const BOX_SOURCE_FIGURE: Para[] = [
+  { table: ["출제 교사 정선생 (인)", "( 통합과학 ) 과목"] },
+  { pp: 1, text: "다음 중 옳은 것만을 <보기>에서 고른 것은? [3.0점]" },
+  { pp: 6, bogi: { label: "< 보 기 >", items: ["ㄱ. 작은 글자 항목이다.", "", "ㄴ. 둘째 항목이다."], style: "cell", cp: 2, shape: true }, tableWidth: 30000 },
+  { text: "" },
+  { runs: [[0, " "], [3, "①"], [0, " ㄱ\t\t② ㄴ\t\t③ ㄱ, ㄴ"]] },
   { text: "" },
   { table: ["* 확인 사항 답안지의 해당란에 필요한 내용을 정확히 기입했는지 확인하시오."] },
 ];
