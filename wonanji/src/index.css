@@ -1,29 +1,36 @@
 @import "tailwindcss";
 
+/*
+ * 3색 60·30·10 (「논술형 평가 문항 설계」와 같은 체계)
+ *  60 바탕  청회색  #D5DBE3 / 면 #E9EDF2
+ *  30 먹색  #152238  제목·굵은 윗선·도장
+ *  10 강조  파랑 #2859B6  키커·현재 단계·선택
+ * 상태색(확인·주의·위험)은 채도를 낮춰 강조색과 겹치지 않게 씁니다.
+ */
 @theme {
-  --color-ink: #17192b;
-  --color-ink-soft: #40435a;
-  --color-ink-faint: #6b6e84;
-  --color-paper: #faf8f5;
-  --color-paper-deep: #f2eee6;
-  --color-paper-line: #e8e3d8;
-  --color-blueprint: #1c3050;
-  --color-blueprint-deep: #142338;
-  --color-blueprint-line: #3a5580;
-  --color-thread: #b0791f;
-  --color-thread-soft: #f0e4c8;
+  --color-bg: #d5dbe3;
+  --color-surface: #e9edf2;
+  --color-surface-2: #dde3ea;
+  --color-canvas: #c8d0da;
+  --color-paper: #f6f3eb;
+  --color-ink: #152238;
+  --color-ink-2: #526072;
+  --color-ink-3: #6b7788;
+  --color-line: #b6c0cd;
+  --color-line-strong: #8f9daf;
+  --color-primary: #2859b6;
+  --color-primary-hover: #1e478f;
+  --color-primary-soft: #d5e0f2;
+  --color-ok: #2f6b55;
+  --color-ok-soft: #e1ece7;
+  --color-warn: #7c5b21;
+  --color-warn-soft: #f1e9d8;
+  --color-danger: #874542;
+  --color-danger-soft: #e8d8d6;
   --color-answer: #fff27a;
-  --color-danger: #b3261e;
-  --color-danger-soft: #fbe9e7;
-  --color-warn: #8a5a00;
-  --color-warn-soft: #fdf3dc;
-  --color-ok: #2f6b3a;
-  --color-ok-soft: #e6f2e7;
 
-  --font-serif: "Noto Serif KR", Georgia, serif;
-  --font-sans:
-    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
-    system-ui, sans-serif;
+  --font-serif: "Noto Serif KR", "Nanum Myeongjo", AppleMyungjo, Batang, serif;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 
 :root {
@@ -33,7 +40,12 @@
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background-color: var(--color-paper);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  background: var(--color-bg);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -41,21 +53,125 @@ body {
 
 .serif {
   font-family: var(--font-serif);
+  letter-spacing: -0.025em;
 }
 
-.blueprint-grid {
-  background-color: var(--color-blueprint);
-  background-image:
-    linear-gradient(rgba(120, 160, 210, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 160, 210, 0.09) 1px, transparent 1px),
-    linear-gradient(rgba(120, 160, 210, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 160, 210, 0.045) 1px, transparent 1px);
-  background-size: 64px 64px, 64px 64px, 16px 16px, 16px 16px;
-  background-position: -1px -1px;
+/* 키커: 작은 굵은 파랑 머리글 */
+.kicker {
+  display: block;
+  color: var(--color-primary);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
 }
 
-/* 원안지 미리보기: rhwp가 만든 SVG를 종이처럼 */
-.sheet svg {
+/* 먹색 굵은 윗선 면 */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-top: 4px solid var(--color-ink);
+  border-radius: 2px;
+}
+.panel-accent {
+  border-top-color: var(--color-primary);
+}
+
+/* 단계 번호 "01 /" */
+.step-no {
+  white-space: nowrap;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.step-no::after {
+  content: " /";
+  color: var(--color-line-strong);
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.45rem 0.95rem;
+  border-radius: 2px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: 1px solid var(--color-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+.btn-ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border: 1px solid var(--color-ink);
+}
+.btn-line {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line-strong);
+}
+.btn-line:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.field {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 2px;
+  background: #f2f4f7;
+  color: var(--color-ink);
+  font: inherit;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+/* 접는 안내: 기본 삼각형 대신 오른쪽 +/− */
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+details.fold > summary::-webkit-details-marker {
+  display: none;
+}
+details.fold > summary::after {
+  content: "+";
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-primary);
+}
+details.fold[open] > summary::after {
+  content: "−";
+}
+
+/* 원안지 미리보기: 종이처럼 */
+.sheet img {
   display: block;
   width: 100%;
   height: auto;
@@ -63,21 +179,20 @@ body {
 }
 
 *:focus-visible {
-  outline: 2px solid var(--color-thread);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .rise-in {
-    animation: riseIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: riseIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
 
 @keyframes riseIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;

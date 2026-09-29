@@ -478,6 +478,21 @@ export function buildQuestion(
     log("번호", `논술형 번호를 ${finalNumber}번으로 다시 매김`);
   }
 
+  // 1-1) 교사가 화면에서 지정한 정답: 선지 번호(①~⑤)에 정답 음영, 다른 번호의 음영은 지움(글자는 그대로)
+  if (q.kind === "mcq" && q.answerOverride) {
+    const want = new Set(q.answerOverride);
+    for (const p of paras.flatMap((x) => [x, ...descendants(x, "p")])) {
+      restyle(p, (it) => {
+        if (it.kind !== "ch") return null;
+        const ci = circledIndex(it.ch);
+        if (ci < 0) return null;
+        if (want.has(ci + 1)) return "shade=#FFFF00";
+        return importer.src.shadeOf(it.cp) ? "shade=none" : null;
+      });
+    }
+    log("정답", `화면에서 지정한 정답 ${[...want].map((a) => "①②③④⑤"[a - 1]).join("")}에 음영 표시`);
+  }
+
   // 2) 선지 다시 짜기
   const choiceIdx = q.choices?.paraIdx ?? [];
   if (q.kind === "mcq" && spec.choiceLayout === "auto" && choiceIdx.length && q.choices?.ordered) {

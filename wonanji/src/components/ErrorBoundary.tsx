@@ -11,11 +11,12 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div role="alert" className="mx-auto mt-16 max-w-xl rounded-lg border border-danger/30 bg-danger-soft px-6 py-5 text-danger">
-        <p className="font-semibold">처리 중 오류가 났습니다.</p>
-        <p className="mt-1 text-sm">{this.state.error.message}</p>
-        <p className="mt-3 text-sm text-ink-soft">어느 파일에서 멈췄는지 알려 주시면 고치겠습니다. 파일 내용은 이 브라우저 밖으로 나가지 않았습니다.</p>
-        <button type="button" onClick={() => location.reload()} className="mt-4 rounded-md bg-blueprint px-4 py-2 text-sm font-semibold text-white">
+      <div role="alert" className="panel mx-auto mt-16 max-w-xl !border-t-danger px-6 py-5">
+        <span className="kicker !text-danger">오류</span>
+        <p className="serif text-lg font-bold text-ink">처리 중 오류가 났습니다.</p>
+        <p className="mt-1 text-sm text-danger">{this.state.error.message}</p>
+        <p className="mt-3 text-sm text-ink-2">어느 파일에서 멈췄는지 알려 주시면 고치겠습니다. 파일 내용은 이 브라우저 밖으로 나가지 않았습니다.</p>
+        <button type="button" onClick={() => location.reload()} className="btn btn-primary mt-4">
           처음부터 다시
         </button>
       </div>

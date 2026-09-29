@@ -5,29 +5,10 @@ import { analyzePdf } from "./layout";
 import type { Box } from "./lines";
 import { synthesizeHwpx, type CropResult } from "./synth";
 
+import { getDeps } from "./deps";
+export { setPdfDeps, type PdfDeps } from "./deps";
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
-export interface PdfDeps {
-  /** pdf.js 문서 열기 */
-  open(bytes: Uint8Array): Promise<{ numPages: number; getPage(n: number): Promise<any>; destroy?(): Promise<void> }>;
-  OPS: Record<string, number>;
-  /** 쪽을 scale배로 그린 뒤 영역(px)을 PNG로 */
-  cropPng(page: any, scale: number, px: { x: number; y: number; w: number; h: number }): Promise<Uint8Array>;
-}
-
-let deps: (() => Promise<PdfDeps>) | null = null;
-let loaded: Promise<PdfDeps> | null = null;
-
-export function setPdfDeps(fn: () => Promise<PdfDeps>) {
-  deps = fn;
-  loaded = null;
-}
-
-function getDeps(): Promise<PdfDeps> {
-  if (!deps) throw new Error("PDF 읽기 모듈이 준비되지 않았습니다.");
-  if (!loaded) loaded = deps();
-  return loaded;
-}
-
 /** 그림을 자를 때 해상도: 300 dpi 가까이(인쇄용) */
 const CROP_SCALE = 4;
 

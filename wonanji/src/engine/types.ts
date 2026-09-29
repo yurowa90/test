@@ -124,6 +124,8 @@ export interface Question {
   score: number | null;
   scoreRaw: string | null;
   answers: number[];
+  /** 화면에서 교사가 지정한 정답(있으면 형광펜 대신 이것을 결과에 음영으로 표시) */
+  answerOverride?: number[];
   choices: ChoiceInfo | null;
   objects: { tbl: number; pic: number; equation: number; shape: number; other: number };
   summary: string;

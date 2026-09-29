@@ -274,9 +274,6 @@ function findRegions(col: Box, segs: PSeg[], boxes: PBox[], texts: PText[], body
       }
     }
   }
-  if ((globalThis as { __DEBUG_REGIONS?: boolean }).__DEBUG_REGIONS) {
-    for (const r of regions) console.log("REGION", r.kind, r.x0.toFixed(0), r.y0.toFixed(0), r.x1.toFixed(0), r.y1.toFixed(0), "segs", r.segs.length, "boxes", r.boxes.map((b) => b.kind).join(","));
-  }
   return { regions, underlines, fractions };
 }
 

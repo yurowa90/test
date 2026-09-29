@@ -89,6 +89,7 @@ export class HeaderIndex {
   /** 글자 모양이 음영/형광으로 칠해졌는지(원안지 정답 표시). */
   shadeOf(cpToken: string): string | null {
     const m = modValue(cpToken, "shade");
+    if (m === "none") return null;
     if (m) return m;
     const cp = this.charPr(splitCp(cpToken).base);
     const s = cp?.getAttribute("shadeColor");
