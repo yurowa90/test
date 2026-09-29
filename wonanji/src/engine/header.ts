@@ -467,10 +467,10 @@ export class Importer {
           setChild(c, "fontRef", kid(src, "fontRef"), this.out.doc);
           this.remapFonts(c, src);
         }
-        const keepSize = ctx === "box" || (ctx === "cell" && spec.cellMode === "keep");
+        const keepSize = (ctx === "box" || ctx === "cell") && spec.cellMode === "keep";
         if (keepSize) c.setAttribute("height", src.getAttribute("height") ?? baseEl.getAttribute("height")!);
       }
-      if (!src || !(ctx === "box" || (ctx === "cell" && spec.cellMode === "keep"))) {
+      if (!src || !((ctx === "box" || ctx === "cell") && spec.cellMode === "keep")) {
         c.setAttribute("height", String(Math.round(spec.sizePt * 100)));
       }
       for (const m of mods) {

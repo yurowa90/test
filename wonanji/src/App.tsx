@@ -26,6 +26,14 @@ function saveTemplate(name: string, bytes: Uint8Array) {
   }
 }
 
+function clearSavedTemplate() {
+  try {
+    localStorage.removeItem(SAVED_TEMPLATE);
+  } catch {
+    /* 저장소가 막혀 있으면 지울 것도 없습니다 */
+  }
+}
+
 function loadSavedTemplate(): { name: string; bytes: Uint8Array } | null {
   try {
     const raw = localStorage.getItem(SAVED_TEMPLATE);
@@ -58,7 +66,10 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [out, setOut] = useState<BuildOutput | null>(null);
-  const [saved] = useState(() => loadSavedTemplate());
+  const [saved, setSaved] = useState(() => loadSavedTemplate());
+  // 양식 저장은 선택 사항(공용 PC 보호): 켠 경우에만 이 브라우저에 남기고, 끄면 바로 지웁니다.
+  const [remember, setRemember] = useState(false);
+  const [tplDoc, setTplDoc] = useState<{ name: string; bytes: Uint8Array } | null>(null);
 
   // 파일마다 따로 분석해, 한 파일이 실패해도 나머지와 화면은 그대로 둡니다.
   const analysis = useMemo(() => {
@@ -105,7 +116,11 @@ export default function App() {
       setTpl(t);
       setSpec(t.spec);
       setOut(null);
-      saveTemplate(doc.name, doc.bytes);
+      setTplDoc({ name: doc.name, bytes: doc.bytes });
+      if (remember) {
+        saveTemplate(doc.name, doc.bytes);
+        setSaved({ name: doc.name, bytes: doc.bytes });
+      }
     } catch (e) {
       setErrors([`양식 「${name}」: ${errText(e)}`]);
     } finally {
@@ -169,6 +184,19 @@ export default function App() {
     setOut(null);
   }
 
+  function forgetSaved() {
+    clearSavedTemplate();
+    setSaved(null);
+  }
+
+  function toggleRemember(on: boolean) {
+    setRemember(on);
+    if (on && tplDoc) {
+      saveTemplate(tplDoc.name, tplDoc.bytes);
+      setSaved(tplDoc);
+    } else if (!on) forgetSaved();
+  }
+
   async function make() {
     if (!tpl || !spec) return;
     setErrors([]);
@@ -211,6 +239,20 @@ export default function App() {
   const mcqN = active.filter((q) => q.kind === "mcq").length;
   const essayN = active.filter((q) => q.kind === "essay").length;
   const current = out ? 4 : order.length ? 2 : tpl ? 1 : 0;
+  const rememberRow = (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-2">
+      <label className="flex cursor-pointer items-center gap-2">
+        <input type="checkbox" checked={remember} onChange={(e) => toggleRemember(e.target.checked)} className="accent-primary" />
+        이 브라우저에 양식 저장(다음에 다시 쓰기)
+      </label>
+      <span className="text-ink-3">공용 PC에서는 끄세요 — 저장한 양식은 다음 방문 때 파일명이 보이고 다시 열립니다.</span>
+      {saved && (
+        <button type="button" onClick={forgetSaved} className="font-semibold text-danger underline-offset-2 hover:underline">
+          저장된 양식 지우기
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen pb-16">
@@ -283,6 +325,7 @@ export default function App() {
                   </Dropzone>
                 </div>
                 <TemplateCard tpl={tpl} />
+                {rememberRow}
               </>
             ) : (
               <div className="space-y-2">
@@ -295,6 +338,7 @@ export default function App() {
                     지난번 양식 다시 쓰기: {saved.name}
                   </button>
                 )}
+                {rememberRow}
               </div>
             )}
           </Step>

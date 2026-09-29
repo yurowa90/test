@@ -13,13 +13,11 @@ setPdfDeps(async (): Promise<PdfDeps> => {
   return {
     OPS: pdfjs.OPS as unknown as Record<string, number>,
     async open(bytes) {
-      // 신뢰할 수 없는 PDF의 글꼴 코드를 eval로 실행하지 않도록 isEvalSupported: false
       const params = {
         data: bytes.slice(),
         cMapUrl: path.join(root, "cmaps") + "/",
         cMapPacked: true,
         standardFontDataUrl: path.join(root, "standard_fonts") + "/",
-        isEvalSupported: false,
       };
       return pdfjs.getDocument(params as Parameters<typeof pdfjs.getDocument>[0]).promise;
     },
