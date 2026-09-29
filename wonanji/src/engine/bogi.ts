@@ -8,6 +8,9 @@ import { deepText, isBlank, ownText } from "./text";
 import type { FormatSpec } from "./types";
 
 const LABEL_RE = /^[<〈(［[《＜]?\s*보\s*기\s*[>〉)］\]》＞]?$/;
+/** 미리보기 엔진이 줄 배치 캐시 없이는 잘 놓지 못하는 개체(수식·그림·표·도형) */
+const OBJECT_TAGS = new Set(["tbl", "pic", "equation", "rect", "ellipse", "arc", "polygon", "curve", "line", "connectLine", "container", "ole", "textart", "chart", "video"]);
+const hasObject = (p: Element) => kids(p).some((r) => r.localName === "run" && kids(r).some((c) => OBJECT_TAGS.has(c.localName)));
 /** 항목 문단: ㄱ. ㄴ) 처럼 자모 뒤에 마침표·괄호, 또는 사진 인식에서 마침표가 빠진 "ㄷ (다)…"처럼 자모 뒤 공백 */
 const ITEM_RE = /^\s*[ㄱ-ㅎ]\s*(?:[.．)）]|\s)/;
 
@@ -142,8 +145,9 @@ export function rebuildBox(old: Element, proto: BoxProto, header: OutputHeader, 
   const ppId = itemParaPr(header, proto, spec);
   for (const p of moving) {
     if (ITEM_RE.test(ownText(p))) p.setAttribute("paraPrIDRef", ppId);
-    // 원본 상자에서의 줄 배치 캐시는 폭이 달라 맞지 않으므로 지웁니다(미리보기가 새로 계산).
-    for (const seg of [...descendants(p, "linesegarray")]) seg.parentNode?.removeChild(seg);
+    // 원본 상자에서의 줄 배치 캐시는 폭이 달라 맞지 않으므로 지웁니다(미리보기가 새로 계산). 수식·그림이 든 문단은
+    // 미리보기 엔진이 캐시 없이는 줄을 나누지 못하므로 남깁니다(내려받기 파일은 어차피 캐시를 모두 지움).
+    if (!hasObject(p)) for (const seg of [...descendants(p, "linesegarray")]) seg.parentNode?.removeChild(seg);
     body.sub.appendChild(p);
   }
   // 항목 칸이 든 행의 높이는 한 줄 + 여백만(같은 행의 가는 칸도 함께 — 행 높이는 칸 높이의 최댓값이므로),
