@@ -20,8 +20,8 @@ export function readTemplate(doc: LoadedDoc): TemplateAnalysis {
   return analyzeTemplate(doc);
 }
 
-export function readSources(docs: LoadedDoc[], tpl: TemplateAnalysis): SourceAnalysis[] {
-  return docs.map((d, i) => analyzeSource(i, d, tpl));
+export function readSource(fileIdx: number, doc: LoadedDoc, tpl: TemplateAnalysis): SourceAnalysis {
+  return analyzeSource(fileIdx, doc, tpl);
 }
 
 export interface BuildOutput {

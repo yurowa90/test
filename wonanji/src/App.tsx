@@ -3,8 +3,8 @@ import { defaultOrder } from "./engine/assemble";
 import { lint } from "./engine/lint";
 import { loadDocument, type LoadedDoc } from "./engine/load";
 import { errText } from "./engine/rhwp";
-import type { FormatSpec, Question, TemplateAnalysis } from "./engine/types";
-import { build, download, readFile, readSources, readTemplate, type BuildOutput } from "./pipeline";
+import type { FormatSpec, Question, SourceAnalysis, TemplateAnalysis } from "./engine/types";
+import { build, download, readFile, readSource, readTemplate, type BuildOutput } from "./pipeline";
 import Dropzone from "./components/Dropzone";
 import TemplateCard from "./components/TemplateCard";
 import SourceList from "./components/SourceList";
@@ -51,7 +51,24 @@ export default function App() {
   const [out, setOut] = useState<BuildOutput | null>(null);
   const [saved] = useState(() => loadSavedTemplate());
 
-  const sources = useMemo(() => (tpl ? readSources(docs, tpl) : []), [docs, tpl]);
+  // 파일마다 따로 분석해, 한 파일이 실패해도 나머지와 화면은 그대로 둡니다.
+  const analysis = useMemo(() => {
+    const sources: SourceAnalysis[] = [];
+    const docOf: number[] = [];
+    const failed: { docIdx: number; message: string }[] = [];
+    if (tpl) {
+      docs.forEach((d, i) => {
+        try {
+          sources.push(readSource(sources.length, d, tpl));
+          docOf.push(i);
+        } catch (e) {
+          failed.push({ docIdx: i, message: `「${d.name}」 문항을 나누지 못했습니다: ${errText(e)}` });
+        }
+      });
+    }
+    return { sources, docOf, failed };
+  }, [docs, tpl]);
+  const sources = analysis.sources;
   useEffect(() => {
     setOrder(defaultOrder(sources));
     setExcluded(new Set());
@@ -218,13 +235,38 @@ export default function App() {
           )}
         </Step>
 
-        <Step n={2} title="출제 파일" sub="선생님별 출제 파일을 모두 올리세요. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다." dim={!tpl}>
-          <Dropzone multiple disabled={!tpl || !!busy} onFiles={addSources} compact={docs.length > 0}>
-            <p className="font-semibold">{docs.length ? "파일 더 올리기" : "출제 파일(.hwp, .hwpx)을 여러 개 한꺼번에 올릴 수 있습니다"}</p>
+        <Step n={2} title="출제 파일" sub="선생님별 출제 파일을 모두 올리세요. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다.">
+          <Dropzone multiple disabled={!!busy} onFiles={addSources} compact={docs.length > 0}>
+            <p className="font-semibold">{docs.length ? "파일 더 올리기" : "출제 파일(.hwp, .hwpx)을 끌어 놓거나 눌러서 고르세요. 여러 개를 한꺼번에 올릴 수 있습니다"}</p>
           </Dropzone>
+          {!tpl && docs.length > 0 && (
+            <div className="mt-3 rounded-md bg-warn-soft px-4 py-2 text-sm text-warn">
+              <p>
+                출제 파일 {docs.length}개를 받았습니다. <b>1번에 학교 양식을 올리면</b> 문항을 나눕니다.
+              </p>
+              <ul className="mt-1 space-y-0.5 text-ink-soft">
+                {docs.map((d, i) => (
+                  <li key={d.name} className="flex items-center justify-between gap-2">
+                    <span className="truncate">{d.name}</span>
+                    <button type="button" onClick={() => setDocs((x) => x.filter((_, k) => k !== i))} className="shrink-0 rounded px-2 text-xs hover:bg-danger-soft hover:text-danger">
+                      빼기
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {analysis.failed.map((f) => (
+            <div key={f.docIdx} role="alert" className="mt-3 flex items-start justify-between gap-3 rounded-md bg-danger-soft px-4 py-2 text-sm text-danger">
+              <span>{f.message}</span>
+              <button type="button" onClick={() => setDocs((x) => x.filter((_, k) => k !== f.docIdx))} className="shrink-0 rounded px-2 text-xs hover:bg-white/60">
+                빼기
+              </button>
+            </div>
+          ))}
           {sources.length > 0 && (
             <div className="mt-3">
-              <SourceList sources={sources} onRemove={(i) => setDocs((d) => d.filter((_, k) => k !== i))} />
+              <SourceList sources={sources} onRemove={(i) => setDocs((d) => d.filter((_, k) => k !== analysis.docOf[i]))} />
             </div>
           )}
         </Step>
