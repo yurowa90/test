@@ -114,7 +114,7 @@ export default function TemplateCard({ tpl }: { tpl: TemplateAnalysis }) {
 
 function Stat({ k, v, sub }: { k: string; v: string; sub?: string }) {
   return (
-    <div className="border-b border-r border-line bg-[#f2f4f7]/60 px-3 py-2">
+    <div className="border-b border-r border-line bg-[#f6f2f0]/60 px-3 py-2">
       <dt className="text-[11px] font-bold text-ink-3">{k}</dt>
       <dd className="serif text-[15px] font-semibold leading-snug text-ink">{v}</dd>
       {sub && <dd className="text-[11.5px] leading-snug text-ink-2">{sub}</dd>}

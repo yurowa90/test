@@ -235,7 +235,7 @@ export default function App() {
         <div className="border-b border-ink" />
 
         {/* 작업 요약 띠 */}
-        <nav aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-3 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(21,34,56,0.06)]">
+        <nav aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-3 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(43,31,34,0.06)]">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-2">
             <b className="text-[13px] text-ink">{tpl ? tpl.name : "양식 미선택"}</b>
             <span className="border-l border-line-strong pl-3">출제 파일 {sources.length || docs.length}개</span>

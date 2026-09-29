@@ -97,7 +97,7 @@ export default function ResultView({ out, order, baseName, onDownload }: Props) 
             </div>
           </div>
           <div className="sheet border border-line-strong bg-canvas p-3 sm:p-5">
-            <div className="shadow-[0_2px_10px_rgba(21,34,56,0.18)]">{url && <img src={url} alt={`원안지 ${page + 1}쪽 미리보기`} />}</div>
+            <div className="shadow-[0_2px_10px_rgba(43,31,34,0.18)]">{url && <img src={url} alt={`원안지 ${page + 1}쪽 미리보기`} />}</div>
           </div>
           <div className="mt-2 space-y-1 text-[11.5px] leading-relaxed text-ink-3">
             <p>미리보기는 브라우저용 한글 엔진(rhwp)으로 그린 것이라 글꼴·쪽 나눔·표 높이가 한글과 조금 다를 수 있습니다. ‘문항이 쪼개지지 않게’ 설정은 한글에서만 반영되고, 두 단에 걸친 머리 표 아래 오른쪽 단 첫 줄이 표와 겹쳐 보일 수 있습니다(한글에서는 표 아래에서 시작).</p>

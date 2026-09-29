@@ -1,32 +1,32 @@
 @import "tailwindcss";
 
 /*
- * 3색 60·30·10 (「논술형 평가 문항 설계」와 같은 체계)
- *  60 바탕  청회색  #D5DBE3 / 면 #E9EDF2
- *  30 먹색  #152238  제목·굵은 윗선·도장
- *  10 강조  파랑 #2859B6  키커·현재 단계·선택
- * 상태색(확인·주의·위험)은 채도를 낮춰 강조색과 겹치지 않게 씁니다.
+ * 3색 60·30·10 (「논술형 평가 문항 설계」와 같은 체계, 버건디 기준)
+ *  60 바탕  따뜻한 회색  #DDD6D4 / 면 #EEE9E7
+ *  30 먹색  #2B1F22  제목·굵은 윗선·도장(자주빛이 도는 먹)
+ *  10 강조  버건디 #7A1F2B  키커·현재 단계·선택
+ * 상태색(확인·주의·위험)은 강조색과 구별되도록 초록·황토·벽돌색으로 둡니다.
  */
 @theme {
-  --color-bg: #d5dbe3;
-  --color-surface: #e9edf2;
-  --color-surface-2: #dde3ea;
-  --color-canvas: #c8d0da;
-  --color-paper: #f6f3eb;
-  --color-ink: #152238;
-  --color-ink-2: #526072;
-  --color-ink-3: #6b7788;
-  --color-line: #b6c0cd;
-  --color-line-strong: #8f9daf;
-  --color-primary: #2859b6;
-  --color-primary-hover: #1e478f;
-  --color-primary-soft: #d5e0f2;
-  --color-ok: #2f6b55;
-  --color-ok-soft: #e1ece7;
+  --color-bg: #ddd6d4;
+  --color-surface: #eee9e7;
+  --color-surface-2: #e3dcda;
+  --color-canvas: #cfc5c3;
+  --color-paper: #f7f3ee;
+  --color-ink: #2b1f22;
+  --color-ink-2: #5c4a4e;
+  --color-ink-3: #7a6a6e;
+  --color-line: #c2b6b6;
+  --color-line-strong: #9a8a8b;
+  --color-primary: #7a1f2b;
+  --color-primary-hover: #5e1620;
+  --color-primary-soft: #f0dcde;
+  --color-ok: #3b6b4f;
+  --color-ok-soft: #dfeae1;
   --color-warn: #7c5b21;
   --color-warn-soft: #f1e9d8;
-  --color-danger: #874542;
-  --color-danger-soft: #e8d8d6;
+  --color-danger: #9c4a21;
+  --color-danger-soft: #f3e2d8;
   --color-answer: #fff27a;
 
   --font-serif: "Noto Serif KR", "Nanum Myeongjo", AppleMyungjo, Batang, serif;
@@ -56,7 +56,7 @@ body {
   letter-spacing: -0.025em;
 }
 
-/* 키커: 작은 굵은 파랑 머리글 */
+/* 키커: 작은 굵은 버건디 머리글 */
 .kicker {
   display: block;
   color: var(--color-primary);
@@ -137,7 +137,7 @@ body {
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--color-line-strong);
   border-radius: 2px;
-  background: #f2f4f7;
+  background: #f6f2f0;
   color: var(--color-ink);
   font: inherit;
 }

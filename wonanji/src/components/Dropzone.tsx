@@ -41,7 +41,7 @@ export default function Dropzone({ multiple, disabled, onFiles, children, compac
       }}
       className={`block w-full border border-dashed text-left transition-colors focus-within:border-primary ${
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
-      } ${compact ? "px-4 py-2.5" : "px-5 py-7"} ${over ? "border-primary bg-primary-soft" : "border-line-strong bg-[#f2f4f7] hover:border-primary hover:bg-primary-soft/60"}`}
+      } ${compact ? "px-4 py-2.5" : "px-5 py-7"} ${over ? "border-primary bg-primary-soft" : "border-line-strong bg-[#f6f2f0] hover:border-primary hover:bg-primary-soft/60"}`}
     >
       {children}
       <input
