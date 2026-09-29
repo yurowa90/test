@@ -3,10 +3,11 @@ import { assemble } from "./engine/assemble";
 import { stripHwpLineSegs } from "./engine/hwp5";
 import { loadDocument, type LoadedDoc } from "./engine/load";
 import { lint } from "./engine/lint";
-import { hwpxToHwp, lineStarts, renderPages, type LossReport } from "./engine/rhwp";
+import { hwpxToHwp, layoutInfo, layoutPositions, lineStarts, renderPages, type LossReport } from "./engine/rhwp";
 import { analyzeSource } from "./engine/segment";
 import { analyzeTemplate } from "./engine/template";
 import { tightenOrphans } from "./engine/tracking";
+import { balanceColumns } from "./engine/balance";
 import type { Change, FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./engine/types";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -44,6 +45,8 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
   await tick();
   const tracking = await tightenOrphans(res, spec, lineStarts);
   await tick();
+  const balance = await balanceColumns(res, spec, { info: layoutInfo, positions: layoutPositions });
+  await tick();
   const out = await hwpxToHwp(res.forRhwp);
   await tick();
   const svgs = await renderPages(res.forPreview);
@@ -56,7 +59,7 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
     svgs,
     pages: out.pages,
     loss: out.loss,
-    changes: [...res.changes, ...tracking.changes],
+    changes: [...res.changes, ...tracking.changes, ...balance.changes],
     issues,
     numbers: res.numbers,
     previewNoNumber: res.previewNoNumber.map((id) => res.numbers.get(id) ?? 0).filter(Boolean),

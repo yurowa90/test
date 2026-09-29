@@ -1,4 +1,4 @@
-// PDF 출제 파일 → HWPX 출제 파일(문항 분할·서식 통일은 HWP와 같은 흐름).
+// PDF 문항 파일 → HWPX 문항 파일(문항 분할·서식 통일은 HWP와 같은 흐름).
 // pdf.js 불러오기와 쪽 그리기(그림 자르기)는 브라우저·Node가 달라 주입받습니다.
 import { extractPage, type PdfPageData } from "./extract";
 import { analyzePdf } from "./layout";

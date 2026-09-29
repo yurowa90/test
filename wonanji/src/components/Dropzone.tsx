@@ -6,7 +6,7 @@ interface Props {
   onFiles: (files: File[]) => void;
   children: ReactNode;
   compact?: boolean;
-  /** hwp: 양식(HWP·HWPX만), all: 출제 파일(HWP·HWPX·PDF·이미지) */
+  /** hwp: 양식(HWP·HWPX만), all: 문항 파일(HWP·HWPX·PDF·이미지) */
   accept?: "hwp" | "all";
 }
 

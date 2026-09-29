@@ -17,7 +17,7 @@ import RulesGuide from "./components/RulesGuide";
 // 올린 파일과 결과는 이 페이지의 메모리에만 있고, 새로고침하거나 탭을 닫으면 사라집니다.
 const STEPS = [
   { id: "s-template", label: "양식" },
-  { id: "s-sources", label: "출제 파일" },
+  { id: "s-sources", label: "문항 파일" },
   { id: "s-order", label: "문항·정답" },
   { id: "s-options", label: "편집 옵션" },
   { id: "s-result", label: "원안지" },
@@ -74,7 +74,7 @@ export default function App() {
     setBusy("양식을 읽는 중… 처음에는 한글 엔진(약 10MB)을 내려받아 몇 초 걸립니다.");
     try {
       const doc = await get();
-      if (doc.format === "pdf" || doc.format === "image") throw new Error("양식은 HWP·HWPX 파일로 올려 주세요(PDF·이미지는 출제 파일로 올릴 수 있습니다).");
+      if (doc.format === "pdf" || doc.format === "image") throw new Error("양식은 HWP·HWPX 파일로 올려 주세요(PDF·이미지는 문항 파일로 올릴 수 있습니다).");
       const t = readTemplate(doc);
       setTpl(t);
       setSpec(t.spec);
@@ -160,7 +160,7 @@ export default function App() {
     const lines = [
       `원안지 편집 검수 보고서 (${new Date().toLocaleString("ko-KR")})`,
       `양식: ${tpl?.name}`,
-      `출제 파일: ${sources.map((s) => s.name).join(", ")}`,
+      `문항 파일: ${sources.map((s) => s.name).join(", ")}`,
       `결과: ${o.pages}쪽, 선택형 ${active.filter((q) => q.kind === "mcq").length}문항, 논술형 ${active.filter((q) => q.kind === "essay").length}문항`,
       "",
     ];
@@ -193,7 +193,7 @@ export default function App() {
             <div>
               <h1 className="serif text-[clamp(30px,3vw,40px)] font-bold leading-tight">원안지 편집기</h1>
               <p className="mt-1 max-w-2xl text-[13.5px] text-ink-2">
-                여러 선생님의 출제 파일(HWP·HWPX·PDF·사진)을 학교 원안지 양식에 모아, 글꼴·크기·줄간격·번호·〈보기〉·표·그림 크기를 양식에 맞추고 편집 규칙을 검수합니다.
+                여러 형태의 문항 파일과 형식을 동일한 양식으로 맞추고 검수합니다.
               </p>
             </div>
             <div className="flex border border-ink text-[12px] font-bold">
@@ -214,7 +214,7 @@ export default function App() {
         <nav aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-3 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(43,31,34,0.06)]">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-ink-2">
             <b className="text-[13px] text-ink">{tpl ? tpl.name : "양식 미선택"}</b>
-            <span className="border-l border-line-strong pl-3">출제 파일 {sources.length || docs.length}개</span>
+            <span className="border-l border-line-strong pl-3">문항 파일 {sources.length || docs.length}개</span>
             <span className="border-l border-line-strong pl-3">
               선택형 {mcqN} · 논술형 {essayN}
             </span>
@@ -264,21 +264,21 @@ export default function App() {
               <div className="space-y-2">
                 <Dropzone disabled={!!busy} onFiles={([f]) => openTemplate(f.name, () => readFile(f))} accept="hwp">
                   <p className="font-semibold">양식 파일(.hwp, .hwpx)을 끌어 놓거나 눌러서 고르세요</p>
-                  <p className="mt-1 text-sm text-ink-3">예: 2026학년도 1학기 2차 정기시험 출제 문항지 양식.hwp · 학력평가 문제지.hwp</p>
+                  <p className="mt-1 text-sm text-ink-3">예: 학력평가 문항지.hwp · 형성평가 문제지.hwp</p>
                 </Dropzone>
               </div>
             )}
           </Step>
 
-          <Step id="s-sources" n={2} kicker="출제 파일" title="선생님별 출제 파일" sub="HWP·HWPX는 그대로, PDF는 글자를 입력한 글로 옮기고 그림·그래프는 잘라 넣으며, 사진·캡처는 글자를 인식합니다. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다." accent={current === 1}>
+          <Step id="s-sources" n={2} kicker="문항 파일" title="선생님별 문항 파일" sub="HWP·HWPX는 그대로, PDF는 글자를 입력한 글로 옮기고 그림·그래프는 잘라 넣으며, 사진·캡처는 글자를 인식합니다. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다." accent={current === 1}>
             <Dropzone multiple disabled={!!busy} onFiles={addSources} compact={docs.length > 0} accept="all">
-              <p className="font-semibold">{docs.length ? "파일 더 올리기" : "출제 파일(.hwp, .hwpx, .pdf, 사진)을 끌어 놓거나 눌러서 고르세요. 여러 개를 한꺼번에 올릴 수 있습니다"}</p>
+              <p className="font-semibold">{docs.length ? "파일 더 올리기" : "문항 파일(.hwp, .hwpx, .pdf, 사진)을 끌어 놓거나 눌러서 고르세요. 여러 개를 한꺼번에 올릴 수 있습니다"}</p>
               {!docs.length && <p className="mt-1 text-sm text-ink-3">PDF·사진의 정답은 3단계에서 지정합니다(형광펜 정보가 없음).</p>}
             </Dropzone>
             {!tpl && docs.length > 0 && (
               <div className="mt-3 border border-warn/40 border-l-[3px] border-l-warn bg-warn-soft px-4 py-2 text-sm text-warn">
                 <p>
-                  출제 파일 {docs.length}개를 받았습니다. <b>1단계에 학교 양식을 올리면</b> 문항을 나눕니다.
+                  문항 파일 {docs.length}개를 받았습니다. <b>1단계에 학교 양식을 올리면</b> 문항을 나눕니다.
                 </p>
                 <ul className="mt-1 space-y-0.5 text-ink-2">
                   {docs.map((d, i) => (

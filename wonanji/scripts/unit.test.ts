@@ -4,6 +4,7 @@ import "./node-env";
 import { assemble, defaultOrder } from "../src/engine/assemble";
 import { descendants, kid } from "../src/engine/dom";
 import { getLineSpacing, HeaderIndex } from "../src/engine/header";
+const getLineSpacingOf = (h: HeaderIndex, p: Element) => getLineSpacing(h.paraPr(p.getAttribute("paraPrIDRef") ?? "0")!);
 import type { LoadedDoc } from "../src/engine/load";
 import { lint } from "../src/engine/lint";
 import { formatScore, negationSpans } from "../src/engine/normalize";
@@ -17,7 +18,8 @@ import { objWidth } from "../src/engine/objects";
 import { validateHwpx } from "./validate";
 import { classifyJamo, findCircles } from "../src/engine/ocr/detect";
 import { columnSplit, components } from "../src/engine/ocr/raster";
-import { lineStarts } from "../src/engine/rhwp";
+import { layoutInfo, layoutPositions, lineStarts } from "../src/engine/rhwp";
+import { balanceColumns } from "../src/engine/balance";
 import { tightenOrphans } from "../src/engine/tracking";
 
 let failed = 0;
@@ -334,6 +336,18 @@ await test("자간 트래킹: rhwp 줄 배치를 문단마다 읽고, 고친 뒤
   assert.deepEqual(validateHwpx(r.hwpx), []);
   // 캐시는 forRhwp에 남고 내려받기 HWPX에는 없어야
   assert.ok(!HwpxPackage.fromBytes(r.hwpx).topParagraphs().some((p) => kid(p, "linesegarray")));
+});
+
+await test("문항 배치: 균등 배치 뒤에도 문항 수·구조가 유지되고 빈 줄은 고정 높이 문단 하나로", async () => {
+  const r = assemble({ template: tpl, sources: [s1, s2], order, spec: tpl.spec });
+  const before = HwpxPackage.fromBytes(r.hwpx).topParagraphs().length;
+  const b = await balanceColumns(r, tpl.spec, { info: layoutInfo, positions: layoutPositions });
+  const after = HwpxPackage.fromBytes(r.hwpx).topParagraphs();
+  assert.ok(after.length <= before, `${after.length} <= ${before}`);
+  assert.deepEqual(validateHwpx(r.hwpx), []);
+  const h = new HeaderIndex(HwpxPackage.fromBytes(r.hwpx));
+  const fixed = after.filter((p) => kid(h.paraPr(p.getAttribute("paraPrIDRef") ?? "0")!, "switch") && getLineSpacingOf(h, p).type === "FIXED");
+  assert.ok(b.changes.length === 0 || fixed.length + after.filter((p) => p.getAttribute("columnBreak") === "1").length >= 1);
 });
 
 console.log(failed ? `\n${failed}개 실패` : "\n모두 통과");

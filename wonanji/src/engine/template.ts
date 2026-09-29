@@ -359,9 +359,10 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     headerFrom: "template",
     wordWrap: true,
     tracking: true,
+    layout: "balanced",
   };
 
-  // 양식 상용구(출제 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.
+  // 양식 상용구(문항 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.
   const boilerplate = new Set<string>();
   raw.forEach((p, i) => {
     const z = zones[i];

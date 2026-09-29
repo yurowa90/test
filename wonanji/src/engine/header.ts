@@ -1,5 +1,5 @@
 // header.xml의 참조 목록(글꼴·테두리/배경·글자 모양·탭·번호·문단 모양·스타일)을 다룹니다.
-// 여러 출제 파일의 문단을 양식 문서로 옮길 때, 각 파일의 ID를 양식 문서의 ID로 다시 매깁니다.
+// 여러 문항 파일의 문단을 양식 문서로 옮길 때, 각 파일의 ID를 양식 문서의 ID로 다시 매깁니다.
 import { attr, hh, isEl, kid, kids, NS, serializeNode, walk } from "./dom";
 import type { HwpxPackage } from "./pkg";
 import { isBlank, modValue, splitCp } from "./text";
@@ -271,13 +271,13 @@ export type ParaCtx = "body" | "cell" | "box";
 const FIGURE_TAGS = new Set(["tbl", "pic", "rect", "ellipse", "arc", "polygon", "curve", "line", "connectLine", "container", "ole", "textart", "chart", "video"]);
 
 /**
- * 출제 파일 하나의 header → 결과 header 가져오기.
+ * 문항 파일 하나의 header → 결과 header 가져오기.
  * raw 모드는 원본 모양 그대로 복사하고, norm 모드는 FormatSpec에 맞춰 통일합니다.
  */
 export class Importer {
   private maps = new Map<string, string>();
   src: HeaderIndex;
-  /** 출제 파일 단 폭 대비 결과 단 폭(1보다 작으면 탭 위치를 그만큼 줄입니다) */
+  /** 문항 파일 단 폭 대비 결과 단 폭(1보다 작으면 탭 위치를 그만큼 줄입니다) */
   tabScale: number;
   private srcBase: Element | null | undefined;
 
@@ -286,7 +286,7 @@ export class Importer {
     this.tabScale = Math.min(1, opts.tabScale ?? 1);
   }
 
-  /** 출제 파일 본문에서 가장 많이 쓰인 글자 모양(자간·장평의 기준) */
+  /** 문항 파일 본문에서 가장 많이 쓰인 글자 모양(자간·장평의 기준) */
   private sourceBase(): Element | null {
     if (this.srcBase !== undefined) return this.srcBase;
     const count = new Map<string, number>();
@@ -307,8 +307,8 @@ export class Importer {
   }
 
   /**
-   * 자간·장평: 양식 본문 값을 기준으로, 출제 파일에서 본문 기준과 달리 준 만큼(줄 맞춤용 부분 조정)만 더합니다.
-   * 예) 양식 자간 -5, 출제 파일 본문 0·이 글자 -8 → -13
+   * 자간·장평: 양식 본문 값을 기준으로, 문항 파일에서 본문 기준과 달리 준 만큼(줄 맞춤용 부분 조정)만 더합니다.
+   * 예) 양식 자간 -5, 문항 파일 본문 0·이 글자 -8 → -13
    */
   private relativeSpacing(c: Element, src: Element) {
     const base = this.sourceBase();

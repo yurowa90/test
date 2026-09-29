@@ -29,7 +29,7 @@ export interface FormatSpec {
   cellMode: "normalize" | "keep";
   keepTogether: boolean;
   normalizeEquationSize: boolean;
-  /** 머리 표를 가져올 곳: 양식 원본 또는 출제 파일 번호 */
+  /** 머리 표를 가져올 곳: 양식 원본 또는 문항 파일 번호 */
   headerFrom: "template" | number;
   /** 배점을 [3.0점]처럼 소수점 한 자리로(아니면 [3점]) */
   scoreDecimal: boolean;
@@ -47,6 +47,8 @@ export interface FormatSpec {
   wordWrap: boolean;
   /** 고아 줄 줄이기: 마지막 줄에 두세 글자만 남는 문단의 자간을 조금 줄여 앞 줄로 끌어올림 */
   tracking: boolean;
+  /** balanced: 단마다 문항을 균등 배치(처음 문항은 위, 마지막 문항은 아래, 사이 간격 고르게), fixed: 문항 사이 빈 줄 고정 */
+  layout: "balanced" | "fixed";
 }
 
 /** 양식의 문항 번호 방식 */
@@ -147,7 +149,7 @@ export interface SourceAnalysis {
   highlights: number;
   loss: LossReport;
   notes: string[];
-  /** 출제 파일의 단 폭(개체 크기 비율 계산용) */
+  /** 문항 파일의 단 폭(개체 크기 비율 계산용) */
   columnWidthHU: number;
   /** 문항 머리를 어떻게 알아냈는지(화면 표시용) */
   headStyle: string;

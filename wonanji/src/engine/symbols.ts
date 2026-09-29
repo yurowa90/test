@@ -1,6 +1,6 @@
 // 기호 일관성: 〈보기〉 표시, 발문 속 〈보기〉, 〈보기〉 항목 기호, 불릿, 물결표, 가운뎃점, 전각 괄호, 밑줄 기호.
 // 기호는 문항의 뜻과 맞물려 있어(예: ㉠과 ⓐ를 구별해 쓰는 문항) 자동으로 바꾸지 않습니다.
-// 양식 예시 문항의 기호를 기준으로(양식에 없으면 출제 파일 다수 기준) 다른 곳을 찾아 화면과 검수 보고서에 알립니다.
+// 양식 예시 문항의 기호를 기준으로(양식에 없으면 문항 파일 다수 기준) 다른 곳을 찾아 화면과 검수 보고서에 알립니다.
 import { descendants } from "./dom";
 import type { HeaderIndex } from "./header";
 import { isBogiBox } from "./objects";
@@ -84,7 +84,7 @@ export function mergeProfiles(list: SymbolProfile[]): SymbolProfile {
 const top = (vs: Record<string, number>) => Object.entries(vs).sort((a, b) => b[1] - a[1])[0]?.[0];
 
 /**
- * 기준(양식, 없으면 출제 파일 전체 다수)과 다른 기호. 반환: [종류, 쓴 기호, 기준 기호, 기준 출처]
+ * 기준(양식, 없으면 문항 파일 전체 다수)과 다른 기호. 반환: [종류, 쓴 기호, 기준 기호, 기준 출처]
  */
 export function symbolMismatches(q: SymbolProfile, tpl: SymbolProfile, all: SymbolProfile): { fam: string; used: string; want: string; basis: "양식" | "다수" }[] {
   const out: { fam: string; used: string; want: string; basis: "양식" | "다수" }[] = [];

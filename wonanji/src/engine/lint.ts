@@ -90,7 +90,7 @@ export function lint(
   if (nums.length) {
     const missing: number[] = [];
     for (let n = 1; n <= nums[nums.length - 1]; n++) if (!byNum.has(n)) missing.push(n);
-    if (missing.length) add("warn", "번호 누락", `원래 번호 ${compress(missing)}번이 어느 파일에도 없습니다. 출제 파일이 빠졌는지 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
+    if (missing.length) add("warn", "번호 누락", `원래 번호 ${compress(missing)}번이 어느 파일에도 없습니다. 문항 파일이 빠졌는지 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
   }
   // 머리 표·쪽 표시의 과목명: 한 파일 안에서, 그리고 파일끼리 비교
   const subjectsByFile = sources.map((s) => ({
@@ -253,7 +253,7 @@ export function lint(
     if (unsureN) add("warn", "글자 인식 확인", `${num(q, numbers)}: 이미지에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. 원본과 대조해 고친 뒤 검정으로 바꾸세요.`, "이미지 글자 인식(OCR) 결과", q);
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
 
-    // 기호: 양식(없으면 출제 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
+    // 기호: 양식(없으면 문항 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
     const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols);
     if (mism.length) {
       const strong = mism.some((m) => ["bogiLabel", "bogiRef", "bogiItem", "bullet"].includes(m.fam));

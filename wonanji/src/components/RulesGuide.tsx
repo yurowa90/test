@@ -40,10 +40,6 @@ export default function RulesGuide() {
         <Col n="B" title="검수로 알려 줍니다" rule="border-t-warn" tone="text-warn" items={FLAG} />
         <Col n="C" title="선생님이 판단하세요" rule="border-t-ink" tone="text-ink" items={HUMAN} />
       </div>
-      <p className="border-t border-line pt-3 text-[11.5px] leading-relaxed text-ink-3">
-        근거: 학교 원안지 양식의 유의사항, 학교 「정기시험 문항 제작 및 출제 유의사항」, 『2026학년도 전국연합학력평가 평가문항 제작 방법 직무연수(통합과학)』 pp.88–92. 두 학교 문서가 부정어 표시 방식에서 서로 다르므로(밑줄+진하게 / 밑줄만) 편집 옵션에서 고르도록
-        했습니다. 파일은 서버로 보내지 않고 이 브라우저 안에서만 처리하며, 데이터베이스나 브라우저 저장소에 남기지 않습니다. 형성평가·모의고사 제작용으로 쓰시고, 평가 점수에 들어가는 정기시험 문항 편집에는 쓰지 마세요.
-      </p>
     </div>
   );
 }

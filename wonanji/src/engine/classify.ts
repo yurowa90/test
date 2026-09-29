@@ -1,4 +1,4 @@
-// 최상위 문단을 분류하는 공통 도구(양식 분석과 출제 파일 분석이 함께 씁니다).
+// 최상위 문단을 분류하는 공통 도구(양식 분석과 문항 파일 분석이 함께 씁니다).
 import { hasAncestor, kid, kids } from "./dom";
 import type { HeaderIndex } from "./header";
 import type { HwpxPackage } from "./pkg";

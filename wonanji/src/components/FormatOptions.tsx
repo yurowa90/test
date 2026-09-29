@@ -24,8 +24,19 @@ export default function FormatOptions({ spec, sources, onChange }: Props) {
             <span className="text-ink-3">%</span>
           </div>
         </Field>
-        <Field label="문항 사이 빈 줄" hint="양식의 예시 문항 사이 간격에서 읽었습니다.">
-          <NumberInput value={spec.gapLines} min={0} max={5} step={1} onChange={(v) => set("gapLines", v)} label="문항 사이 빈 줄" />
+        <Field label="문항 배치" hint="균등 배치: 단마다 처음 문항은 위, 마지막 문항은 아래에 두고 사이 간격을 고르게 나눕니다(단이 바뀌는 자리는 단 나누기로 고정). 고정: 문항 사이에 정해진 빈 줄만 둡니다.">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={spec.layout}
+              onChange={(v) => set("layout", v as FormatSpec["layout"])}
+              options={[
+                ["balanced", "단마다 균등 배치(권장)"],
+                ["fixed", "문항 사이 빈 줄 고정"],
+              ]}
+            />
+            <span className="text-ink-3">{spec.layout === "balanced" ? "최소 빈 줄" : "빈 줄"}</span>
+            <NumberInput value={spec.gapLines} min={0} max={5} step={1} onChange={(v) => set("gapLines", v)} label="문항 사이 빈 줄" />
+          </div>
         </Field>
         <Field label="자간·장평" hint="양식 자간에 원본의 상대 차이를 더합니다. 줄 맞춤에 쓴 자간이 사라지면 〈보기〉 줄이 넘칠 수 있어 유지를 권합니다.">
           <Select

@@ -39,6 +39,8 @@ export interface AssembleResult {
   owners: Map<Element, string>;
   /** 미리보기에서 줄 배치를 새로 계산하는(캐시를 지운) 문단 */
   fresh: Set<Element>;
+  /** 문항 ID → 그 문항 앞에 넣은 빈 줄 문단(문항 사이 간격) */
+  gapsBefore: Map<string, Element[]>;
 }
 
 /**
@@ -170,8 +172,15 @@ export function assemble(input: AssembleInput): AssembleResult {
   for (const p of tops) root.removeChild(p);
   const append = (el: Element) => root.appendChild(el);
   const gap = (n: number) => {
-    for (let i = 0; i < n; i++) append(blank(secDoc, spec));
+    const els: Element[] = [];
+    for (let i = 0; i < n; i++) {
+      const b = blank(secDoc, spec);
+      append(b);
+      els.push(b);
+    }
+    return els;
   };
+  const gapsBefore = new Map<string, Element[]>();
 
   headEls.forEach(append);
   const numberSizeHU = Math.round((template.numberSizePt ?? spec.sizePt + 1) * 100);
@@ -183,7 +192,7 @@ export function assemble(input: AssembleInput): AssembleResult {
   const owners = new Map<Element, string>();
 
   mcqs.forEach((q, i) => {
-    if (i > 0) gap(spec.gapLines);
+    if (i > 0) gapsBefore.set(q.id, gap(spec.gapLines));
     const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
     r.paras.forEach(append);
     r.paras.forEach((p) => owners.set(p, q.id));
@@ -201,7 +210,7 @@ export function assemble(input: AssembleInput): AssembleResult {
     introEls.forEach(append);
     if (introEls.length) gap(1);
     essays.forEach((q, i) => {
-      if (i > 0) gap(1);
+      if (i > 0) gapsBefore.set(q.id, gap(1));
       const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
       r.paras.forEach(append);
       r.paras.forEach((p) => owners.set(p, q.id));
@@ -245,7 +254,7 @@ export function assemble(input: AssembleInput): AssembleResult {
   out.files.set("Preview/PrvText.txt", strToU8Bytes(preview));
 
   const v = serializeVariants(out, root);
-  return { ...v, changes, issues, numbers, mcqCount: mcqs.length, essayCount: essays.length, previewNoNumber, pkg: out, root, header, owners };
+  return { ...v, changes, issues, numbers, mcqCount: mcqs.length, essayCount: essays.length, previewNoNumber, pkg: out, root, header, owners, gapsBefore };
 
 }
 
