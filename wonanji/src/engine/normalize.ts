@@ -1,12 +1,16 @@
 // 문항 한 개를 양식 문서로 옮기면서 편집 규격을 입힙니다.
 // 글자를 새로 쓰는 일은 배점 표기·번호·공백 정리처럼 형식에 한정하고, 문항 내용은 바꾸지 않습니다.
 import { circledIndex, inTable, RX } from "./classify";
-import { hp, kid } from "./dom";
-import type { Importer } from "./header";
-import { indexText, isBlank, itemsOf, replaceItems, restyle, textOf, trimLeading, trimTrailing, type Item } from "./text";
-import type { Change, FormatSpec, Question } from "./types";
+import { hp, kid, kids } from "./dom";
+import { getMargin, type Importer } from "./header";
+import { floatRight, isInline, objKind, objWidth, setObjWidth, shrinkFloatOffset, topObjects } from "./objects";
+import { charPositions } from "./pagectl";
+import { indexText, isBlank, itemsOf, replaceItems, restyle, shiftLinesegs, textOf, trimLeading, trimTrailing, type Item } from "./text";
+import type { Change, FormatSpec, Issue, Question } from "./types";
 
-export function formatScore(n: number): string {
+/** 배점 숫자 표기: 소수점 한 자리(4 → 4.0) 또는 정수 그대로(4 → 4) */
+export function formatScore(n: number, decimal = true): string {
+  if (!decimal) return String(Number(n.toFixed(2)));
   return Number.isInteger(n) ? n.toFixed(1) : String(Number(n.toFixed(2)));
 }
 
@@ -190,7 +194,166 @@ export function relayoutChoices(
 
 export interface BuildResult {
   paras: Element[];
+  /** 번호가 달린 머리 문단 */
+  head: Element;
   changes: Change[];
+  issues: Issue[];
+}
+
+const pct = (a: number, b: number) => `${Math.round((a / b) * 100)}%`;
+
+/**
+ * 〈보기〉·표·그림 크기를 결과 단에 맞춥니다.
+ * - 〈보기〉 상자: 양식 예시의 〈보기〉 폭으로(늘리거나 줄임). 양식에 예시가 없으면 단을 넘을 때만 줄임
+ * - 자료 표·그림(그림 배치 표 포함): 단(문단 여백 제외)을 넘으면 비율대로 줄임. 늘리지는 않습니다(화질·글자 크기 보존)
+ * - 떠 있는 개체(어울림 그림 상자 등): 가로 위치와 폭을 같은 비율로 줄여, 옆에 흐르는 글과의 비율을 지킴
+ */
+function fitObjects(p: Element, avail: number, spec: FormatSpec, log: (kind: string, detail: string) => void, warn: (msg: string) => void) {
+  const label = (kind: string) => (kind === "box" ? "〈보기〉 상자" : kind === "table" ? "표" : "그림");
+  for (const o of topObjects(p)) {
+    const kind = objKind(o);
+    if (kind === "equation" || kind === "other") continue;
+    const inline = isInline(o);
+    const pos = kid(o, "pos");
+    // 쪽·종이 기준 개체는 문항에서 이미 뗐고, 여기서는 문단·단 기준 개체만 다룹니다.
+    if (!inline && /PAPER|PAGE/.test(pos?.getAttribute("horzRelTo") ?? "")) continue;
+    const out = kid(o, "outMargin");
+    const room = avail - Number(out?.getAttribute("left") ?? 0) - Number(out?.getAttribute("right") ?? 0);
+    const w = objWidth(o);
+    if (!w || room <= 0) continue;
+    if (!inline) {
+      const right = floatRight(o);
+      if (right <= room) continue;
+      const k = room / right;
+      const off = Number(pos?.getAttribute("horzOffset") ?? 0);
+      if (setObjWidth(o, Math.round(w * k))) {
+        if ((pos?.getAttribute("horzAlign") ?? "LEFT") === "LEFT") pos?.setAttribute("horzOffset", String(Math.round(off * k)));
+        log("크기", `떠 있는 ${label(kind)}의 위치·폭을 단에 맞게 ${Math.round(k * 100)}%로`);
+      } else {
+        shrinkFloatOffset(o, room);
+        if (floatRight(o) > room + 100) warn(`떠 있는 ${label(kind)}가 단 오른쪽 밖으로 나갑니다(선·도형이 들어 있어 자동으로 줄이지 못함). 한글에서 위치·크기를 확인해 주세요.`);
+      }
+      continue;
+    }
+    let target = w;
+    if (kind === "box" && spec.boxWidthHU) target = Math.min(spec.boxWidthHU, room);
+    else if (w > room) target = room;
+    if (Math.abs(target - w) >= 100) {
+      if (setObjWidth(o, target)) log("크기", `${label(kind)} 폭 ${pct(w, spec.columnWidthHU)} → ${pct(target, spec.columnWidthHU)}(단 폭 대비)`);
+      else if (w > room) warn(`${label(kind)} 폭이 단의 ${pct(w, spec.columnWidthHU)}인데, 선·도형으로 그린 개체가 들어 있어 자동으로 줄이지 못했습니다. 한글에서 크기를 줄여 주세요.`);
+    }
+  }
+}
+
+/**
+ * 글자처럼 취급한 표·그림 뒤에 같은 문단의 글이 이어지고, 원본에서는 그 글이 개체 아래 새 줄에서 시작했다면
+ * (원본 줄 배치 캐시로 확인) 개체 뒤에서 문단을 둘로 나눕니다. 결과 단이 원본보다 넓으면 글이 개체 옆으로 붙기 때문입니다.
+ * 글자는 그대로이고 문단 경계만 생깁니다. p는 개체까지 남기고, 뒤 글은 새 문단으로 돌려줍니다.
+ */
+function splitAfterWideObject(p: Element): Element | null {
+  const arr = kid(p, "linesegarray");
+  if (!arr) return null;
+  const starts = kids(arr).map((s) => Number(s.getAttribute("textpos") ?? -1));
+  const at = charPositions(p);
+  const items = itemsOf(p);
+  const posOf = (it: Item) => (at.get(it.node) ?? NaN) + (it.kind === "ch" ? it.off : 0);
+  for (let i = 0; i < items.length - 1; i++) {
+    const it = items[i];
+    if (it.kind !== "obj") continue;
+    const o = it.node as Element;
+    if (!isInline(o) || objKind(o) === "equation") continue;
+    // 개체 뒤 공백을 건너뛴 첫 글자
+    let j = i + 1;
+    while (j < items.length && (items[j].kind === "space" || items[j].kind === "mark" || (items[j].kind === "ch" && !items[j].ch.trim()))) j++;
+    const next = items[j];
+    if (!next || next.kind !== "ch") continue;
+    const objEnd = posOf(it) + 8;
+    const pos = posOf(next);
+    // 원본에서 개체 끝과 그 글자 사이에서 새 줄이 시작했는지(공백이 줄 끝에 걸린 경우 포함)
+    if (!starts.some((s) => s >= objEnd && s <= pos)) continue;
+    // 뒤쪽에 다른 개체가 있으면 rhwp 미리보기가 캐시 없이 그리지 못하므로 나누지 않습니다.
+    if (items.slice(j).some((x) => x.kind === "obj")) return null;
+
+    const tail = p.cloneNode(true) as Element;
+    // 앞 문단: 개체까지(같은 run의 뒤 형제와 뒤 run 삭제), 캐시는 개체 줄까지만
+    const run = o.parentNode as Element;
+    while (o.nextSibling) run.removeChild(o.nextSibling);
+    let r = run.nextSibling;
+    while (r) {
+      const nx = r.nextSibling;
+      if ((r as Element).localName === "run") p.removeChild(r);
+      r = nx;
+    }
+    for (const seg of kids(arr)) if (Number(seg.getAttribute("textpos")) >= objEnd) arr.removeChild(seg);
+    // 뒤 문단: 그 글자부터(앞 run·앞 글자 삭제), 캐시는 지워 한글·rhwp가 다시 계산
+    const tItems = itemsOf(tail);
+    const tNext = tItems[j];
+    const tNode = tNext.node as Text;
+    tNode.nodeValue = (tNode.nodeValue ?? "").slice(tNext.off);
+    let prev: Node | null = tNode.previousSibling;
+    while (prev) {
+      const pv = prev.previousSibling;
+      prev.parentNode!.removeChild(prev);
+      prev = pv;
+    }
+    const tRun = tNode.parentNode!.parentNode as Element; // t → run
+    let pr = tRun.previousSibling;
+    while (pr) {
+      const pv = pr.previousSibling;
+      if ((pr as Element).localName === "run") tail.removeChild(pr);
+      pr = pv;
+    }
+    // t 앞에 있던 같은 run 안 형제(개체 등) 삭제
+    let rs = (tNode.parentNode as Element).previousSibling;
+    while (rs) {
+      const pv = rs.previousSibling;
+      tRun.removeChild(rs);
+      rs = pv;
+    }
+    const tArr = kid(tail, "linesegarray");
+    if (tArr) tail.removeChild(tArr);
+    return tail;
+  }
+  return null;
+}
+
+/** 문단 맨 앞 떠 있는 개체(어울림 그림 상자 등) 뒤의 공백도 지웁니다(글줄에는 공백이 맨 앞에 옵니다). */
+function trimAfterFloats(p: Element): boolean {
+  const items = itemsOf(p);
+  const idxs: number[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    if (it.kind === "mark" || (it.kind === "obj" && !isInline(it.node as Element))) continue;
+    if (it.kind === "space" || it.kind === "tab" || (it.kind === "ch" && /\s/.test(it.ch))) idxs.push(i);
+    else break;
+  }
+  if (!idxs.length) return false;
+  const first = items[idxs[0]];
+  const from = (charPositions(p).get(first.node) ?? 0) + (first.kind === "ch" ? first.off : 0);
+  for (let k = idxs.length - 1; k >= 0; k--) replaceItems(items, idxs[k], idxs[k] + 1, "");
+  shiftLinesegs(p, from, idxs.reduce((a, i) => a + (items[i].kind === "tab" ? 8 : items[i].ch.length), 0));
+  return true;
+}
+
+/** 문단 앞에 번호 뒤 공백(양식 관례)을 넣습니다. 이미 공백이면 그대로. */
+function insertLead(p: Element, lead: string) {
+  if (!lead) return;
+  const first = itemsOf(p).find((it) => it.kind !== "obj" && it.kind !== "mark");
+  if (!first || first.kind !== "ch" || /\s/.test(first.ch)) return;
+  const n = first.node as Text;
+  const v = n.nodeValue ?? "";
+  n.nodeValue = v.slice(0, first.off) + lead + v.slice(first.off);
+}
+
+/** 직접 입력 방식 양식: 머리 문단 맨 앞에 "n." 번호 글자를 넣습니다(양식의 번호 글자 모양). */
+function insertLiteralNumber(p: Element, n: number, spec: FormatSpec) {
+  const doc = p.ownerDocument!;
+  const run = hp(doc, "run");
+  run.setAttribute("charPrIDRef", (spec.numbering.charPrId ?? spec.bodyCharPrId) + "|tpl");
+  const t = hp(doc, "t");
+  t.appendChild(doc.createTextNode(`${n}${spec.numbering.suffix || ". "}`));
+  run.appendChild(t);
+  p.insertBefore(run, kids(p).find((c) => c.localName === "run") ?? null);
 }
 
 /** 배점만 있는 줄(부분 점수 안내 포함) 또는 공백으로 오른쪽에 밀어 둔 짧은 줄(출처 등). */
@@ -201,8 +364,8 @@ function isRightLine(p: Element): boolean {
   return lead >= 8 && t.trim().length > 0 && t.trim().length <= 30 && !t.includes("\uFFFC");
 }
 
-/** 문단 안 배점 표기를 [x.x점]으로, 물음표와 배점 사이를 한 칸으로. */
-function fixScores(p: Element): string[] {
+/** 문단 안 배점 표기를 [x.x점](또는 [x점])으로, 물음표와 배점 사이를 한 칸으로. */
+function fixScores(p: Element, decimal: boolean): string[] {
   const log: string[] = [];
   for (let guard = 0; guard < 6; guard++) {
     const items = itemsOf(p);
@@ -210,7 +373,7 @@ function fixScores(p: Element): string[] {
     const text = ix.text;
     let changed = false;
     for (const m of text.matchAll(RX.score)) {
-      const want = `[${formatScore(Number(m[1]))}점]`;
+      const want = `[${formatScore(Number(m[1]), decimal)}점]`;
       const [start, end] = ix.range(m.index!, m.index! + m[0].length);
       if (items.slice(start, end).some((i) => i.kind === "obj" || i.kind === "mark")) continue;
       if (m[0] !== want) {
@@ -272,13 +435,18 @@ export function buildQuestion(
 ): BuildResult {
   const doc = importer.out.doc;
   const changes: Change[] = [];
+  const issues: Issue[] = [];
   const log = (kind: string, detail: string) => changes.push({ questionId: q.id, kind, detail });
+  const warn = (message: string) =>
+    issues.push({ severity: "warn", rule: "개체 크기", message, source: "양식 배치 규격(단 폭) — 결과 원안지", questionId: q.id });
   let paras = q.paras.map((p) => doc.importNode(p, true) as Element);
 
+
   // 1) 머리 문단
-  const head = paras[0];
+  const head = paras[Math.min(q.headIdx ?? 0, paras.length - 1)];
   if (q.kind === "mcq") {
-    if (q.numberSource === "literal" && stripLiteralNumber(head)) log("번호", "직접 입력한 번호를 지우고 자동 번호로 바꿈");
+    if (q.numberSource === "literal" && stripLiteralNumber(head)) log("번호", "직접 입력한 번호를 지우고 양식의 번호 방식으로 바꿈");
+    else if (q.numberSource === "none") log("번호", "번호 없이 쓴 문항에 양식의 번호를 붙임");
     head.setAttribute("paraPrIDRef", "@head");
   } else if (renumberEssay(head, finalNumber, numberSizeHU)) {
     log("번호", `논술형 번호를 ${finalNumber}번으로 다시 매김`);
@@ -301,15 +469,66 @@ export function buildQuestion(
   const isChoiceP = (p: Element) => (p.getAttribute("paraPrIDRef") ?? "").startsWith("@choice");
   for (const p of paras) {
     if (inTable(p) || isChoiceP(p)) continue;
-    if (spec.normalizeScore) for (const d of fixScores(p)) log("배점", d);
+    if (spec.normalizeScore) for (const d of fixScores(p, spec.scoreDecimal)) log("배점", d);
     if (isRightLine(p)) {
       trimLeading(p);
       p.setAttribute("paraPrIDRef", "@score");
       continue;
     }
-    if (trimLeading(p)) log("공백", "문단 앞 공백 정리");
+    if (trimLeading(p) && p !== head) log("공백", "문단 앞 공백 정리");
     trimTrailing(p);
   }
+
+  // 3-0) 표·그림 뒤 글이 원본에서 새 줄로 시작했으면 문단을 나눠 고정(결과 단이 넓어도 개체 옆에 붙지 않게).
+  //      앞 단계에서 지운 공백만큼 캐시 위치를 맞춰 두었으므로 원본 줄 위치로 판단할 수 있습니다.
+  {
+    const out: Element[] = [];
+    for (const p of paras) {
+      out.push(p);
+      if (inTable(p) || isChoiceP(p)) continue;
+      let cur = p;
+      for (let guard = 0; guard < 4; guard++) {
+        const rest = splitAfterWideObject(cur);
+        if (!rest) break;
+        const tok = cur.getAttribute("paraPrIDRef") ?? "";
+        if (tok === "@head") rest.setAttribute("paraPrIDRef", "@gap");
+        out.push(rest);
+        log("문단 나눔", "표·그림 뒤 글이 원본처럼 다음 줄에서 시작하도록 문단을 나눔(글자는 그대로)");
+        cur = rest;
+      }
+    }
+    paras = out;
+  }
+
+  // 3-1) 번호: 양식이 번호를 글자로 쓰면 "n." 글자를 넣고, 자동 번호면 번호 뒤 공백 관례를 따릅니다.
+  if (q.kind === "mcq") {
+    trimAfterFloats(head);
+    if (spec.numbering.method === "literal") insertLiteralNumber(head, finalNumber, spec);
+    else insertLead(head, spec.headLead);
+  }
+
+  // 3-2) 〈보기〉·표·그림 크기를 결과 단에 맞춤
+  if (spec.fitObjects) {
+    const em = spec.sizePt * 100;
+    for (const p of paras) {
+      const tok = p.getAttribute("paraPrIDRef") ?? "";
+      let left = 0;
+      let right = 0;
+      let intent = 0;
+      const pp = tok === "@head" ? importer.out.paraPr(spec.headParaPrId) : tok.startsWith("@") ? null : importer.src.paraPr(tok);
+      if (pp) {
+        left = getMargin(pp, "left");
+        right = getMargin(pp, "right");
+        intent = getMargin(pp, "intent");
+      }
+      if (tok.startsWith("@choice")) left = spec.choiceIndentHU;
+      // 머리 문단 첫 줄에는 번호가 들어가므로 두 글자 폭을 남깁니다.
+      const numberRoom = tok === "@head" ? 2 * em : 0;
+      const avail = spec.columnWidthHU - Math.max(0, left) - Math.max(0, right) - Math.max(0, intent) - numberRoom - 60;
+      fitObjects(p, avail, spec, log, warn);
+    }
+  }
+
 
   // 4) 부정어 강조(발문)
   if (q.kind === "mcq" && spec.negation === "auto") {
@@ -329,10 +548,14 @@ export function buildQuestion(
     }
   }
 
-  // 5) 빈 줄 정리: 문항 안 빈 문단은 없애고, 〈보기〉 상자 바로 뒤 선지 앞에만 한 줄
+  // 5) 빈 줄 정리: 문항 안 빈 문단은 없애고, 〈보기〉 상자 바로 뒤 선지 앞에만 한 줄.
+  //    단, 떠 있는(어울림·글 뒤로 등) 그림·표가 있는 문항은 빈 줄이 그 개체의 자리를 잡아 주므로 그대로 둡니다
+  //    (지우면 뒤 문단이 그림 옆으로 말려 올라가 겹칩니다).
+  const hasFloat = paras.some((p) => topObjects(p).some((o) => !isInline(o)));
+  if (hasFloat && paras.some((p, i) => i > 0 && isBlank(p))) log("빈 줄 유지", "떠 있는 그림·표의 자리를 잡는 빈 줄이라 지우지 않음");
   const kept: Element[] = [];
   for (const p of paras) {
-    if (p !== paras[0] && isBlank(p)) continue;
+    if (p !== head && isBlank(p) && !hasFloat) continue;
     if (isChoiceP(p) && kept.length && !isChoiceP(kept[kept.length - 1])) {
       const prev = kept[kept.length - 1];
       if (itemsOf(prev).some((i) => i.kind === "obj" && (i.node as Element).localName === "tbl")) {
@@ -362,5 +585,5 @@ export function buildQuestion(
     const keep = spec.keepTogether && p !== last;
     importer.importTree(p, "norm", (x) => x === p && keep);
   }
-  return { paras, changes };
+  return { paras, head, changes, issues };
 }

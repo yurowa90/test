@@ -251,7 +251,20 @@ export function trimLeading(p: Element): boolean {
   }
   // 같은 텍스트 노드 안의 오프셋이 흔들리지 않도록 뒤에서부터 지웁니다.
   for (let k = idxs.length - 1; k >= 0; k--) replaceItems(items, idxs[k], idxs[k] + 1, "");
+  shiftLinesegs(p, 0, idxs.reduce((a, i) => a + (items[i].kind === "tab" ? 8 : items[i].ch.length), 0));
   return idxs.length > 0;
+}
+
+/** 줄 배치 캐시(미리보기용)의 글자 위치를, from 뒤에서 지운 글자 수만큼 당깁니다. */
+export function shiftLinesegs(p: Element, from: number, removed: number) {
+  if (!removed) return;
+  for (const arr of kids(p)) {
+    if (arr.localName !== "linesegarray") continue;
+    for (const seg of kids(arr)) {
+      const t = Number(seg.getAttribute("textpos") ?? 0);
+      if (t > from) seg.setAttribute("textpos", String(Math.max(from, t - removed)));
+    }
+  }
 }
 
 export function trimTrailing(p: Element): boolean {

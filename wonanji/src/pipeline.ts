@@ -33,6 +33,8 @@ export interface BuildOutput {
   changes: Change[];
   issues: Issue[];
   numbers: Map<string, number>;
+  /** 미리보기에서 번호가 보이지 않을 수 있는 문항의 결과 번호(한글에서는 보임) */
+  previewNoNumber: number[];
 }
 
 export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], order: Question[], spec: FormatSpec): Promise<BuildOutput> {
@@ -41,10 +43,21 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
   await tick();
   const out = await hwpxToHwp(res.forRhwp);
   await tick();
-  const svgs = await renderPages(res.forRhwp);
+  const svgs = await renderPages(res.forPreview);
   const hwp = stripHwpLineSegs(out.hwp);
-  const issues = lint(tpl, sources, order, spec, res.numbers);
-  return { hwp, hwpx: res.hwpx, svgs, pages: out.pages, loss: out.loss, changes: res.changes, issues, numbers: res.numbers };
+  const rank = { error: 0, warn: 1, info: 2 } as const;
+  const issues = [...res.issues, ...lint(tpl, sources, order, spec, res.numbers)].sort((a, b) => rank[a.severity] - rank[b.severity]);
+  return {
+    hwp,
+    hwpx: res.hwpx,
+    svgs,
+    pages: out.pages,
+    loss: out.loss,
+    changes: res.changes,
+    issues,
+    numbers: res.numbers,
+    previewNoNumber: res.previewNoNumber.map((id) => res.numbers.get(id) ?? 0).filter(Boolean),
+  };
 }
 
 export function download(bytes: Uint8Array | string, name: string, type = "application/octet-stream") {

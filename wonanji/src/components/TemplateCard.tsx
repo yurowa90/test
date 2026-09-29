@@ -3,6 +3,7 @@ import type { TemplateAnalysis, Zone } from "../engine/types";
 
 const ZONE_LABEL: Record<Zone, { label: string; fate: string; tone: string }> = {
   head: { label: "머리(결재·출제 정보 표)", fate: "유지", tone: "bg-ok-soft text-ok" },
+  headQ: { label: "쪽 모양 + 1번 예시", fate: "쪽 모양만 유지", tone: "bg-ok-soft text-ok" },
   notice: { label: "유의사항", fate: "삭제", tone: "bg-danger-soft text-danger" },
   gap: { label: "빈 줄·작성 안내", fate: "삭제", tone: "bg-paper-deep text-ink-faint" },
   sample: { label: "예시 선택형 문항", fate: "삭제", tone: "bg-danger-soft text-danger" },

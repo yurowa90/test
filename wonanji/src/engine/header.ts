@@ -276,9 +276,54 @@ const FIGURE_TAGS = new Set(["tbl", "pic", "rect", "ellipse", "arc", "polygon", 
 export class Importer {
   private maps = new Map<string, string>();
   src: HeaderIndex;
+  /** 출제 파일 단 폭 대비 결과 단 폭(1보다 작으면 탭 위치를 그만큼 줄입니다) */
+  tabScale: number;
+  private srcBase: Element | null | undefined;
 
-  constructor(srcPkg: HwpxPackage, public out: OutputHeader, public spec: FormatSpec | null) {
+  constructor(srcPkg: HwpxPackage, public out: OutputHeader, public spec: FormatSpec | null, opts: { tabScale?: number } = {}) {
     this.src = new HeaderIndex(srcPkg);
+    this.tabScale = Math.min(1, opts.tabScale ?? 1);
+  }
+
+  /** 출제 파일 본문에서 가장 많이 쓰인 글자 모양(자간·장평의 기준) */
+  private sourceBase(): Element | null {
+    if (this.srcBase !== undefined) return this.srcBase;
+    const count = new Map<string, number>();
+    for (const sec of this.src.pkg.sections) {
+      walk(sec.documentElement, (e) => {
+        if (e.localName !== "run") return;
+        let n = 0;
+        for (const t of kids(e)) if (t.localName === "t") n += (t.textContent ?? "").length;
+        if (n) {
+          const id = splitCp(e.getAttribute("charPrIDRef") ?? "0").base;
+          count.set(id, (count.get(id) ?? 0) + n);
+        }
+      });
+    }
+    const top = [...count.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    this.srcBase = top != null ? this.src.charPr(top) : null;
+    return this.srcBase;
+  }
+
+  /**
+   * 자간·장평: 양식 본문 값을 기준으로, 출제 파일에서 본문 기준과 달리 준 만큼(줄 맞춤용 부분 조정)만 더합니다.
+   * 예) 양식 자간 -5, 출제 파일 본문 0·이 글자 -8 → -13
+   */
+  private relativeSpacing(c: Element, src: Element) {
+    const base = this.sourceBase();
+    for (const [name, lo, hi, mode] of [["spacing", -50, 50, "add"], ["ratio", 50, 200, "mul"]] as const) {
+      const tplEl = kid(c, name);
+      const srcEl = kid(src, name);
+      if (!tplEl || !srcEl) continue;
+      const baseEl = base ? kid(base, name) : null;
+      for (const lang of LANGS) {
+        const t = Number(tplEl.getAttribute(lang) ?? (mode === "add" ? 0 : 100));
+        const s = Number(srcEl.getAttribute(lang) ?? (mode === "add" ? 0 : 100));
+        const b = Number(baseEl?.getAttribute(lang) ?? (mode === "add" ? 0 : 100)) || (mode === "add" ? 0 : 100);
+        const v = mode === "add" ? t + (s - b) : Math.round((t * s) / b);
+        tplEl.setAttribute(lang, String(Math.min(hi, Math.max(lo, v))));
+      }
+    }
   }
 
   private memo(key: string, fn: () => string): string {
@@ -327,7 +372,14 @@ export class Importer {
     return this.memo("tab:" + id, () => {
       const e = this.src.byId.tabProperties.get(id);
       if (!e) return "0";
-      return this.out.add("tabProperties", this.clone(e));
+      const c = this.clone(e);
+      // 원본 단이 더 넓으면 탭 위치도 같은 비율로 줄여, 탭으로 맞춘 줄이 결과 단을 넘지 않게 합니다.
+      if (this.tabScale < 0.995) {
+        walk(c, (x) => {
+          if (x.localName === "tabItem" && x.hasAttribute("pos")) x.setAttribute("pos", String(Math.round(Number(x.getAttribute("pos")) * this.tabScale)));
+        });
+      }
+      return this.out.add("tabProperties", c);
     });
   }
 
@@ -402,10 +454,7 @@ export class Importer {
         for (const n of ["italic", "bold", "underline", "strikeout", "outline", "shadow", "emboss", "engrave", "supscript", "subscript", "relSz", "offset"]) {
           setChild(c, n, kid(src, n), this.out.doc);
         }
-        if (!spec.resetSpacing) {
-          setChild(c, "ratio", kid(src, "ratio"), this.out.doc);
-          setChild(c, "spacing", kid(src, "spacing"), this.out.doc);
-        }
+        if (!spec.resetSpacing) this.relativeSpacing(c, src);
         c.setAttribute("shadeColor", src.getAttribute("shadeColor") ?? "none");
         c.setAttribute("symMark", src.getAttribute("symMark") ?? "NONE");
         c.setAttribute("textColor", spec.keepColors ? (src.getAttribute("textColor") ?? "#000000") : "#000000");

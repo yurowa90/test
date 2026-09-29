@@ -23,6 +23,7 @@ for (const [i, p] of srcPaths.entries()) sources.push(analyzeSource(i, await loa
 const order = defaultOrder(sources);
 const res = assemble({ template: tpl, sources, order, spec: tpl.spec });
 fs.writeFileSync(path.join(outDir, "merged.hwpx"), res.hwpx);
+fs.writeFileSync(path.join(outDir, "merged_rhwp.hwpx"), res.forRhwp);
 const hwp = await hwpxToHwp(res.forRhwp);
 const finalHwp = stripHwpLineSegs(hwp.hwp);
 fs.writeFileSync(path.join(outDir, "merged.hwp"), finalHwp);
@@ -34,7 +35,7 @@ for (const [label, bytes] of [["hwp", finalHwp], ["hwpx", res.hwpx]] as const) {
   console.log(`  재열기 ${label}: ${d.pageCount()}쪽, 문단 ${d.getParagraphCount(0)}개`);
   d.free();
 }
-const svgs = await renderPages(res.forRhwp);
+const svgs = await renderPages(res.forPreview);
 svgs.forEach((s, i) => fs.writeFileSync(path.join(outDir, `page${i + 1}.svg`), s));
 const byKind = new Map<string, number>();
 for (const c of res.changes) byKind.set(c.kind, (byKind.get(c.kind) ?? 0) + 1);

@@ -10,8 +10,10 @@ import { formatScore, negationSpans } from "../src/engine/normalize";
 import { HwpxPackage } from "../src/engine/pkg";
 import { analyzeSource } from "../src/engine/segment";
 import { analyzeTemplate } from "../src/engine/template";
-import { itemsOf, ownText, restyle } from "../src/engine/text";
-import { makeHwpx, TEACHER1, TEACHER2, TEMPLATE } from "./fixtures";
+import { deepText as deepTextOf, itemsOf, ownText, restyle } from "../src/engine/text";
+import { HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMPLATE, UNNUMBERED } from "./fixtures";
+import { kids } from "../src/engine/dom";
+import { objWidth } from "../src/engine/objects";
 import { validateHwpx } from "./validate";
 
 let failed = 0;
@@ -191,6 +193,76 @@ await test("restyle은 글자를 잃지 않는다", () => {
   const before = ownText(p);
   restyle(p, (_it, i) => (i % 3 === 0 ? "shade=#FFFF00" : null));
   assert.equal(ownText(p), before);
+});
+
+console.log("학력평가형 양식·여러 번호 방식");
+const hpDoc = doc("학평.hwpx", makeHwpx(HAKPYEONG, ["한컴바탕", "휴먼명조"], { mergeFirst: true }));
+const hp = analyzeTemplate(hpDoc);
+await test("첫 문단(구역 정의 + 1번 발문)은 쪽 모양만 머리로", () => {
+  assert.equal(hp.zones[0], "headQ");
+  assert.ok(!hp.zones.includes("head"));
+  assert.equal(hp.zones[hp.zones.length - 1], "tail", "확인 사항은 꼬리");
+});
+await test("번호 뒤 공백·[3점] 정수 표기·2점 표기 생략 관례·〈보기〉 폭을 읽는다", () => {
+  assert.equal(hp.spec.headLead, " ");
+  assert.equal(hp.spec.scoreDecimal, false);
+  assert.equal(hp.spec.unmarkedScore, 2);
+  assert.equal(hp.spec.boxWidthHU, 26000);
+  assert.equal(hp.spec.numbering.method, "outline");
+});
+await test("발문·선지는 양식 상용구로 쓰지 않는다(출제 파일의 같은 발문을 자르지 않음)", () => {
+  for (const b of hp.boilerplate) assert.ok(!/고른것은|①/.test(b), b);
+});
+
+const lv2 = analyzeSource(0, doc("개요2수준.hwpx", makeHwpx(LEVEL2)), hp);
+const unn = analyzeSource(1, doc("번호없음.hwpx", makeHwpx(UNNUMBERED)), hp);
+await test("개요 2수준 번호, 번호 없는 문항(선지 뒤 문단)도 문항으로 나눈다", () => {
+  assert.equal(lv2.questions.length, 2);
+  assert.match(lv2.headStyle, /개요 번호 2수준/);
+  assert.equal(unn.questions.length, 2);
+  assert.deepEqual(unn.questions.map((q) => q.answers), [[1], [2]]);
+  assert.ok(!unn.questions[0].text.includes("출제 교사"), "머리 표는 문항이 아님");
+});
+const hpOrder = defaultOrder([lv2, unn]);
+const hpRes = assemble({ template: hp, sources: [lv2, unn], order: hpOrder, spec: hp.spec });
+const hpOut = HwpxPackage.fromBytes(hpRes.hwpx);
+const hpTops = hpOut.topParagraphs();
+const hpHead = new HeaderIndex(hpOut);
+await test("결과: 첫 문단은 구역 정의만(1번 예시 발문·번호 없음), 구조 검증 통과", () => {
+  assert.deepEqual(validateHwpx(hpRes.hwpx), []);
+  const first = hpTops[0];
+  assert.ok(kids(first).some((r) => kids(r).some((c) => c.localName === "secPr")));
+  assert.equal(ownText(first).replace(/￼/g, "").trim(), "");
+  const pp = hpHead.paraPr(first.getAttribute("paraPrIDRef")!)!;
+  assert.equal(kid(pp, "heading")?.getAttribute("type"), "NONE");
+  assert.ok(!hpTops.map((p) => ownText(p)).join("").includes("그림은 어느 지역의 지층"), "양식의 1번 예시는 빠짐");
+});
+await test("결과: 문항 머리는 양식 번호(개요) + 발문 앞 공백, 배점은 [3점]", () => {
+  const heads = hpTops.filter((p) => kid(hpHead.paraPr(p.getAttribute("paraPrIDRef")!)!, "heading")?.getAttribute("type") === "OUTLINE");
+  assert.equal(heads.length, 4);
+  for (const h of heads) assert.match(ownText(h), /^ \S/);
+  assert.ok(hpTops.some((p) => ownText(p).includes("? [3점]")));
+});
+await test("결과: 〈보기〉 상자 폭을 양식 폭(26000)으로, 표시 기호는 원문 그대로", () => {
+  const boxes = descendants(hpOut.sections[0].documentElement, "tbl").filter((t) => deepTextOf(t).startsWith("< 보 기 >"));
+  assert.equal(boxes.length, 1);
+  assert.equal(objWidth(boxes[0]), 26000);
+});
+await test("검수: 〈보기〉 표시가 양식과 다르면 알리되 바꾸지 않음, 2점 표기 생략은 정보로", () => {
+  const issues = lint(hp, [lv2, unn], hpOrder, hp.spec, hpRes.numbers);
+  const sym = issues.find((i) => i.rule === "기호 불일치");
+  assert.ok(sym && sym.message.includes("< 보 기 >") && sym.message.includes("바꾸지 않았습니다"));
+  assert.ok(!issues.some((i) => i.rule === "배점 없음"));
+});
+
+const litTpl = analyzeTemplate(doc("직접번호.hwpx", makeHwpx(LITERAL_TEMPLATE)));
+await test("번호를 글자로 쓰는 양식: 결과 문항 앞에 '1. ' 글자 번호", () => {
+  assert.equal(litTpl.spec.numbering.method, "literal");
+  const r = assemble({ template: litTpl, sources: [s1, s2], order, spec: litTpl.spec });
+  const t = HwpxPackage.fromBytes(r.hwpx).topParagraphs().map((p) => ownText(p));
+  assert.ok(t.some((x) => x.startsWith("1. 지구 역사에서")), t.join(" | "));
+  assert.ok(t.some((x) => x.startsWith("3. 다음 중 광합성")));
+  assert.deepEqual(validateHwpx(r.hwpx), []);
 });
 
 console.log(failed ? `\n${failed}개 실패` : "\n모두 통과");

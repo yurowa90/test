@@ -3,6 +3,7 @@
 import { descendants } from "./dom";
 import { HeaderIndex } from "./header";
 import { negationSpans } from "./normalize";
+import { collectSymbols, mergeProfiles, SYMBOL_LABEL, symbolMismatches } from "./symbols";
 import { deepText, itemsOf } from "./text";
 import type { FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./types";
 
@@ -33,6 +34,8 @@ const cite = {
   color: `${SOURCES.school} p.10 편집 7) ‘원안지는 칼라로 인쇄하지 않도록’`,
   choiceLen: `${SOURCES.school} p.5 가. / ${SOURCES.kice} p.90 3) ‘답지는 길이순(또는 논리적 순서)’`,
   merge: "원안지 수합",
+  symbols: "양식 예시 문항의 기호(편집 일관성) — 원문은 바꾸지 않음",
+  unmarked: "학력평가·수능 표기 관례(2점 문항은 배점 표기 생략)",
 };
 
 const CHOICE_SYMBOL = /[ㄱ-ㅎ]/g;
@@ -54,10 +57,10 @@ function isBogiTable(tbl: Element): boolean {
 }
 
 export function lint(
-  _tpl: TemplateAnalysis,
+  tpl: TemplateAnalysis,
   sources: SourceAnalysis[],
   order: Question[],
-  _spec: FormatSpec,
+  spec: FormatSpec,
   numbers: Map<string, number> = new Map(),
 ): Issue[] {
   const issues: Issue[] = [];
@@ -127,12 +130,17 @@ export function lint(
   }
 
   // ── 배점 ──
-  const scored = order.filter((q) => q.score != null);
-  for (const q of order) if (q.score == null) add("error", "배점 없음", `${num(q, numbers)}: 배점 표기([x.x점])를 찾지 못했습니다.`, cite.tplScore, q);
+  // 학력평가형 양식(2점 문항 표기 생략)이면 표기 없는 선택형은 그 점수로 셉니다.
+  const unmarked = spec.unmarkedScore;
+  const scoreOf = (q: Question) => q.score ?? (unmarked != null && q.kind === "mcq" ? unmarked : null);
+  const scored = order.filter((q) => scoreOf(q) != null);
+  const noMark = order.filter((q) => q.score == null && scoreOf(q) != null);
+  if (noMark.length) add("info", "배점 표기 생략", `${noMark.map((q) => num(q, numbers)).join(", ")}: 배점 표기가 없어 ${unmarked}점으로 계산했습니다(양식 관례).`, cite.unmarked);
+  for (const q of order) if (scoreOf(q) == null) add("error", "배점 없음", `${num(q, numbers)}: 배점 표기([x.x점])를 찾지 못했습니다.`, cite.tplScore, q);
   if (scored.length) {
-    const total = scored.reduce((a, q) => a + (q.score ?? 0), 0);
-    const mcqSum = mcqs.reduce((a, q) => a + (q.score ?? 0), 0);
-    const essaySum = essays.reduce((a, q) => a + (q.score ?? 0), 0);
+    const total = scored.reduce((a, q) => a + (scoreOf(q) ?? 0), 0);
+    const mcqSum = mcqs.reduce((a, q) => a + (scoreOf(q) ?? 0), 0);
+    const essaySum = essays.reduce((a, q) => a + (scoreOf(q) ?? 0), 0);
     add(Math.abs(total - 100) < 0.01 ? "info" : "warn", "배점 합계", `합계 ${fmt(total)}점 (선택형 ${fmt(mcqSum)} + 논술형 ${fmt(essaySum)})${Math.abs(total - 100) < 0.01 ? "" : " — 100점이 아닙니다"}`, cite.tplScore);
     const frac = scored.filter((q) => !Number.isInteger(q.score!));
     if (frac.length) add("info", "소수점 배점", `소수점 배점 ${frac.length}문항(${[...new Set(frac.map((q) => q.score))].join(", ")}점). 지침은 정수 배점을 원칙으로 합니다.`, cite.schoolInteger);
@@ -216,6 +224,8 @@ export function lint(
   }
 
   // ── 글자 ──
+  const qSymbols = new Map(order.map((q) => [q.id, collectSymbols(q.paras, idx(q.fileIdx))]));
+  const allSymbols = mergeProfiles([...qSymbols.values()]);
   for (const q of order) {
     if (/["']/.test(q.text)) add("info", "따옴표", `${num(q, numbers)}: 곧은 따옴표(" ')가 있습니다. 인용 문장은 “ ”, 어구는 ‘ ’`, cite.quotes, q);
     const h = idx(q.fileIdx);
@@ -228,6 +238,14 @@ export function lint(
       }
     }
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
+
+    // 기호: 양식(없으면 출제 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
+    const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols);
+    if (mism.length) {
+      const strong = mism.some((m) => ["bogiLabel", "bogiRef", "bogiItem", "bullet"].includes(m.fam));
+      const detail = mism.map((m) => `${SYMBOL_LABEL[m.fam]} ‘${m.used}’ (${m.basis === "양식" ? "양식" : "다른 문항 다수"}: ‘${m.want}’)`).join(" · ");
+      add(strong ? "warn" : "info", "기호 불일치", `${num(q, numbers)}: ${detail}. 자동으로 바꾸지 않았습니다. 필요하면 원본에서 고쳐 주세요.`, strong ? `${cite.symbols} / ${cite.bogiSymbols}` : cite.symbols, q);
+    }
     for (const el of q.paras.flatMap((p) => descendants(p, "pos"))) {
       const rel = `${el.getAttribute("vertRelTo")}/${el.getAttribute("horzRelTo")}`;
       if (el.getAttribute("treatAsChar") === "0" && /PAPER|PAGE/.test(rel)) {

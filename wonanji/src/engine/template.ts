@@ -1,18 +1,40 @@
-// 학교 원안지 양식 분석: 구역(머리·유의사항·예시 문항·논술형 안내·꼬리)과 편집 규격을 뽑습니다.
-import { essayNumber, isOutlineHead, paraInfos, RX, type PInfo } from "./classify";
+// 원안지 양식 분석: 구역(머리·유의사항·예시 문항·논술형 안내·꼬리)과 편집 규격, 배치 규격을 뽑습니다.
+// 학교 정기시험 양식처럼 유의사항·예시 문항이 든 양식과, 학력평가·수능 문제지처럼 문항이 가득 찬 문서를
+// 모두 양식으로 쓸 수 있게 합니다. 예시 문항에서 번호 방식, 글자·문단 모양, 〈보기〉·표·그림의 폭과 정렬을 읽습니다.
+import {
+  essayNumber, headLevelOf, isChoiceLine, isQuestionHead, looksLikeItem, normText, paraInfos, pinfoOf, RX, type PInfo,
+} from "./classify";
 import { find, kid, kids } from "./dom";
 import { getLineSpacing, getMargin, HeaderIndex } from "./header";
 import type { LoadedDoc } from "./load";
-import { itemsOf } from "./text";
-import type { ExplicitRule, FormatSpec, TemplateAnalysis, Zone } from "./types";
+import { isInline, objKind, objWidth, topObjects } from "./objects";
+import { hasPageCtrl, splitPageControls } from "./pagectl";
+import { collectSymbols } from "./symbols";
+import { deepText, itemsOf } from "./text";
+import type { ExplicitRule, FormatSpec, NumberingStyle, TemplateAnalysis, TemplateLayout, Zone } from "./types";
 
-function isHead(p: PInfo): boolean {
-  return isOutlineHead(p) || essayNumber(p.text) != null || (RX.literalNum.test(p.text) && !p.blank);
+const LIT = /^\s*(\d{1,2})(\s*[.)．]\s*)(?=\S)/;
+
+function isHead(p: PInfo, level: number): boolean {
+  return !!isQuestionHead(p, level) || essayNumber(p.text) != null || (LIT.test(p.text) && !p.blank);
 }
 
-export function computeZones(infos: PInfo[]): Zone[] {
+/** 문항 머리(논술형 제외)인지와 그 번호 방식 */
+function headMethod(p: PInfo, level: number): NumberingStyle["method"] | null {
+  const auto = isQuestionHead(p, level);
+  if (auto) return auto;
+  if (!p.blank && LIT.test(p.text) && essayNumber(p.text) == null) return "literal";
+  return null;
+}
+
+/**
+ * 구역 나누기. infos는 쪽 모양 요소(구역 정의·머리말·쪽 기준 개체)를 뗀 "내용" 기준 정보이고,
+ * pageCtl[i]는 원래 문단에 쪽 모양 요소가 있었는지입니다.
+ * 학력평가형처럼 첫 문단에 구역 정의와 1번 발문이 함께 있으면 그 문단은 "headQ"(쪽 모양은 머리로, 내용은 예시)입니다.
+ */
+export function computeZones(infos: PInfo[], pageCtl: boolean[] = [], level = headLevelOf(infos)): Zone[] {
   const zones: Zone[] = infos.map(() => "gap");
-  const q0 = infos.findIndex((p) => !p.hasSection && isHead(p));
+  const q0 = infos.findIndex((p) => !p.hasSection && isHead(p, level));
   const n0 = infos.findIndex((p, i) => (q0 < 0 || i < q0) && RX.noticeStart.test(p.text) && !p.hasSection);
   const headEnd = n0 >= 0 ? n0 : q0 >= 0 ? q0 : infos.length;
   for (let i = 0; i < headEnd; i++) zones[i] = "head";
@@ -22,14 +44,16 @@ export function computeZones(infos: PInfo[]): Zone[] {
   }
   if (q0 < 0) return zones;
 
-  // 마지막 문항 머리 이후, 빈 줄 2개 뒤에 나오는 내용은 꼬리(확인 사항 상자 등)로 봅니다.
   let lastHead = q0;
   infos.forEach((p, i) => {
-    if (i >= q0 && isHead(p)) lastHead = i;
+    if (i >= q0 && isHead(p, level)) lastHead = i;
   });
   let tailStart = infos.length;
   for (let i = lastHead + 1; i < infos.length; i++) {
-    if (!infos[i].blank && i >= 2 && infos[i - 1].blank && infos[i - 2].blank) {
+    const p = infos[i];
+    if (p.blank) continue;
+    // 빈 줄 두 개 뒤의 내용, 또는 "확인 사항" 같은 끝맺음 문구부터 꼬리
+    if ((i >= 2 && infos[i - 1].blank && infos[i - 2].blank) || (RX.tailWords.test(p.norm) && !isHead(p, level))) {
       tailStart = i;
       break;
     }
@@ -41,22 +65,39 @@ export function computeZones(infos: PInfo[]): Zone[] {
     const p = infos[i];
     if (RX.essayIntro.test(p.text)) mode = "essayIntro";
     else if (essayNumber(p.text) != null) mode = "essaySample";
-    else if (isOutlineHead(p)) mode = "sample";
+    else if (headMethod(p, level)) mode = "sample";
     if (mode === "essayIntro") {
       // "→ 위 멘트는 … 변형 가능" 같은 작성 안내는 뺍니다.
       zones[i] = p.blank ? "gap" : /^\s*→|변형\s*가능|삭제\s*요망/.test(p.text) ? "gap" : "essayIntro";
     } else zones[i] = mode;
   }
+  if (pageCtl[q0] && zones[q0] === "sample") zones[q0] = "headQ";
   return zones;
 }
 
-function pageOf(pkg: LoadedDoc["pkg"]) {
+/** 쪽 모양 요소를 뗀 내용 기준 문단 정보와, 쪽 모양 요소가 있었는지. */
+export function contentViews(infos: PInfo[], index: HeaderIndex): { views: PInfo[]; pageCtl: boolean[] } {
+  const pageCtl = infos.map((p) => hasPageCtrl(p.el));
+  const views = infos.map((p, i) => (pageCtl[i] ? pinfoOf(splitPageControls(p.el).content, p.idx, index) : p));
+  return { views, pageCtl };
+}
+
+function median(xs: number[]): number | null {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.floor((s.length - 1) / 2)];
+}
+
+/** 용지·단 정보. 단 폭은 첫 단 정의 기준(단 사이 간격 제외). */
+export function pageOf(pkg: LoadedDoc["pkg"]) {
   const sec = pkg.sections[0].documentElement;
   const secPr = find(sec, "secPr");
   const pagePr = secPr && kid(secPr, "pagePr");
   const margin = pagePr && kid(pagePr, "margin");
-  const w = Number(pagePr?.getAttribute("width") ?? 59528);
-  const h = Number(pagePr?.getAttribute("height") ?? 84188);
+  const landscape = pagePr?.getAttribute("landscape") === "NARROWLY";
+  let w = Number(pagePr?.getAttribute("width") ?? 59528);
+  let h = Number(pagePr?.getAttribute("height") ?? 84188);
+  if (landscape) [w, h] = [h, w];
   const ml = Number(margin?.getAttribute("left") ?? 5669);
   const mr = Number(margin?.getAttribute("right") ?? 5669);
   const colPr = find(sec, "colPr");
@@ -94,14 +135,68 @@ function parseRules(lines: string[]): ExplicitRule[] {
   return rules;
 }
 
+/** 번호 모양(numbering)의 한 수준 → 글자 크기(pt) */
+function numberingSize(index: HeaderIndex, numberingId: string | null | undefined, level: number): number | null {
+  const nb = numberingId ? index.byId.numberings.get(numberingId) : null;
+  const ph = nb ? kids(nb).find((e) => e.localName === "paraHead" && e.getAttribute("level") === String(level + 1)) : null;
+  const cp = ph?.getAttribute("charPrIDRef");
+  if (!cp || cp === "4294967295") return null;
+  return (index.charHeight(cp) ?? 0) / 100 || null;
+}
+
+/** 예시 문항의 〈보기〉·표·그림 폭과 정렬, 선지 배열 */
+function readLayout(samples: PInfo[], index: HeaderIndex, colW: number, bodyCp: Element | null): TemplateLayout {
+  const boxes: { w: number; align: string }[] = [];
+  const tables: { w: number; center: boolean }[] = [];
+  const figs: { w: number; center: boolean; float: boolean }[] = [];
+  const perLine: Record<string, number> = {};
+  for (const p of samples) {
+    const pp = index.paraPr(p.el.getAttribute("paraPrIDRef") ?? "");
+    const pAlign = pp ? (kid(pp, "align")?.getAttribute("horizontal") ?? "JUSTIFY") : "JUSTIFY";
+    for (const o of topObjects(p.el)) {
+      const kind = objKind(o);
+      const w = objWidth(o);
+      if (!w) continue;
+      const inline = isInline(o);
+      const center = inline ? pAlign === "CENTER" : kid(o, "pos")?.getAttribute("horzAlign") === "CENTER";
+      if (kind === "box") boxes.push({ w, align: inline ? pAlign : (kid(o, "pos")?.getAttribute("horzAlign") ?? "LEFT") });
+      else if (kind === "table") tables.push({ w, center });
+      else if (kind === "figure") figs.push({ w, center, float: !inline });
+    }
+    if (isChoiceLine(p.text)) {
+      const n = (p.text.match(/[①-⑤]/g) ?? []).length;
+      perLine[n] = (perLine[n] ?? 0) + 1;
+    }
+  }
+  const r = (w: number) => Math.round((w / colW) * 100) / 100;
+  const bw = median(boxes.map((b) => b.w));
+  const spacing = bodyCp ? kid(bodyCp, "spacing") : null;
+  const ratio = bodyCp ? kid(bodyCp, "ratio") : null;
+  return {
+    columnWidthHU: colW,
+    charSpacing: Number(spacing?.getAttribute("hangul") ?? 0),
+    charRatio: Number(ratio?.getAttribute("hangul") ?? 100),
+    box: bw ? { widthHU: bw, ratio: r(bw), align: boxes[0].align, count: boxes.length } : null,
+    table: tables.length ? { maxRatio: r(Math.max(...tables.map((t) => t.w))), centered: tables.filter((t) => t.center).length, count: tables.length } : null,
+    figure: figs.length
+      ? { maxRatio: r(Math.max(...figs.map((f) => f.w))), centered: figs.filter((f) => f.center).length, floating: figs.filter((f) => f.float).length, count: figs.length }
+      : null,
+    choicesPerLine: perLine,
+  };
+}
+
 export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
   const index = new HeaderIndex(doc.pkg);
-  const infos = paraInfos(doc.pkg, index);
-  const zones = computeZones(infos);
+  const raw = paraInfos(doc.pkg, index);
+  const { views: infos, pageCtl } = contentViews(raw, index);
+  const level = headLevelOf(infos);
+  const zones = computeZones(infos, pageCtl, level);
   const notes: string[] = [];
   const page = pageOf(doc.pkg);
+  if (zones.includes("headQ")) notes.push("첫 문단에 쪽 모양(구역·머리말·제목 상자)과 1번 문항이 함께 있어, 쪽 모양만 머리로 쓰고 문항은 예시로 뺐습니다(학력평가형 문서).");
 
-  const sampleIdx = infos.filter((_, i) => zones[i] === "sample");
+  const isSample = (i: number) => zones[i] === "sample" || zones[i] === "headQ";
+  const sampleIdx = infos.filter((_, i) => isSample(i));
   const essayIdx = infos.filter((_, i) => zones[i] === "essaySample");
 
   // 본문 글자 모양: 예시 문항에서 가장 많이 쓰인(굵게·밑줄 아닌) 글자 모양
@@ -122,13 +217,40 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     notes.push("예시 문항에서 본문 글자 모양을 찾지 못해 첫 문단의 글자 모양을 썼습니다.");
   }
 
-  const headP = sampleIdx.find(isOutlineHead);
+  // ── 문항 번호 방식 ─────────────────────────────
+  const heads = infos.map((p, i) => (isSample(i) && headMethod(p, level) ? i : -1)).filter((i) => i >= 0);
+  const methodCount = new Map<NumberingStyle["method"], number>();
+  for (const i of heads) {
+    const m = headMethod(infos[i], level)!;
+    methodCount.set(m, (methodCount.get(m) ?? 0) + 1);
+  }
+  const method = ([...methodCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "outline") as NumberingStyle["method"];
+  const headP = heads.map((i) => infos[i]).find((p) => headMethod(p, level) === method);
   const headParaPrId = headP?.el.getAttribute("paraPrIDRef") ?? "0";
-  if (!headP) notes.push("예시 문항에서 문항 번호(개요 번호) 문단을 찾지 못했습니다. 번호가 자동으로 붙지 않을 수 있습니다.");
+  let numberSizePt: number | null = null;
+  const numbering: NumberingStyle = { method, suffix: "", charPrId: null, label: "" };
+  const secPr = find(doc.pkg.sections[0].documentElement, "secPr");
+  if (method === "outline") {
+    numberSizePt = numberingSize(index, secPr?.getAttribute("outlineShapeIDRef"), level);
+    numbering.label = `개요 번호 ${level + 1}수준(자동)`;
+  } else if (method === "number") {
+    numberSizePt = numberingSize(index, headP?.heading.idRef, 0);
+    numbering.label = "문단 번호(자동)";
+  } else if (headP) {
+    const m = LIT.exec(headP.text)!;
+    numbering.suffix = m[2].replace(/\s+$/, "") + (/\s$/.test(m[2]) ? " " : "");
+    const items = itemsOf(headP.el);
+    const digit = items.find((it) => it.kind === "ch" && /\d/.test(it.ch));
+    numbering.charPrId = digit?.cp ?? null;
+    numberSizePt = digit ? (index.charHeight(digit.cp) ?? 0) / 100 || null : null;
+    numbering.label = `직접 입력한 번호 “1${numbering.suffix.trim()}”`;
+  }
+  if (!headP) notes.push("예시 문항에서 문항 번호 문단을 찾지 못했습니다. 번호가 자동으로 붙지 않을 수 있습니다.");
+  else if (methodCount.size > 1) notes.push(`예시 문항의 번호 방식이 섞여 있어(${[...methodCount.entries()].map(([k, v]) => `${k} ${v}`).join(", ")}) 가장 많은 방식을 따릅니다.`);
 
   const ppCount = new Map<string, number>();
   for (const p of sampleIdx) {
-    if (isOutlineHead(p)) continue;
+    if (headMethod(p, level)) continue;
     const id = p.el.getAttribute("paraPrIDRef") ?? "";
     const pp = index.paraPr(id);
     if (!pp) continue;
@@ -142,7 +264,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
 
   let hangHU = 0;
   for (const p of sampleIdx) {
-    if (!/^\s*[①-⑤]/.test(p.text)) continue;
+    if (!isChoiceLine(p.text)) continue;
     const pp = index.paraPr(p.el.getAttribute("paraPrIDRef") ?? "");
     const v = pp ? getMargin(pp, "intent") : 0;
     if (v < 0) hangHU = Math.max(hangHU, -v);
@@ -151,23 +273,36 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
   const essayHead = essayIdx.find((p) => essayNumber(p.text) != null);
   const essayHeadCharPrId = essayHead ? itemsOf(essayHead.el).find((i) => i.kind === "ch")?.cp ?? null : null;
 
-  // 문항 사이 빈 줄 수: 첫 두 예시 문항 사이
+  // 문항 사이 빈 줄 수: 예시 문항 사이 빈 줄의 중앙값(단 끝을 채우려고 넣은 긴 빈칸은 빼고).
+  // 꼬리말만 든 문단(쪽 번호 상자)은 세지 않습니다.
   let gapLines = 2;
-  const heads = infos.map((p, i) => (zones[i] === "sample" && isOutlineHead(p) ? i : -1)).filter((i) => i >= 0);
-  if (heads.length >= 2) {
+  const gaps: number[] = [];
+  for (let k = 1; k < heads.length; k++) {
     let n = 0;
-    for (let i = heads[1] - 1; i > heads[0] && infos[i].blank; i--) n++;
-    if (n >= 1 && n <= 4) gapLines = n;
+    for (let i = heads[k] - 1; i > heads[k - 1] && infos[i].blank; i--) if (!pageCtl[i]) n++;
+    if (n <= 4) gaps.push(n);
   }
+  const mg = median(gaps);
+  if (mg != null) gapLines = Math.min(4, Math.max(1, mg));
 
-  // 번호 글자 크기: 구역의 개요 번호 모양(numbering) 1수준의 글자 모양
-  let numberSizePt: number | null = null;
-  const secPr = find(doc.pkg.sections[0].documentElement, "secPr");
-  const outlineId = secPr?.getAttribute("outlineShapeIDRef");
-  const numbering = outlineId ? index.byId.numberings.get(outlineId) : null;
-  const lvl1 = numbering ? kids(numbering).find((e) => e.localName === "paraHead" && e.getAttribute("level") === "1") : null;
-  const numCp = lvl1?.getAttribute("charPrIDRef");
-  if (numCp && numCp !== "4294967295") numberSizePt = (index.charHeight(numCp) ?? 0) / 100 || null;
+  // 문항 번호와 발문 사이: 학력평가형 양식은 번호 모양에 공백이 없고 발문을 공백으로 시작합니다.
+  const headTexts = method === "literal" ? [] : heads.map((i) => infos[i].text.replace(/^￼+/, "")).filter((t) => t.trim());
+  const leadCount = headTexts.filter((t) => /^[  　]/.test(t)).length;
+  const headLead = headTexts.length && leadCount * 2 > headTexts.length ? " " : "";
+
+  // 배점 표기 관례: [3.0점](소수점) / [3점](정수), 그리고 2점 문항은 표기하지 않는 관례(학력평가·수능)
+  const perQ: { scores: string[] }[] = [];
+  infos.forEach((p, i) => {
+    if (!isSample(i)) return;
+    if (headMethod(p, level)) perQ.push({ scores: [] });
+    const cur = perQ[perQ.length - 1];
+    if (cur) for (const m of p.deep.matchAll(RX.score)) cur.scores.push(m[0]);
+  });
+  const allScores = perQ.flatMap((q) => q.scores);
+  const unscored = perQ.filter((q) => !q.scores.length).length;
+  const unmarkedScore =
+    perQ.length >= 4 && allScores.length > 0 && unscored * 10 >= perQ.length * 3 && allScores.every((s) => /[^\d.]3\s*점/.test(s)) ? 2 : null;
+  if (unmarkedScore) notes.push(`예시 문항 ${perQ.length}개 중 ${unscored}개에 배점 표기가 없고 나머지는 [3점]이어서, 배점 없는 문항은 2점으로 보는 관례(학력평가·수능)로 읽었습니다.`);
 
   const noticeLines = infos.filter((_, i) => zones[i] === "notice").map((p) => p.text);
   const rules = parseRules(noticeLines);
@@ -177,6 +312,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
   const observedSize = (Number(bodyCp?.getAttribute("height") ?? 1100) || 1100) / 100;
   const bodyPp = index.paraPr(bodyParaPrId);
   const observedLs = bodyPp ? getLineSpacing(bodyPp).value : 160;
+  const layout = readLayout(sampleIdx, index, page.colW, bodyCp);
 
   const conflicts: string[] = [];
   const r = (k: ExplicitRule["key"]) => rules.find((x) => x.key === k);
@@ -208,6 +344,13 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     negation: "auto",
     negationStyle: /진하게|굵게/.test(negRule) || !negRule ? "underline-bold" : "underline",
     normalizeScore: true,
+    // 유의사항에 소수점 규칙이 있거나 예시가 [4.0점]처럼 쓰였으면 소수점, 예시가 [3점]뿐이면 정수
+    scoreDecimal: !!r("score") || !allScores.length || allScores.some((s) => /\d\.\d/.test(s)),
+    unmarkedScore,
+    headLead,
+    numbering,
+    boxWidthHU: layout.box?.widthHU ?? null,
+    fitObjects: true,
     resetSpacing: false,
     keepColors: true,
     cellMode: "normalize",
@@ -216,9 +359,14 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     headerFrom: "template",
   };
 
+  // 양식 상용구(출제 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.
   const boilerplate = new Set<string>();
-  infos.forEach((p, i) => {
-    if (["head", "notice", "essayIntro", "tail"].includes(zones[i]) && p.norm.length >= 6) boilerplate.add(p.norm);
+  raw.forEach((p, i) => {
+    const z = zones[i];
+    const norm = z === "headQ" ? normText(deepText(splitPageControls(p.el).controls!)) : p.norm;
+    if (!["head", "headQ", "notice", "essayIntro", "tail"].includes(z) || norm.length < 6) return;
+    if (looksLikeItem(z === "headQ" ? norm : p.text)) return;
+    boilerplate.add(norm);
   });
 
   return {
@@ -234,5 +382,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     numberSizePt,
     boilerplate,
     notes,
+    layout,
+    symbols: collectSymbols([...sampleIdx, ...essayIdx].map((p) => p.el), index),
   };
 }

@@ -19,10 +19,10 @@ function charPr(id: number, o: { h?: number; font?: number; bold?: boolean; ul?:
   return `<hh:charPr id="${id}" height="${o.h ?? 1100}" textColor="#000000" shadeColor="${o.shade ?? "none"}" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef ${ref}/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="${sp}" latin="${sp}" hanja="${sp}" japanese="${sp}" other="${sp}" symbol="${sp}" user="${sp}"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>${o.bold ? "<hh:bold/>" : ""}<hh:underline type="${o.ul ? "BOTTOM" : "NONE"}" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`;
 }
 
-function paraPr(id: number, o: { align?: string; outline?: boolean; ls?: number; intent?: number; left?: number; next?: number }) {
+function paraPr(id: number, o: { align?: string; outline?: boolean; level?: number; ls?: number; intent?: number; left?: number; next?: number }) {
   const m = (k: number) =>
     `<hh:margin><hc:intent value="${(o.intent ?? 0) * k}" unit="HWPUNIT"/><hc:left value="${(o.left ?? 0) * k}" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="0" unit="HWPUNIT"/><hc:next value="${(o.next ?? 0) * k}" unit="HWPUNIT"/></hh:margin><hh:lineSpacing type="PERCENT" value="${o.ls ?? 160}" unit="HWPUNIT"/>`;
-  return `<hh:paraPr id="${id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="0" suppressLineNumbers="0" checked="0"><hh:align horizontal="${o.align ?? "JUSTIFY"}" vertical="BASELINE"/><hh:heading type="${o.outline ? "OUTLINE" : "NONE"}" idRef="0" level="0"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/><hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${m(1)}</hp:case><hp:default>${m(2)}</hp:default></hp:switch><hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/></hh:paraPr>`;
+  return `<hh:paraPr id="${id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="0" suppressLineNumbers="0" checked="0"><hh:align horizontal="${o.align ?? "JUSTIFY"}" vertical="BASELINE"/><hh:heading type="${o.outline ? "OUTLINE" : "NONE"}" idRef="0" level="${o.level ?? 0}"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/><hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${m(1)}</hp:case><hp:default>${m(2)}</hp:default></hp:switch><hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/></hh:paraPr>`;
 }
 
 const BORDER = (id: number, line: string) =>
@@ -30,14 +30,14 @@ const BORDER = (id: number, line: string) =>
 
 /**
  * 글자 모양: 0 본문(11pt), 1 번호(12pt 굵게), 2 다른 글꼴 10pt·자간 -5, 3 형광 정답, 4 굵게+밑줄
- * 문단 모양: 0 본문, 1 개요 번호(문항 머리), 2 오른쪽 정렬, 3 왼쪽 130%·아래 간격, 4 내어쓰기
+ * 문단 모양: 0 본문, 1 개요 번호(문항 머리), 2 오른쪽 정렬, 3 왼쪽 130%·아래 간격, 4 내어쓰기, 5 개요 2수준
  */
 function header(faces: string[]) {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head ${NS} version="1.2" secCnt="1"><hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/><hh:refList>${fontfaces(faces)}<hh:borderFills itemCnt="2">${BORDER(1, "NONE")}${BORDER(2, "SOLID")}</hh:borderFills><hh:charProperties itemCnt="5">${charPr(0, {})}${charPr(1, { h: 1200, bold: true })}${charPr(2, { h: 1000, font: 1, spacing: -5 })}${charPr(3, { shade: "#FFFF00" })}${charPr(4, { bold: true, ul: true })}</hh:charProperties><hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties><hh:numberings itemCnt="1"><hh:numbering id="1" start="0"><hh:paraHead start="1" level="1" align="LEFT" useInstWidth="0" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="1" checkable="0">^1.</hh:paraHead></hh:numbering></hh:numberings><hh:paraProperties itemCnt="5">${paraPr(0, {})}${paraPr(1, { outline: true })}${paraPr(2, { align: "RIGHT" })}${paraPr(3, { align: "LEFT", ls: 130, next: 800 })}${paraPr(4, { intent: -1500 })}</hh:paraProperties><hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles></hh:refList></hh:head>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head ${NS} version="1.2" secCnt="1"><hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/><hh:refList>${fontfaces(faces)}<hh:borderFills itemCnt="2">${BORDER(1, "NONE")}${BORDER(2, "SOLID")}</hh:borderFills><hh:charProperties itemCnt="5">${charPr(0, {})}${charPr(1, { h: 1200, bold: true })}${charPr(2, { h: 1000, font: 1, spacing: -5 })}${charPr(3, { shade: "#FFFF00" })}${charPr(4, { bold: true, ul: true })}</hh:charProperties><hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties><hh:numberings itemCnt="1"><hh:numbering id="1" start="0"><hh:paraHead start="1" level="1" align="LEFT" useInstWidth="0" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="1" checkable="0">^1.</hh:paraHead></hh:numbering></hh:numberings><hh:paraProperties itemCnt="6">${paraPr(0, {})}${paraPr(1, { outline: true })}${paraPr(2, { align: "RIGHT" })}${paraPr(3, { align: "LEFT", ls: 130, next: 800 })}${paraPr(4, { intent: -1500 })}${paraPr(5, { outline: true, level: 1 })}</hh:paraProperties><hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles></hh:refList></hh:head>`;
 }
 
 type Run = [cp: number, text: string];
-export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[] };
+export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[]; tableWidth?: number };
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -52,23 +52,33 @@ function para(p: Para): string {
   const runs: Run[] = p.runs ?? [[p.cp ?? 0, p.text ?? ""]];
   let body = runs.map(([cp, t]) => `<hp:run charPrIDRef="${cp}"><hp:t>${tText(t)}</hp:t></hp:run>`).join("");
   if (p.table) {
+    const tw = p.tableWidth ?? 28000;
     const cells = p.table
       .map(
         (t, i) =>
-          `<hp:tr><hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${para({ pp: 3, text: t, cp: 2 })}</hp:subList><hp:cellAddr colAddr="0" rowAddr="${i}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="28000" height="1800"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc></hp:tr>`,
+          `<hp:tr><hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${para({ pp: 3, text: t, cp: 2 })}</hp:subList><hp:cellAddr colAddr="0" rowAddr="${i}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${tw}" height="1800"/><hp:cellMargin left="510" right="510" top="141" bottom="141"/></hp:tc></hp:tr>`,
       )
       .join("");
-    body += `<hp:run charPrIDRef="0"><hp:tbl id="${900 + pid}" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${p.table.length}" colCnt="1" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="28000" widthRelTo="ABSOLUTE" height="${1800 * p.table.length}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="141" bottom="141"/>${cells}</hp:tbl></hp:run>`;
+    body += `<hp:run charPrIDRef="0"><hp:tbl id="${900 + pid}" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${p.table.length}" colCnt="1" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${tw}" widthRelTo="ABSOLUTE" height="${1800 * p.table.length}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="141" bottom="141"/>${cells}</hp:tbl></hp:run>`;
   }
   return `<hp:p id="${pid++}" paraPrIDRef="${p.pp ?? 0}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${body}</hp:p>`;
 }
 
 const SEC_PR = `<hp:run charPrIDRef="0"><hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:pagePr landscape="WIDELY" width="72852" height="103180" gutterType="LEFT_ONLY"><hp:margin header="0" footer="2267" gutter="0" left="5669" right="5669" top="7086" bottom="4535"/></hp:pagePr></hp:secPr><hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="2" sameSz="1" sameGap="1416"/></hp:ctrl><hp:t/></hp:run>`;
 
-export function makeHwpx(paras: Para[], faces = ["신명 중명조", "휴먼명조"]): Uint8Array {
+/**
+ * opts.mergeFirst: 학력평가·수능 문제지처럼 구역 정의(secPr)를 첫 문단(1번 문항 발문)에 함께 둡니다.
+ */
+export function makeHwpx(paras: Para[], faces = ["신명 중명조", "휴먼명조"], opts: { mergeFirst?: boolean } = {}): Uint8Array {
   pid = 1;
-  const first = `<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${SEC_PR}</hp:p>`;
-  const section = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${NS}>${first}${paras.map(para).join("")}</hs:sec>`;
+  let body: string;
+  if (opts.mergeFirst && paras.length) {
+    const firstXml = para(paras[0]).replace(/(<hp:p [^>]*>)/, `$1${SEC_PR}`);
+    body = firstXml + paras.slice(1).map(para).join("");
+  } else {
+    body = `<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${SEC_PR}</hp:p>` + paras.map(para).join("");
+  }
+  const section = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${NS}>${body}</hs:sec>`;
   const hpf = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><opf:package ${NS} version="" unique-identifier="" id=""><opf:metadata/><opf:manifest><opf:item id="header" href="Contents/header.xml" media-type="application/xml"/><opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/></opf:manifest><opf:spine><opf:itemref idref="header" linear="yes"/><opf:itemref idref="section0" linear="yes"/></opf:spine></opf:package>`;
   const files = new Map<string, Uint8Array>([
     ["mimetype", strToU8("application/hwp+zip")],
@@ -142,4 +152,55 @@ export const TEACHER2: Para[] = [
   { cp: 1, text: "다음 문항부터는 논술형 문항입니다." },
   { cp: 1, text: "【문항2-논술형】 [6.0점]" },
   { text: "광합성과 세포 호흡의 관계를 에너지 전환과 관련지어 서술하시오." },
+];
+
+/**
+ * 학력평가형 양식: 첫 문단에 구역 정의 + 1번 발문, 번호 모양 뒤 공백 없이 발문을 공백으로 시작,
+ * 2점 문항은 배점 표기 없음·3점 문항만 [3점], 〈보기〉 표시는 "보 기", 〈보기〉 상자 폭 26000.
+ */
+const HP_Q = (stem: string, score?: string): Para[] => [
+  { pp: 1, text: ` ${stem}${score ? " " + score : ""}` },
+  { table: ["보 기", "ㄱ. 가는 나이다.", "ㄴ. 다는 라이다."], tableWidth: 26000 },
+  { text: "① ㄱ\t② ㄴ\t③ ㄱ, ㄴ\t④ ㄴ, ㄷ\t⑤ ㄱ, ㄴ, ㄷ" },
+];
+export const HAKPYEONG: Para[] = [
+  ...HP_Q("그림은 어느 지역의 지층이다. 이에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은?"),
+  { text: "" },
+  ...HP_Q("표는 암석의 특징이다. 이에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은?", "[3점]"),
+  ...HP_Q("그림은 해수의 순환이다. 이에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은?"),
+  { text: "" },
+  ...HP_Q("그래프는 기온 변화이다. 이에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은?", "[3점]"),
+  { text: "" },
+  { text: "" },
+  { table: ["※ 확인 사항 답안지의 해당란에 필요한 내용을 정확히 기입(표기)했는지 확인하시오."] },
+];
+
+/** 개요 2수준으로 번호를 단 출제 파일 + 〈보기〉 상자가 단보다 넓음(34000) + 〈보기〉 표시 "< 보 기 >" */
+export const LEVEL2: Para[] = [
+  { pp: 5, text: "다음은 세포에 대한 설명이다. 이에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은? [3점]" },
+  { table: ["< 보 기 >", "ㄱ. 핵이 있다.", "ㄴ. 막이 있다."], tableWidth: 34000 },
+  { runs: [[0, "① ㄱ\t"], [3, "②"], [0, " ㄴ\t③ ㄱ, ㄴ\t④ ㄴ, ㄷ\t⑤ ㄱ, ㄴ, ㄷ"]] },
+  { pp: 5, text: "생물의 특성으로 옳은 것은? [2점]" },
+  { runs: [[3, "①"], [0, " 물질대사\t② 항상성\t③ 발생\t④ 생식\t⑤ 적응"]] },
+];
+
+/** 번호가 전혀 없는 출제 파일: 선지 ⑤ 다음 문단이 새 문항 */
+export const UNNUMBERED: Para[] = [
+  { table: ["출제 교사 박선생 (인)", "( 통합과학 ) 과목"] },
+  { text: "다음 중 광물에 대한 설명으로 옳은 것은? [3점]" },
+  { runs: [[3, "①"], [0, " 가\t② 나\t③ 다\t④ 라\t⑤ 마"]] },
+  { text: "다음 중 암석의 순환으로 옳은 것은? [3점]" },
+  { runs: [[0, "① 가\t"], [3, "②"], [0, " 나\t③ 다\t④ 라\t⑤ 마"]] },
+];
+
+/** 번호를 글자로 직접 쓰는 양식 */
+export const LITERAL_TEMPLATE: Para[] = [
+  { table: ["출제 교사 000 (인)", "2026학년도 제1학기 2차 정기시험"] },
+  { text: "1. 다음 중 예시 문항으로 옳은 것은? [3.0점]" },
+  { text: " ① 가\t\t② 나\t\t③ 다" },
+  { text: " ④ 라\t\t⑤ 마" },
+  { text: "" },
+  { text: "2. 다음 중 예시로 옳지 않은 것은? [4.0점]" },
+  { text: " ① 가\t\t② 나\t\t③ 다" },
+  { text: " ④ 라\t\t⑤ 마" },
 ];
