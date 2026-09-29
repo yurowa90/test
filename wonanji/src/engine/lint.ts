@@ -254,7 +254,9 @@ export function lint(
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
 
     // 기호: 양식(없으면 문항 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
-    const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols);
+    // 상자를 양식 틀로 다시 짰으면 상자 표시(〈 보 기 〉)는 양식 것이 되므로 불일치가 아닙니다.
+    const boxUnified = spec.boxStyle === "template" && !!tpl.boxProto;
+    const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols).filter((m) => !(boxUnified && m.fam === "bogiLabel"));
     if (mism.length) {
       const strong = mism.some((m) => ["bogiLabel", "bogiRef", "bogiItem", "bullet"].includes(m.fam));
       const detail = mism.map((m) => `${SYMBOL_LABEL[m.fam]} ‘${m.used}’ (${m.basis === "양식" ? "양식" : "다른 문항 다수"}: ‘${m.want}’)`).join(" · ");

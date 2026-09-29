@@ -4,6 +4,7 @@
 import {
   essayNumber, headLevelOf, isChoiceLine, isQuestionHead, looksLikeItem, normText, paraInfos, pinfoOf, RX, type PInfo,
 } from "./classify";
+import { analyzeBoxProto, type BoxProto } from "./bogi";
 import { find, kid, kids } from "./dom";
 import { getLineSpacing, getMargin, HeaderIndex } from "./header";
 import type { LoadedDoc } from "./load";
@@ -145,8 +146,9 @@ function numberingSize(index: HeaderIndex, numberingId: string | null | undefine
 }
 
 /** 예시 문항의 〈보기〉·표·그림 폭과 정렬, 선지 배열 */
-function readLayout(samples: PInfo[], index: HeaderIndex, colW: number, bodyCp: Element | null): TemplateLayout {
+function readLayout(samples: PInfo[], index: HeaderIndex, colW: number, bodyCp: Element | null): { layout: TemplateLayout; boxProto: BoxProto | null } {
   const boxes: { w: number; align: string }[] = [];
+  let boxProto: BoxProto | null = null;
   const tables: { w: number; center: boolean }[] = [];
   const figs: { w: number; center: boolean; float: boolean }[] = [];
   const perLine: Record<string, number> = {};
@@ -159,7 +161,10 @@ function readLayout(samples: PInfo[], index: HeaderIndex, colW: number, bodyCp: 
       if (!w) continue;
       const inline = isInline(o);
       const center = inline ? pAlign === "CENTER" : kid(o, "pos")?.getAttribute("horzAlign") === "CENTER";
-      if (kind === "box") boxes.push({ w, align: inline ? pAlign : (kid(o, "pos")?.getAttribute("horzAlign") ?? "LEFT") });
+      if (kind === "box") {
+        boxes.push({ w, align: inline ? pAlign : (kid(o, "pos")?.getAttribute("horzAlign") ?? "LEFT") });
+        if (!boxProto) boxProto = analyzeBoxProto(o, index);
+      }
       else if (kind === "table") tables.push({ w, center });
       else if (kind === "figure") figs.push({ w, center, float: !inline });
     }
@@ -172,17 +177,18 @@ function readLayout(samples: PInfo[], index: HeaderIndex, colW: number, bodyCp: 
   const bw = median(boxes.map((b) => b.w));
   const spacing = bodyCp ? kid(bodyCp, "spacing") : null;
   const ratio = bodyCp ? kid(bodyCp, "ratio") : null;
-  return {
+  const layout: TemplateLayout = {
     columnWidthHU: colW,
     charSpacing: Number(spacing?.getAttribute("hangul") ?? 0),
     charRatio: Number(ratio?.getAttribute("hangul") ?? 100),
-    box: bw ? { widthHU: bw, ratio: r(bw), align: boxes[0].align, count: boxes.length } : null,
+    box: bw ? { widthHU: bw, ratio: r(bw), align: boxes[0].align, count: boxes.length, frame: !!boxProto } : null,
     table: tables.length ? { maxRatio: r(Math.max(...tables.map((t) => t.w))), centered: tables.filter((t) => t.center).length, count: tables.length } : null,
     figure: figs.length
       ? { maxRatio: r(Math.max(...figs.map((f) => f.w))), centered: figs.filter((f) => f.center).length, floating: figs.filter((f) => f.float).length, count: figs.length }
       : null,
     choicesPerLine: perLine,
   };
+  return { layout, boxProto };
 }
 
 export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
@@ -312,7 +318,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
   const observedSize = (Number(bodyCp?.getAttribute("height") ?? 1100) || 1100) / 100;
   const bodyPp = index.paraPr(bodyParaPrId);
   const observedLs = bodyPp ? getLineSpacing(bodyPp).value : 160;
-  const layout = readLayout(sampleIdx, index, page.colW, bodyCp);
+  const { layout, boxProto } = readLayout(sampleIdx, index, page.colW, bodyCp);
 
   const conflicts: string[] = [];
   const r = (k: ExplicitRule["key"]) => rules.find((x) => x.key === k);
@@ -360,6 +366,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     wordWrap: true,
     tracking: true,
     layout: "balanced",
+    boxStyle: boxProto ? "template" : "keep",
   };
 
   // 양식 상용구(문항 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.
@@ -387,5 +394,6 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     notes,
     layout,
     symbols: collectSymbols([...sampleIdx, ...essayIdx].map((p) => p.el), index),
+    boxProto,
   };
 }

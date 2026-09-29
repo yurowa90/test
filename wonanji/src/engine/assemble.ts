@@ -1,5 +1,6 @@
 // 양식 사본 위에 문항들을 배치해 결과 원안지(HWPX)를 만듭니다.
 import { descendants, hp, kid, kids, removeEl, walk } from "./dom";
+import { rebuildBoxes } from "./bogi";
 import { Importer, OutputHeader } from "./header";
 import { buildQuestion } from "./normalize";
 import { hasPageCtrl, pageCtrlKinds, splitPageControls } from "./pagectl";
@@ -190,10 +191,19 @@ export function assemble(input: AssembleInput): AssembleResult {
   const issues: Issue[] = [];
   const previewNoNumber: string[] = [];
   const owners = new Map<Element, string>();
+  // 〈보기〉 상자를 양식 예시의 틀로: 항목 글은 그대로 옮기고 격자·여백·이름표·항목 내어쓰기는 양식 것으로
+  const unifyBoxes = (q: Question, paras: Element[]) => {
+    if (spec.boxStyle !== "template" || !template.boxProto) return;
+    const r = rebuildBoxes(paras, template.boxProto, header, spec);
+    if (!r.count) return;
+    const label = r.relabeled.length ? `, 표시 ‘${[...new Set(r.relabeled)].join("’·‘")}’ → ‘${template.boxProto.label}’` : "";
+    changes.push({ questionId: q.id, kind: "〈보기〉 상자", detail: `상자 ${r.count}개를 양식 예시의 틀(격자·여백·항목 내어쓰기)로${label}` });
+  };
 
   mcqs.forEach((q, i) => {
     if (i > 0) gapsBefore.set(q.id, gap(spec.gapLines));
     const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
+    unifyBoxes(q, r.paras);
     r.paras.forEach(append);
     r.paras.forEach((p) => owners.set(p, q.id));
     changes.push(...r.changes);
@@ -212,6 +222,7 @@ export function assemble(input: AssembleInput): AssembleResult {
     essays.forEach((q, i) => {
       if (i > 0) gapsBefore.set(q.id, gap(1));
       const r = buildQuestion(q, i + 1, importerFor(q.fileIdx), spec, numberSizeHU);
+      unifyBoxes(q, r.paras);
       r.paras.forEach(append);
       r.paras.forEach((p) => owners.set(p, q.id));
       changes.push(...r.changes);

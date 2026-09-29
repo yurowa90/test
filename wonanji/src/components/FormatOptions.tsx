@@ -4,10 +4,12 @@ import type { FormatSpec, SourceAnalysis } from "../engine/types";
 interface Props {
   spec: FormatSpec;
   sources: SourceAnalysis[];
+  /** 양식 예시에 틀로 쓸 수 있는 〈보기〉 상자가 있는지 */
+  boxFrame: boolean;
   onChange: (next: FormatSpec) => void;
 }
 
-export default function FormatOptions({ spec, sources, onChange }: Props) {
+export default function FormatOptions({ spec, sources, boxFrame, onChange }: Props) {
   const set = <K extends keyof FormatSpec>(k: K, v: FormatSpec[K]) => onChange({ ...spec, [k]: v });
   const neg = spec.negation === "off" ? "off" : spec.negationStyle;
   const score = !spec.normalizeScore ? "keep" : spec.scoreDecimal ? "decimal" : "integer";
@@ -121,6 +123,20 @@ export default function FormatOptions({ spec, sources, onChange }: Props) {
       </Group>
 
       <Group title="〈보기〉·표·그림" note={spec.boxWidthHU ? `〈보기〉 상자 폭: 양식 예시 ${(spec.boxWidthHU / 283.46).toFixed(0)}mm` : "〈보기〉 상자 폭: 양식 예시가 없어 단 폭에 맞춥니다."}>
+        <Field
+          label="〈보기〉 상자 틀"
+          hint={
+            boxFrame
+              ? "양식 예시 상자의 격자·테두리·여백·이름표·항목(ㄱ. ㄴ. ㄷ.) 내어쓰기로 모든 상자를 다시 짭니다. PDF·사진·학력평가에서 온 상자도 같은 모양이 됩니다. 항목 글자는 그대로입니다."
+              : "양식 예시에 이름표 칸·항목 칸이 분명한 〈보기〉 상자가 없어 원본 상자를 그대로 둡니다(폭만 맞춤)."
+          }
+        >
+          <Select
+            value={boxFrame ? spec.boxStyle : "keep"}
+            onChange={(v) => set("boxStyle", v as FormatSpec["boxStyle"])}
+            options={boxFrame ? [["template", "양식 예시의 상자 틀로 통일(권장)"], ["keep", "원본 상자 유지(폭만 맞춤)"]] : [["keep", "원본 상자 유지(폭만 맞춤)"]]}
+          />
+        </Field>
         <div className="space-y-2 md:col-span-2">
           <Check checked={spec.fitObjects} onChange={(v) => set("fitObjects", v)} label="〈보기〉 상자를 양식 폭으로, 단 폭을 넘는 표·그림은 비율을 지켜 줄이기(글자 크기 변화에 맞춰 표 폭도 조정)" />
           <Check checked={spec.normalizeEquationSize} onChange={(v) => set("normalizeEquationSize", v)} label="본문 수식 글자 크기도 본문 크기에 맞추기" />

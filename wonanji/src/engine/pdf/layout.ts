@@ -7,7 +7,7 @@ export interface ParaBlock {
   type: "para";
   runs: Run[];
   align: "left" | "center" | "right" | "justify";
-  /** 단(또는 칸) 왼쪽에서 들여쓴 폭(pt): 둘째 줄부터의 왼쪽 여백과 첫 줄 들여쓰기(음수면 내어쓰기) */
+  /** 한글 의미의 여백(pt): left는 첫 줄이 시작하는 곳, intent가 음수면 둘째 줄부터 |intent|만큼 더 들여씀(내어쓰기), 양수면 첫 줄만 더 들여씀 */
   left: number;
   intent: number;
   text: string;
@@ -398,6 +398,9 @@ function toParas(lines: Line[], area: Box, body: number, base = area.x0, obstacl
       } else intent = Math.max(0, first.x0 - base);
       if (Math.abs(intent) < body * 0.7) intent = 0;
       if (left < body * 0.7) left = 0;
+      // 위 계산은 둘째 줄 시작(left)과 첫 줄의 차이(intent)입니다. 한글은 left를 첫 줄 시작으로 보고 음수 intent만큼 둘째 줄을 더 들여쓰므로,
+      // 내어쓰기(intent<0)는 첫 줄 시작 위치를 left로 둡니다(그대로 쓰면 들여쓰기가 두 배가 됩니다).
+      if (intent < 0) left = Math.max(0, left + intent);
     }
     out.push({
       type: "para",

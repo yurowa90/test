@@ -12,9 +12,10 @@ import { HwpxPackage } from "../src/engine/pkg";
 import { analyzeSource } from "../src/engine/segment";
 import { analyzeTemplate } from "../src/engine/template";
 import { deepText as deepTextOf, itemsOf, ownText, restyle } from "../src/engine/text";
-import { HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMPLATE, UNNUMBERED } from "./fixtures";
+import { BOX_SOURCE, BOX_TEMPLATE, HAKPYEONG, LEVEL2, LITERAL_TEMPLATE, makeHwpx, TEACHER1, TEACHER2, TEMPLATE, UNNUMBERED } from "./fixtures";
 import { kids } from "../src/engine/dom";
-import { objWidth } from "../src/engine/objects";
+import { isBogiBox, objWidth } from "../src/engine/objects";
+import { getMargin } from "../src/engine/header";
 import { validateHwpx } from "./validate";
 import { classifyJamo, findCircles } from "../src/engine/ocr/detect";
 import { columnSplit, components } from "../src/engine/ocr/raster";
@@ -259,6 +260,48 @@ await test("검수: 〈보기〉 표시가 양식과 다르면 알리되 바꾸�
   const sym = issues.find((i) => i.rule === "기호 불일치");
   assert.ok(sym && sym.message.includes("< 보 기 >") && sym.message.includes("바꾸지 않았습니다"));
   assert.ok(!issues.some((i) => i.rule === "배점 없음"));
+});
+
+console.log("〈보기〉 상자 틀 통일");
+const boxTpl = analyzeTemplate(doc("상자양식.hwpx", makeHwpx(BOX_TEMPLATE)));
+await test("양식 예시의 〈보기〉 상자(이름표 칸 + 항목 칸)를 틀로 읽는다", () => {
+  assert.ok(boxTpl.boxProto, "boxProto");
+  assert.equal(boxTpl.boxProto!.label, "〈 보 기 〉");
+  assert.equal(boxTpl.boxProto!.labelInBody, false);
+  assert.equal(boxTpl.spec.boxStyle, "template");
+  assert.equal(tpl.boxProto, null, "예시 상자가 없는 양식은 틀 없음");
+  assert.equal(hp.boxProto, null, "항목이 칸마다 나뉜 상자는 틀로 쓰지 않음");
+});
+const boxSrc = analyzeSource(0, doc("상자문항.hwpx", makeHwpx(BOX_SOURCE)), boxTpl);
+const boxOrder = defaultOrder([boxSrc]);
+const boxRes = assemble({ template: boxTpl, sources: [boxSrc], order: boxOrder, spec: boxTpl.spec });
+await test("결과: 1칸 상자가 양식 틀(2행)이 되고, 이름표는 양식 것, 항목 글자는 그대로, 항목 문단은 양식 내어쓰기", () => {
+  assert.deepEqual(validateHwpx(boxRes.hwpx), []);
+  const out = HwpxPackage.fromBytes(boxRes.hwpx);
+  const h = new HeaderIndex(out);
+  const boxes = descendants(out.sections[0].documentElement, "tbl").filter(isBogiBox);
+  assert.equal(boxes.length, 1);
+  assert.equal(boxes[0].getAttribute("rowCnt"), "2");
+  const lines = deepTextOf(boxes[0]).split("\n").map((l) => l.trim()).filter(Boolean);
+  assert.deepEqual(lines, ["〈 보 기 〉", "ㄱ. 핵이 있다.", "ㄴ. 막이 있다.", "ㄷ. 리보솜이 있다."]);
+  const items = descendants(boxes[0], "p").filter((p) => /^[ㄱㄴㄷ]\./.test(ownText(p)));
+  assert.equal(items.length, 3);
+  for (const p of items) {
+    const pp = h.paraPr(p.getAttribute("paraPrIDRef")!)!;
+    assert.equal(getMargin(pp, "left"), 0, "첫 줄은 칸 여백에서 시작");
+    assert.equal(getMargin(pp, "intent"), -1500, "둘째 줄부터 양식만큼 내어쓰기");
+    assert.equal(getLineSpacing(pp).value, boxTpl.spec.lineSpacing);
+  }
+  assert.ok(boxRes.changes.some((c) => c.kind === "〈보기〉 상자" && c.detail.includes("< 보 기 >") && c.detail.includes("〈 보 기 〉")));
+});
+await test("검수: 틀로 바꾼 상자의 표시는 ‘기호 불일치’로 알리지 않음, 원본 유지 옵션이면 알림", () => {
+  const issues = lint(boxTpl, [boxSrc], boxOrder, boxTpl.spec, boxRes.numbers);
+  assert.ok(!issues.some((i) => i.rule === "기호 불일치" && i.message.includes("상자 표시")), issues.map((i) => i.message).join("\n"));
+  const keep = { ...boxTpl.spec, boxStyle: "keep" as const };
+  const kept = assemble({ template: boxTpl, sources: [boxSrc], order: boxOrder, spec: keep });
+  const box = descendants(HwpxPackage.fromBytes(kept.hwpx).sections[0].documentElement, "tbl").filter(isBogiBox)[0];
+  assert.equal(box.getAttribute("rowCnt"), "1", "원본 상자 유지");
+  assert.ok(lint(boxTpl, [boxSrc], boxOrder, keep, kept.numbers).some((i) => i.rule === "기호 불일치" && i.message.includes("상자 표시")));
 });
 
 const litTpl = analyzeTemplate(doc("직접번호.hwpx", makeHwpx(LITERAL_TEMPLATE)));

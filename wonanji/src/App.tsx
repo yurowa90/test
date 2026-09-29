@@ -330,6 +330,7 @@ export default function App() {
                 <FormatOptions
                   spec={spec}
                   sources={sources}
+                  boxFrame={!!tpl?.boxProto}
                   onChange={(s) => {
                     setSpec(s);
                     setOut(null);

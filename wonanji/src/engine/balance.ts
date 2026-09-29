@@ -147,7 +147,9 @@ export async function balanceColumns(res: AssembleResult, spec: FormatSpec, meas
   const minGap = spec.gapLines * bodyAdv;
   const reserve = RESERVE_LINES * bodyAdv;
   let cap0 = colH - reserve - headSpan - headCol1;
-  const capOf = (k: number) => (k === 0 ? cap0 : colH - reserve - (k < colCount ? headSpan : 0));
+  // 첫 쪽의 나머지 단: 두 단에 걸친 머리 아래에서 시작(첫 단만 차지하는 유의사항은 없음)
+  let cap1 = cap0 + headCol1;
+  const capOf = (k: number) => (k === 0 ? cap0 : k < colCount ? cap1 : colH - reserve);
 
   type Col = { blocks: Block[]; cap: number };
   /** 문항 순서대로 단을 채웁니다(어림 높이 기준). */
@@ -230,13 +232,22 @@ export async function balanceColumns(res: AssembleResult, spec: FormatSpec, meas
     Object.assign(res, serializeVariants(res.pkg, res.root));
   };
 
-  // 첫 단 용량은 실제 첫 문항의 시작 위치로 보정합니다(머리 표·유의사항 높이는 어림이 어긋나기 쉬움).
-  // 그 밖의 세로 위치는 미리보기 엔진이 떠 있는 개체를 다르게 놓을 수 있어 쓰지 않고, 줄 수·개체 크기로 어림한 높이를 씁니다.
+  // 첫 쪽 단 용량은 실제 위치로 보정합니다(머리 표·제목·유의사항 높이는 어림이 어긋나기 쉬움): 첫 단은 첫 문항의 시작 위치로,
+  // 오른쪽 단은 그 단에서 처음 보이는 문항 문단의 위치와 어림값 가운데 작은 쪽으로(미리보기 엔진이 첫 쪽 오른쪽 단을 머리 표 위에서
+  // 시작하는 양식이 있어 잰 값이 지나치게 클 수 있음). 그 밖의 세로 위치는 떠 있는 개체 때문에 믿기 어려워 쓰지 않습니다.
   const limit = pageH - num(margin, "bottom") - num(margin, "footer") - reserve;
+  const pageW = num(pagePr, "width");
   try {
     const pos = await measure.positions(res.forPreview);
-    const f0 = pos.length === tops.length ? pos[blocks[0].paras[0]] : undefined;
-    if (f0 && f0.page === 0 && f0.topHU > 0 && limit - f0.topHU > bodyAdv * 6) cap0 = limit - f0.topHU;
+    if (pos.length === tops.length) {
+      const f0 = pos[blocks[0].paras[0]];
+      if (f0 && f0.page === 0 && f0.topHU > 0 && limit - f0.topHU > bodyAdv * 6) cap0 = limit - f0.topHU;
+      cap1 = cap0 + headCol1;
+      if (colCount > 1) {
+        const i1 = tops.findIndex((p, i) => res.owners.has(p) && (info.lines[i]?.length ?? 0) > 0 && pos[i].page === 0 && pos[i].xHU > pageW / 2 && pos[i].topHU > 0);
+        if (i1 >= 0 && limit - pos[i1].topHU > bodyAdv * 6) cap1 = Math.min(cap1, limit - pos[i1].topHU);
+      }
+    }
   } catch {
     /* 위치를 못 재면 어림값 그대로 */
   }

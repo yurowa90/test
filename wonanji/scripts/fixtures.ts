@@ -30,14 +30,16 @@ const BORDER = (id: number, line: string) =>
 
 /**
  * 글자 모양: 0 본문(11pt), 1 번호(12pt 굵게), 2 다른 글꼴 10pt·자간 -5, 3 형광 정답, 4 굵게+밑줄
- * 문단 모양: 0 본문, 1 개요 번호(문항 머리), 2 오른쪽 정렬, 3 왼쪽 130%·아래 간격, 4 내어쓰기, 5 개요 2수준
+ * 문단 모양: 0 본문, 1 개요 번호(문항 머리), 2 오른쪽 정렬, 3 왼쪽 130%·아래 간격, 4 내어쓰기, 5 개요 2수준,
+ *           6 가운데(상자 이름표), 7 워드식 내어쓰기(left 1500 + intent -1500: 한글에서는 두 배로 들여써짐)
  */
 function header(faces: string[]) {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head ${NS} version="1.2" secCnt="1"><hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/><hh:refList>${fontfaces(faces)}<hh:borderFills itemCnt="2">${BORDER(1, "NONE")}${BORDER(2, "SOLID")}</hh:borderFills><hh:charProperties itemCnt="5">${charPr(0, {})}${charPr(1, { h: 1200, bold: true })}${charPr(2, { h: 1000, font: 1, spacing: -5 })}${charPr(3, { shade: "#FFFF00" })}${charPr(4, { bold: true, ul: true })}</hh:charProperties><hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties><hh:numberings itemCnt="1"><hh:numbering id="1" start="0"><hh:paraHead start="1" level="1" align="LEFT" useInstWidth="0" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="1" checkable="0">^1.</hh:paraHead></hh:numbering></hh:numberings><hh:paraProperties itemCnt="6">${paraPr(0, {})}${paraPr(1, { outline: true })}${paraPr(2, { align: "RIGHT" })}${paraPr(3, { align: "LEFT", ls: 130, next: 800 })}${paraPr(4, { intent: -1500 })}${paraPr(5, { outline: true, level: 1 })}</hh:paraProperties><hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles></hh:refList></hh:head>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head ${NS} version="1.2" secCnt="1"><hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/><hh:refList>${fontfaces(faces)}<hh:borderFills itemCnt="2">${BORDER(1, "NONE")}${BORDER(2, "SOLID")}</hh:borderFills><hh:charProperties itemCnt="5">${charPr(0, {})}${charPr(1, { h: 1200, bold: true })}${charPr(2, { h: 1000, font: 1, spacing: -5 })}${charPr(3, { shade: "#FFFF00" })}${charPr(4, { bold: true, ul: true })}</hh:charProperties><hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties><hh:numberings itemCnt="1"><hh:numbering id="1" start="0"><hh:paraHead start="1" level="1" align="LEFT" useInstWidth="0" autoIndent="1" widthAdjust="0" textOffsetType="PERCENT" textOffset="50" numFormat="DIGIT" charPrIDRef="1" checkable="0">^1.</hh:paraHead></hh:numbering></hh:numberings><hh:paraProperties itemCnt="8">${paraPr(0, {})}${paraPr(1, { outline: true })}${paraPr(2, { align: "RIGHT" })}${paraPr(3, { align: "LEFT", ls: 130, next: 800 })}${paraPr(4, { intent: -1500 })}${paraPr(5, { outline: true, level: 1 })}${paraPr(6, { align: "CENTER" })}${paraPr(7, { intent: -1500, left: 1500 })}</hh:paraProperties><hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles></hh:refList></hh:head>`;
 }
 
 type Run = [cp: number, text: string];
-export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[]; tableWidth?: number };
+/** bogi: 〈보기〉 상자. grid = 이름표 칸(1행) + 항목 칸(2행), cell = 한 칸에 이름표 문단과 항목 문단(PDF·사진에서 만든 상자 모양) */
+export type Para = { pp?: number; runs?: Run[]; text?: string; cp?: number; table?: string[]; tableWidth?: number; bogi?: { label: string; items: string[]; style: "grid" | "cell" } };
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -60,6 +62,15 @@ function para(p: Para): string {
       )
       .join("");
     body += `<hp:run charPrIDRef="0"><hp:tbl id="${900 + pid}" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${p.table.length}" colCnt="1" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${tw}" widthRelTo="ABSOLUTE" height="${1800 * p.table.length}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="141" bottom="141"/>${cells}</hp:tbl></hp:run>`;
+  }
+  if (p.bogi) {
+    const tw = p.tableWidth ?? 28000;
+    const tc = (inner: string, row: number, h: number) =>
+      `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="2"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${inner}</hp:subList><hp:cellAddr colAddr="0" rowAddr="${row}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${tw}" height="${h}"/><hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>`;
+    const labelP = para({ pp: 6, text: p.bogi.label });
+    const itemPs = p.bogi.items.map((t) => para({ pp: p.bogi!.style === "cell" ? 7 : 4, text: t })).join("");
+    const rows = p.bogi.style === "grid" ? `<hp:tr>${tc(labelP, 0, 1800)}</hp:tr><hp:tr>${tc(itemPs, 1, 5400)}</hp:tr>` : `<hp:tr>${tc(labelP + itemPs, 0, 7200)}</hp:tr>`;
+    body += `<hp:run charPrIDRef="0"><hp:tbl id="${900 + pid}" zOrder="1" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${p.bogi.style === "grid" ? 2 : 1}" colCnt="1" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${tw}" widthRelTo="ABSOLUTE" height="7200" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="284" bottom="284"/><hp:inMargin left="141" right="141" top="141" bottom="141"/>${rows}</hp:tbl></hp:run>`;
   }
   return `<hp:p id="${pid++}" paraPrIDRef="${p.pp ?? 0}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${body}</hp:p>`;
 }
@@ -203,4 +214,29 @@ export const LITERAL_TEMPLATE: Para[] = [
   { text: "2. 다음 중 예시로 옳지 않은 것은? [4.0점]" },
   { text: " ① 가\t\t② 나\t\t③ 다" },
   { text: " ④ 라\t\t⑤ 마" },
+];
+
+/** 〈보기〉 예시 상자(이름표 칸 + 항목 칸)가 있는 양식 */
+export const BOX_TEMPLATE: Para[] = [
+  ...TEMPLATE.slice(0, 11),
+  { text: "" },
+  { pp: 1, text: "다음 설명 중 옳은 것만을 〈보기〉에서 고른 것은? [3.0점]" },
+  { bogi: { label: "〈 보 기 〉", items: ["ㄱ. 예시 항목 하나이다.", "ㄴ. 예시 항목 둘이다."], style: "grid" }, tableWidth: 29000 },
+  { text: "" },
+  { text: " ① ㄱ\t\t② ㄴ\t\t③ ㄱ, ㄴ" },
+  ...TEMPLATE.slice(11),
+];
+
+/** PDF·사진에서 만든 것 같은 1칸 상자(이름표가 칸 안, 워드식 내어쓰기)를 쓴 문항 파일 */
+export const BOX_SOURCE: Para[] = [
+  { table: ["출제 교사 최선생 (인)", "( 통합과학 ) 과목"] },
+  { pp: 1, text: "다음 중 세포에 대한 설명으로 옳은 것만을 <보기>에서 있는 대로 고른 것은? [3.0점]" },
+  { pp: 6, bogi: { label: "< 보 기 >", items: ["ㄱ. 핵이 있다.", "ㄴ. 막이 있다.", "ㄷ. 리보솜이 있다."], style: "cell" }, tableWidth: 30000 },
+  { text: "" },
+  { runs: [[0, " ① ㄱ\t\t② ㄴ\t\t"], [3, "③ ㄱ, ㄷ"]] },
+  { text: "" },
+  { pp: 1, text: "다음 중 옳은 것은? [2.0점]" },
+  { runs: [[0, " "], [3, "①"], [0, " 가\t\t② 나\t\t③ 다"]] },
+  { text: "" },
+  { table: ["* 확인 사항 답안지의 해당란에 필요한 내용을 정확히 기입했는지 확인하시오."] },
 ];

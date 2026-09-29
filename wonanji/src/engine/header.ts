@@ -265,7 +265,8 @@ function reorderCharPr(cp: Element) {
   for (const c of ch) cp.appendChild(c);
 }
 
-export type ParaCtx = "body" | "cell" | "box";
+/** blank: 표 칸의 빈 문단 — 글자 크기를 원본대로 두어 칸(장식 행) 높이가 커지지 않게 */
+export type ParaCtx = "body" | "cell" | "box" | "blank";
 
 /** 줄간격을 바꾸면 모양이 흐트러지는 개체(수식은 글줄의 일부로 보아 제외) */
 const FIGURE_TAGS = new Set(["tbl", "pic", "rect", "ellipse", "arc", "polygon", "curve", "line", "connectLine", "container", "ole", "textart", "chart", "video"]);
@@ -451,6 +452,7 @@ export class Importer {
       const src = this.src.charPr(base);
       const baseEl = this.out.charPr(spec.bodyCharPrId)!;
       const c = baseEl.cloneNode(true) as Element;
+      const keepSize = ctx === "blank" || ((ctx === "box" || ctx === "cell") && spec.cellMode === "keep");
       if (src) {
         for (const n of ["italic", "bold", "underline", "strikeout", "outline", "shadow", "emboss", "engrave", "supscript", "subscript", "relSz", "offset"]) {
           setChild(c, n, kid(src, n), this.out.doc);
@@ -467,10 +469,9 @@ export class Importer {
           setChild(c, "fontRef", kid(src, "fontRef"), this.out.doc);
           this.remapFonts(c, src);
         }
-        const keepSize = (ctx === "box" || ctx === "cell") && spec.cellMode === "keep";
         if (keepSize) c.setAttribute("height", src.getAttribute("height") ?? baseEl.getAttribute("height")!);
       }
-      if (!src || !((ctx === "box" || ctx === "cell") && spec.cellMode === "keep")) {
+      if (!src || !keepSize) {
         c.setAttribute("height", String(Math.round(spec.sizePt * 100)));
       }
       for (const m of mods) {
@@ -677,7 +678,7 @@ export class Importer {
           return;
         }
         const inBlankCell = e.parentNode && blankCell.has(e.parentNode as Element);
-        e.setAttribute("charPrIDRef", mode === "raw" ? this.charPrRaw(splitCp(cp).base) : this.charPrNorm(cp, inBlankCell ? "box" : ctxOf(e)));
+        e.setAttribute("charPrIDRef", mode === "raw" ? this.charPrRaw(splitCp(cp).base) : this.charPrNorm(cp, inBlankCell ? "blank" : ctxOf(e)));
       } else {
         const bf = e.getAttribute("borderFillIDRef");
         if (bf != null) e.setAttribute("borderFillIDRef", this.borderFill(bf));

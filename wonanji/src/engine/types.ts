@@ -1,3 +1,4 @@
+import type { BoxProto } from "./bogi";
 import type { HwpxPackage } from "./pkg";
 import type { LossReport } from "./rhwp";
 
@@ -49,6 +50,8 @@ export interface FormatSpec {
   tracking: boolean;
   /** balanced: 단마다 문항을 균등 배치(처음 문항은 위, 마지막 문항은 아래, 사이 간격 고르게), fixed: 문항 사이 빈 줄 고정 */
   layout: "balanced" | "fixed";
+  /** template: 모든 〈보기〉 상자를 양식 예시 상자의 틀(격자·여백·이름표·항목 내어쓰기)로 다시 짬, keep: 원본 상자 유지(폭만 맞춤) */
+  boxStyle: "template" | "keep";
 }
 
 /** 양식의 문항 번호 방식 */
@@ -89,6 +92,8 @@ export interface TemplateAnalysis {
   layout: TemplateLayout;
   /** 양식 예시 문항의 기호 사용(기호 일관성 검수 기준) */
   symbols: Record<string, Record<string, number>>;
+  /** 양식 예시의 〈보기〉 상자 틀(있으면 문항의 상자를 이 틀로 다시 짤 수 있음) */
+  boxProto: BoxProto | null;
 }
 
 export interface TemplateLayout {
@@ -96,8 +101,8 @@ export interface TemplateLayout {
   /** 본문 자간(%)·장평(%) */
   charSpacing: number;
   charRatio: number;
-  /** 〈보기〉 상자: 폭, 단 폭 대비 비율, 문단 정렬 */
-  box: { widthHU: number; ratio: number; align: string; count: number } | null;
+  /** 〈보기〉 상자: 폭, 단 폭 대비 비율, 문단 정렬, 틀로 쓸 수 있는지(이름표 칸·항목 칸이 분명한 표) */
+  box: { widthHU: number; ratio: number; align: string; count: number; frame: boolean } | null;
   /** 자료 표: 가장 넓은 폭의 단 폭 대비 비율, 가운데 정렬 비율 */
   table: { maxRatio: number; centered: number; count: number } | null;
   /** 그림: 가장 넓은 폭의 단 폭 대비 비율, 가운데 정렬 비율, 어울림(떠 있음) 개수 */

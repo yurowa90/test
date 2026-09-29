@@ -46,7 +46,7 @@ export default function TemplateCard({ tpl }: { tpl: TemplateAnalysis }) {
           <Stat k="본문 글자" v={`${s.fontFace || "—"} ${s.sizePt}pt`} sub={`줄간격 ${s.lineSpacing}% · 자간 ${L.charSpacing}% · 장평 ${L.charRatio}%`} />
           <Stat k="문항 번호" v={s.numbering.label || "—"} sub={`${tpl.numberSizePt ? `${tpl.numberSizePt}pt · ` : ""}${s.headLead ? "번호 뒤 한 칸" : "번호 모양에 간격 포함"}`} />
           <Stat k="배점 표기" v={s.scoreDecimal ? "[4.0점] 소수점" : "[3점] 정수"} sub={s.unmarkedScore ? `표기 없는 문항 = ${s.unmarkedScore}점(학력평가 관례)` : "모든 문항 표기"} />
-          <Stat k="〈보기〉 상자" v={L.box ? `단의 ${pct(L.box.ratio)}` : "예시 없음"} sub={L.box ? `${L.box.count}개 · ${L.box.align === "CENTER" ? "가운데" : "왼쪽"} 정렬` : "단 폭에 맞춤"} />
+          <Stat k="〈보기〉 상자" v={L.box ? `단의 ${pct(L.box.ratio)}` : "예시 없음"} sub={L.box ? `${L.box.count}개 · ${L.box.frame ? "틀로 통일" : "폭만 맞춤"}` : "단 폭에 맞춤"} />
           <Stat k="자료 표" v={L.table ? `최대 단의 ${pct(L.table.maxRatio)}` : "예시 없음"} sub={L.table ? `${L.table.count}개 · 가운데 ${L.table.centered}` : "넘치면 줄임"} />
           <Stat k="그림" v={L.figure ? `최대 단의 ${pct(L.figure.maxRatio)}` : "예시 없음"} sub={L.figure ? `${L.figure.count}개 · 어울림 ${L.figure.floating}` : "넘치면 줄임"} />
           <Stat k="선지 배열" v={perLine || "예시 없음"} sub={`문항 사이 빈 줄 ${s.gapLines}`} />
