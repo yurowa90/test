@@ -249,7 +249,7 @@ export default function App() {
         )}
 
         <main className="mt-6 space-y-6">
-          <Step id="s-template" n={1} kicker="양식" title="학교 원안지 양식" sub="유의사항·예시 문항이 든 양식, 또는 학력평가 문제지처럼 문항이 채워진 문서를 그대로 올리세요. 글자·문단·번호 방식·〈보기〉·표·그림 규격을 읽습니다." accent={current === 0}>
+          <Step id="s-template" n={1} kicker="양식" title="평가 문제지 양식" sub="유의사항·예시 문항이 든 양식, 또는 학력평가 문제지처럼 문항이 채워진 문서를 그대로 올리세요. 글자·문단·번호 방식·〈보기〉·표·그림 규격을 읽습니다." accent={current === 0}>
             {tpl ? (
               <>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -270,7 +270,7 @@ export default function App() {
             )}
           </Step>
 
-          <Step id="s-sources" n={2} kicker="문항 파일" title="선생님별 문항 파일" sub="HWP·HWPX는 그대로, PDF는 글자를 입력한 글로 옮기고 그림·그래프는 잘라 넣으며, 사진·캡처는 글자를 인식합니다. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다." accent={current === 1}>
+          <Step id="s-sources" n={2} kicker="문항 파일" title="문항 파일" sub="HWP·HWPX는 그대로, PDF는 글자를 입력한 글로 옮기고 그림·그래프는 잘라 넣으며, 사진·캡처는 글자를 인식합니다. 빈 번호 자리·양식 머리 표·확인 사항은 알아서 뺍니다." accent={current === 1}>
             <Dropzone multiple disabled={!!busy} onFiles={addSources} compact={docs.length > 0} accept="all">
               <p className="font-semibold">{docs.length ? "파일 더 올리기" : "문항 파일(.hwp, .hwpx, .pdf, 사진)을 끌어 놓거나 눌러서 고르세요. 여러 개를 한꺼번에 올릴 수 있습니다"}</p>
               {!docs.length && <p className="mt-1 text-sm text-ink-3">PDF·사진의 정답은 3단계에서 지정합니다(형광펜 정보가 없음).</p>}
