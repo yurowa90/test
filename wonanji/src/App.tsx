@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { defaultOrder } from "./engine/assemble";
 import { lint } from "./engine/lint";
-import { loadDocument, type LoadedDoc } from "./engine/load";
+import type { LoadedDoc } from "./engine/load";
 import { errText } from "./engine/rhwp";
 import type { FormatSpec, Question, SourceAnalysis, TemplateAnalysis } from "./engine/types";
 import { build, download, readFile, readSource, readTemplate, type BuildOutput } from "./pipeline";
@@ -13,41 +13,8 @@ import FormatOptions from "./components/FormatOptions";
 import ResultView from "./components/ResultView";
 import RulesGuide from "./components/RulesGuide";
 
-const SAVED_TEMPLATE = "wonanji:template";
-
-function saveTemplate(name: string, bytes: Uint8Array) {
-  try {
-    if (bytes.length > 3_000_000) return;
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    localStorage.setItem(SAVED_TEMPLATE, JSON.stringify({ name, data: btoa(bin) }));
-  } catch {
-    /* 저장 공간이 없거나 막혀 있으면 조용히 넘어갑니다 */
-  }
-}
-
-function clearSavedTemplate() {
-  try {
-    localStorage.removeItem(SAVED_TEMPLATE);
-  } catch {
-    /* 저장소가 막혀 있으면 지울 것도 없습니다 */
-  }
-}
-
-function loadSavedTemplate(): { name: string; bytes: Uint8Array } | null {
-  try {
-    const raw = localStorage.getItem(SAVED_TEMPLATE);
-    if (!raw) return null;
-    const { name, data } = JSON.parse(raw) as { name: string; data: string };
-    const bin = atob(data);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return { name, bytes };
-  } catch {
-    return null;
-  }
-}
-
+// 이 앱은 아무것도 저장하지 않습니다(localStorage·sessionStorage·IndexedDB 사용 안 함).
+// 올린 파일과 결과는 이 페이지의 메모리에만 있고, 새로고침하거나 탭을 닫으면 사라집니다.
 const STEPS = [
   { id: "s-template", label: "양식" },
   { id: "s-sources", label: "출제 파일" },
@@ -66,10 +33,6 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [out, setOut] = useState<BuildOutput | null>(null);
-  const [saved, setSaved] = useState(() => loadSavedTemplate());
-  // 양식 저장은 선택 사항(공용 PC 보호): 켠 경우에만 이 브라우저에 남기고, 끄면 바로 지웁니다.
-  const [remember, setRemember] = useState(false);
-  const [tplDoc, setTplDoc] = useState<{ name: string; bytes: Uint8Array } | null>(null);
 
   // 파일마다 따로 분석해, 한 파일이 실패해도 나머지와 화면은 그대로 둡니다.
   const analysis = useMemo(() => {
@@ -116,11 +79,6 @@ export default function App() {
       setTpl(t);
       setSpec(t.spec);
       setOut(null);
-      setTplDoc({ name: doc.name, bytes: doc.bytes });
-      if (remember) {
-        saveTemplate(doc.name, doc.bytes);
-        setSaved({ name: doc.name, bytes: doc.bytes });
-      }
     } catch (e) {
       setErrors([`양식 「${name}」: ${errText(e)}`]);
     } finally {
@@ -184,19 +142,6 @@ export default function App() {
     setOut(null);
   }
 
-  function forgetSaved() {
-    clearSavedTemplate();
-    setSaved(null);
-  }
-
-  function toggleRemember(on: boolean) {
-    setRemember(on);
-    if (on && tplDoc) {
-      saveTemplate(tplDoc.name, tplDoc.bytes);
-      setSaved(tplDoc);
-    } else if (!on) forgetSaved();
-  }
-
   async function make() {
     if (!tpl || !spec) return;
     setErrors([]);
@@ -239,21 +184,6 @@ export default function App() {
   const mcqN = active.filter((q) => q.kind === "mcq").length;
   const essayN = active.filter((q) => q.kind === "essay").length;
   const current = out ? 4 : order.length ? 2 : tpl ? 1 : 0;
-  const rememberRow = (
-    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink-2">
-      <label className="flex cursor-pointer items-center gap-2">
-        <input type="checkbox" checked={remember} onChange={(e) => toggleRemember(e.target.checked)} className="accent-primary" />
-        이 브라우저에 양식 저장(다음에 다시 쓰기)
-      </label>
-      <span className="text-ink-3">공용 PC에서는 끄세요 — 저장한 양식은 다음 방문 때 파일명이 보이고 다시 열립니다.</span>
-      {saved && (
-        <button type="button" onClick={forgetSaved} className="font-semibold text-danger underline-offset-2 hover:underline">
-          저장된 양식 지우기
-        </button>
-      )}
-    </div>
-  );
-
   return (
     <div className="min-h-screen pb-16">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -267,7 +197,7 @@ export default function App() {
               </p>
             </div>
             <div className="flex border border-ink text-[12px] font-bold">
-              <span className="bg-ink px-3 py-1.5 text-paper">서버 전송 없음</span>
+              <span className="bg-ink px-3 py-1.5 text-paper">서버 전송 없음 · 저장 없음</span>
               <span className="border-l border-line px-3 py-1.5">HWP · PDF · 사진</span>
               <span className="border-l border-line px-3 py-1.5">한글 원안지</span>
             </div>
@@ -275,6 +205,10 @@ export default function App() {
           <div className="absolute inset-x-0 -bottom-1 border-b border-line-strong" />
         </header>
         <div className="border-b border-ink" />
+        <p className="mt-3 border-l-[3px] border-l-ink bg-paper px-3 py-2 text-[12.5px] leading-relaxed text-ink-2">
+          <b className="text-ink">이 페이지에는 별도의 데이터베이스가 없습니다.</b> 올린 파일과 결과는 이 브라우저 탭의 메모리에만 있고, 내려받은 뒤 새로고침하거나 탭을 닫으면 어디에도 남지 않습니다.
+          평가 점수에 들어가는 정기시험 문항 편집이 아니라 <b className="text-ink">형성평가·모의고사 제작용</b>으로 사용해 주세요.
+        </p>
 
         {/* 작업 요약 띠 */}
         <nav aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-3 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(43,31,34,0.06)]">
@@ -325,7 +259,6 @@ export default function App() {
                   </Dropzone>
                 </div>
                 <TemplateCard tpl={tpl} />
-                {rememberRow}
               </>
             ) : (
               <div className="space-y-2">
@@ -333,12 +266,6 @@ export default function App() {
                   <p className="font-semibold">양식 파일(.hwp, .hwpx)을 끌어 놓거나 눌러서 고르세요</p>
                   <p className="mt-1 text-sm text-ink-3">예: 2026학년도 1학기 2차 정기시험 출제 문항지 양식.hwp · 학력평가 문제지.hwp</p>
                 </Dropzone>
-                {saved && (
-                  <button type="button" disabled={!!busy} onClick={() => openTemplate(saved.name, () => loadDocument(saved.name, saved.bytes))} className="text-sm font-semibold text-primary underline-offset-2 hover:underline">
-                    지난번 양식 다시 쓰기: {saved.name}
-                  </button>
-                )}
-                {rememberRow}
               </div>
             )}
           </Step>
@@ -442,7 +369,7 @@ export default function App() {
         </main>
 
         <footer className="mt-10 border-t border-line-strong pt-3 text-xs text-ink-3">
-          한글 문서 읽기·그리기: rhwp(@rhwp/core, MIT) · PDF: pdf.js(Apache-2.0) · 글자 인식: Tesseract(Apache-2.0). 모든 파일은 이 브라우저 안에서만 처리됩니다. “한글”, “HWP”, “HWPX”는 한글과컴퓨터의 상표입니다. 결과 파일은 반드시 한글에서 최종 확인하세요.
+          한글 문서 읽기·그리기: rhwp(@rhwp/core, MIT) · PDF: pdf.js(Apache-2.0) · 글자 인식: Tesseract(Apache-2.0). 모든 파일은 이 브라우저 안에서만 처리되고 어디에도 저장되지 않습니다(데이터베이스·서버 없음). 형성평가·모의고사 제작용으로 쓰시고, 평가 점수에 들어가는 정기시험 문항 편집에는 쓰지 마세요. “한글”, “HWP”, “HWPX”는 한글과컴퓨터의 상표입니다. 결과 파일은 반드시 한글에서 최종 확인하세요.
         </footer>
       </div>
     </div>

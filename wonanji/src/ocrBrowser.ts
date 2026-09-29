@@ -20,6 +20,8 @@ setOcrDeps(async () => {
           langPath: `${base}lang`,
           gzip: true,
           workerBlobURL: false,
+          // 브라우저에 아무것도 남기지 않습니다(언어 자료도 IndexedDB에 캐시하지 않음).
+          cacheMethod: "none",
         }),
       );
     }
