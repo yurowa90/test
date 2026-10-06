@@ -158,11 +158,14 @@ export interface ParaPos {
   lastXHU: number;
 }
 
-/** 최상위 문단마다 쪽 번호와 세로 위치(HWPUNIT, 쪽 위 기준). 단 균등 배치의 검산용. */
-export async function layoutPositions(hwpx: Uint8Array): Promise<ParaPos[]> {
+/**
+ * 최상위 문단마다 쪽 번호와 세로 위치(HWPUNIT, 쪽 위 기준). 단 균등 배치의 검산용.
+ * reflow가 거짓이면 줄 배치를 다시 계산하지 않고 미리보기 그림과 같은 배치(남겨 둔 캐시 포함)로 잽니다.
+ */
+export async function layoutPositions(hwpx: Uint8Array, reflow = true): Promise<ParaPos[]> {
   const mod = await getRhwp();
   return withDoc(mod, hwpx, (doc) => {
-    doc.reflowLinesegs();
+    if (reflow) doc.reflowLinesegs();
     const n = doc.getParagraphCount(0);
     const ctrlBottom = new Map<number, { page: number; bottom: number }[]>();
     for (let pg = 0; pg < doc.pageCount(); pg++) {
@@ -197,6 +200,17 @@ export async function layoutPositions(hwpx: Uint8Array): Promise<ParaPos[]> {
       }
     }
     return out;
+  });
+}
+
+/** 미리보기 쪽 그림(SVG)과 전체 쪽 수. */
+export async function renderPreview(bytes: Uint8Array, maxPages = 40): Promise<{ svgs: string[]; total: number }> {
+  const mod = await getRhwp();
+  return withDoc(mod, bytes, (doc) => {
+    const total = doc.pageCount();
+    const svgs: string[] = [];
+    for (let i = 0; i < Math.min(total, maxPages); i++) svgs.push(doc.renderPageSvg(i));
+    return { svgs, total };
   });
 }
 

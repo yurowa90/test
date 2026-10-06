@@ -6,16 +6,73 @@ interface Props {
   sources: SourceAnalysis[];
   /** 양식 예시에 틀로 쓸 수 있는 〈보기〉 상자가 있는지 */
   boxFrame: boolean;
+  /** 양식 유의사항의 부정어 규칙 문구(없으면 null) */
+  negRule: string | null;
   onChange: (next: FormatSpec) => void;
 }
 
-export default function FormatOptions({ spec, sources, boxFrame, onChange }: Props) {
+/** 내장 참고 자료(학교 출제 유의사항 p.6)의 부정어 표기 */
+const SCHOOL_NEG = "밑줄만 긋고 굵게 하지 않음";
+
+export default function FormatOptions({ spec, sources, boxFrame, negRule, onChange }: Props) {
   const set = <K extends keyof FormatSpec>(k: K, v: FormatSpec[K]) => onChange({ ...spec, [k]: v });
   const neg = spec.negation === "off" ? "off" : spec.negationStyle;
   const score = !spec.normalizeScore ? "keep" : spec.scoreDecimal ? "decimal" : "integer";
+  const tplBold = negRule ? /진하게|굵게/.test(negRule) : null;
+  const negHint = negRule
+    ? `양식 유의사항: ‘${negRule}’.${tplBold ? ` 내장 참고 자료(학교 출제 유의사항 p.6)는 ‘${SCHOOL_NEG}’이라 서로 다릅니다. 학교 지침에 맞는 쪽을 고르세요.` : ""}`
+    : `양식 유의사항에 부정어 규칙이 없습니다. 내장 참고 자료(학교 출제 유의사항 p.6)는 ‘${SCHOOL_NEG}’입니다.`;
+  const negLabel = (style: "underline-bold" | "underline", text: string) => (tplBold == null ? text : tplBold === (style === "underline-bold") ? `${text} (양식 유의사항)` : text);
 
   return (
     <div className="space-y-6">
+      <Group title="먼저 정할 것" note="학교마다 다를 수 있어 선생님이 고르는 항목입니다.">
+        <Field label="부정어 강조" hint={negHint} warn={!!tplBold}>
+          <Select
+            value={neg}
+            onChange={(v) => onChange({ ...spec, negation: v === "off" ? "off" : "auto", negationStyle: v === "off" ? spec.negationStyle : (v as FormatSpec["negationStyle"]) })}
+            options={[
+              ["underline-bold", negLabel("underline-bold", "밑줄 + 진하게")],
+              ["underline", negLabel("underline", "밑줄만")],
+              ["off", "손대지 않음"],
+            ]}
+          />
+        </Field>
+        <Field label="배점 표기가 없는 문항" hint="학력평가·수능은 2점 문항에 배점을 적지 않습니다. ‘누락으로 보기’면 검수에서 알려 주고 합계에서 0점으로 셉니다. 3단계 배점 칸에서 문항마다 직접 넣을 수도 있습니다.">
+          <Select
+            value={spec.unmarkedScore == null ? "none" : String(spec.unmarkedScore)}
+            onChange={(v) => set("unmarkedScore", v === "none" ? null : Number(v))}
+            options={[
+              ["none", "누락으로 보기"],
+              ["2", "2점으로 계산(학력평가 관례)"],
+              ["3", "3점으로 계산"],
+            ]}
+          />
+        </Field>
+        <Field label="머리 표·쪽 정보" hint="출제 교사·과목·시행일이 채워진 파일을 고르면 그 머리 표를 씁니다.">
+          <Select
+            value={String(spec.headerFrom)}
+            onChange={(v) => set("headerFrom", v === "template" ? "template" : Number(v))}
+            options={[["template", "양식 원본(빈칸)"], ...sources.map((s, i) => [String(i), s.name] as [string, string])]}
+          />
+        </Field>
+        <div className="space-y-2 self-end">
+          <Check checked={!spec.keepColors} onChange={(v) => set("keepColors", !v)} label="글자색을 모두 검정으로(흑백 인쇄 기준 — 사진 인식의 빨간 글자도 검정이 되니 먼저 3단계에서 고치세요)" />
+          <Check checked={spec.keepTogether} onChange={(v) => set("keepTogether", v)} label="한 문항이 단·쪽에서 쪼개지지 않게(한글에서 반영)" />
+        </div>
+      </Group>
+
+      <details className="fold border-t-2 border-ink pt-3">
+        <summary>
+          <span>
+            <span className="serif text-[16px] font-bold">세부 조판 설정</span>
+            <span className="ml-3 text-[12px] text-ink-3">양식에서 읽은 값이 들어 있습니다. 보통은 그대로 두세요.</span>
+          </span>
+        </summary>
+        <p className="mt-3 text-[11.5px] leading-relaxed text-ink-3">
+          용어: <b>자간</b> 글자 사이 간격 · <b>장평</b> 글자 너비 비율 · <b>내어쓰기</b> 둘째 줄부터 들여 쓰기 · <b>외톨이줄</b> 문단 첫·끝 줄이 쪽·단 끝에 홀로 남는 것 · <b>고아 줄</b> 마지막 줄에 두세 글자만 남는 것
+        </p>
+        <div className="mt-4 space-y-6">
       <Group title="글자·문단" note="양식의 기준 글자 모양·문단 모양을 그대로 씁니다.">
         <Field label="본문 글자" hint={`${spec.fontFace || "양식 글꼴"} · 크기와 줄간격`}>
           <div className="flex flex-wrap items-center gap-2">
@@ -88,17 +145,7 @@ export default function FormatOptions({ spec, sources, boxFrame, onChange }: Pro
             ]}
           />
         </Field>
-        <Field label="배점 표기가 없는 문항" hint="학력평가·수능은 2점 문항에 배점을 적지 않습니다. ‘누락으로 보기’를 고르면 검수에서 알려 줍니다.">
-          <Select
-            value={spec.unmarkedScore == null ? "none" : String(spec.unmarkedScore)}
-            onChange={(v) => set("unmarkedScore", v === "none" ? null : Number(v))}
-            options={[
-              ["none", "누락으로 보기"],
-              ["2", "2점으로 계산(학력평가 관례)"],
-              ["3", "3점으로 계산"],
-            ]}
-          />
-        </Field>
+
         <Field label="선지 배열" hint="짧은 선지는 탭 간격으로 한 줄 5·3·2개, 긴 선지는 한 줄 하나(내어쓰기). 표 형식 선지는 그대로 둡니다.">
           <Select
             value={spec.choiceLayout}
@@ -109,17 +156,7 @@ export default function FormatOptions({ spec, sources, boxFrame, onChange }: Pro
             ]}
           />
         </Field>
-        <Field label="부정어 강조" hint="양식 유의사항은 ‘밑줄, 진하게’, 학교 출제 유의사항(p.6)은 ‘밑줄만 긋고 굵게 표시하지 말 것’으로 서로 다릅니다." warn>
-          <Select
-            value={neg}
-            onChange={(v) => onChange({ ...spec, negation: v === "off" ? "off" : "auto", negationStyle: v === "off" ? spec.negationStyle : (v as FormatSpec["negationStyle"]) })}
-            options={[
-              ["underline-bold", "밑줄 + 진하게 (양식)"],
-              ["underline", "밑줄만 (학교 출제 유의사항)"],
-              ["off", "손대지 않음"],
-            ]}
-          />
-        </Field>
+
       </Group>
 
       <Group title="〈보기〉·표·그림" note={spec.boxWidthHU ? `〈보기〉 상자 폭: 양식 예시 ${(spec.boxWidthHU / 283.46).toFixed(0)}mm` : "〈보기〉 상자 폭: 양식 예시가 없어 단 폭에 맞춥니다."}>
@@ -143,19 +180,8 @@ export default function FormatOptions({ spec, sources, boxFrame, onChange }: Pro
         </div>
       </Group>
 
-      <Group title="쪽·인쇄">
-        <Field label="머리 표·쪽 정보" hint="출제 교사·과목·시행일이 채워진 파일을 고르면 그 머리 표를 씁니다.">
-          <Select
-            value={String(spec.headerFrom)}
-            onChange={(v) => set("headerFrom", v === "template" ? "template" : Number(v))}
-            options={[["template", "양식 원본(빈칸)"], ...sources.map((s, i) => [String(i), s.name] as [string, string])]}
-          />
-        </Field>
-        <div className="space-y-2 self-end">
-          <Check checked={spec.keepTogether} onChange={(v) => set("keepTogether", v)} label="한 문항이 단·쪽에서 쪼개지지 않게(다음 문단과 함께)" />
-          <Check checked={!spec.keepColors} onChange={(v) => set("keepColors", !v)} label="글자색을 모두 검정으로(흑백 인쇄 기준)" />
         </div>
-      </Group>
+      </details>
 
       <p className="border-l-[3px] border-l-ink bg-paper px-3 py-2 text-[12.5px] text-ink-2">
         <b className="text-ink">바꾸지 않는 것</b> — 문항 글자, 기호(〈보기〉 ㄱ·ㄴ·ㄷ, ㉠, 불릿, 괄호), 숫자, 선지 내용. 양식과 다른 기호는 3단계 문항 목록과 편집 검수에 알려 드리니 원본에서 고쳐 주세요.

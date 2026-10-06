@@ -3,7 +3,8 @@ import { assemble } from "./engine/assemble";
 import { stripHwpLineSegs } from "./engine/hwp5";
 import { loadDocument, type LoadedDoc } from "./engine/load";
 import { lint } from "./engine/lint";
-import { hwpxToHwp, layoutInfo, layoutPositions, lineStarts, renderPages, type LossReport } from "./engine/rhwp";
+import { hwpxToHwp, layoutInfo, layoutPositions, lineStarts, renderPreview, type LossReport } from "./engine/rhwp";
+import { previewLayout, studentVariant } from "./engine/preview";
 import { analyzeSource } from "./engine/segment";
 import { analyzeTemplate } from "./engine/template";
 import { tightenOrphans } from "./engine/tracking";
@@ -37,6 +38,12 @@ export interface BuildOutput {
   numbers: Map<string, number>;
   /** 미리보기에서 번호가 보이지 않을 수 있는 문항의 결과 번호(한글에서는 보임) */
   previewNoNumber: number[];
+  /** 문항 ID → 미리보기 쪽(0부터) */
+  pageOf: Map<string, number>;
+  /** 첫 쪽 오른쪽 단을 한글처럼 머리 표 아래에서 시작하도록 미리보기를 맞췄는지 */
+  previewAdjusted: boolean;
+  /** 학생 배부용(선택형 정답 음영을 지운) HWP·HWPX를 만듭니다(누를 때 한 번 만들고 기억). */
+  student: () => Promise<{ hwp: Uint8Array; hwpx: Uint8Array; cleared: number }>;
 }
 
 export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], order: Question[], spec: FormatSpec): Promise<BuildOutput> {
@@ -49,20 +56,35 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
   await tick();
   const out = await hwpxToHwp(res.forRhwp);
   await tick();
-  const svgs = await renderPages(res.forPreview);
+  // 미리보기 그림과 같은 배치로 재야 하므로 줄 배치를 다시 계산하지 않습니다.
+  const pv = await previewLayout(res, spec, (b) => layoutPositions(b, false));
+  await tick();
+  const { svgs, total } = await renderPreview(pv.bytes);
   const hwp = stripHwpLineSegs(out.hwp);
+  const mcqIds = new Set(order.filter((q) => q.kind === "mcq").map((q) => q.id));
+  let studentMemo: Promise<{ hwp: Uint8Array; hwpx: Uint8Array; cleared: number }> | null = null;
+  const student = () =>
+    (studentMemo ??= (async () => {
+      const v = studentVariant(res, mcqIds);
+      const conv = await hwpxToHwp(v.forRhwp);
+      return { hwp: stripHwpLineSegs(conv.hwp), hwpx: v.hwpx, cleared: v.cleared };
+    })());
   const rank = { error: 0, warn: 1, info: 2 } as const;
   const issues = [...res.issues, ...lint(tpl, sources, order, spec, res.numbers)].sort((a, b) => rank[a.severity] - rank[b.severity]);
   return {
     hwp,
     hwpx: res.hwpx,
     svgs,
-    pages: out.pages,
+    // 미리보기를 한글처럼 맞췄으면 그 쪽 수가 한글에 더 가깝습니다.
+    pages: pv.adjusted ? total : out.pages,
     loss: out.loss,
     changes: [...res.changes, ...tracking.changes, ...balance.changes],
     issues,
     numbers: res.numbers,
     previewNoNumber: res.previewNoNumber.map((id) => res.numbers.get(id) ?? 0).filter(Boolean),
+    pageOf: pv.pageOf,
+    previewAdjusted: pv.adjusted,
+    student,
   };
 }
 

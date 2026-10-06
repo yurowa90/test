@@ -84,15 +84,16 @@ export default function TemplateCard({ tpl }: { tpl: TemplateAnalysis }) {
       ))}
 
       <div>
-        <button type="button" onClick={() => setOpen(!open)} className="text-[12px] font-bold text-primary">
+        <button type="button" onClick={() => setOpen(!open)} className="text-[12px] font-bold text-primary" aria-expanded={open}>
           양식 구역 {open ? "접기 ▲" : "펼치기 ▼"}
         </button>
+        <span className="ml-2 text-[11.5px] text-ink-3">숫자는 문단 수 · 초록은 결과에 남기는 구역</span>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {(Object.keys(ZONE_LABEL) as Zone[])
             .filter((z) => counts.get(z))
             .map((z) => (
               <span key={z} className={`border px-2 py-0.5 text-xs ${ZONE_LABEL[z].keep ? "border-ok/40 bg-ok-soft text-ok" : "border-line bg-surface-2 text-ink-2"}`}>
-                {ZONE_LABEL[z].label} {counts.get(z)} · {ZONE_LABEL[z].fate}
+                {ZONE_LABEL[z].label} {counts.get(z)}문단 · {ZONE_LABEL[z].fate}
               </span>
             ))}
         </div>

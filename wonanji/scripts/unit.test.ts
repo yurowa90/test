@@ -1,7 +1,7 @@
 // 합성 문서로 엔진 전체를 점검합니다(실제 출제 파일 없이 실행). 사용: npm test
 import assert from "node:assert/strict";
 import "./node-env";
-import { assemble, defaultOrder } from "../src/engine/assemble";
+import { assemble, defaultOrder, detectMerge } from "../src/engine/assemble";
 import { descendants, kid } from "../src/engine/dom";
 import { getLineSpacing, HeaderIndex } from "../src/engine/header";
 const getLineSpacingOf = (h: HeaderIndex, p: Element) => getLineSpacing(h.paraPr(p.getAttribute("paraPrIDRef") ?? "0")!);
@@ -21,6 +21,10 @@ import { classifyJamo, findCircles } from "../src/engine/ocr/detect";
 import { columnSplit, components } from "../src/engine/ocr/raster";
 import { layoutInfo, layoutPositions, lineStarts } from "../src/engine/rhwp";
 import { balanceColumns } from "../src/engine/balance";
+import { editableParas, isEdited, paraText, restorePara, setParaText } from "../src/engine/edit";
+import { studentVariant } from "../src/engine/preview";
+import { refreshQuestion } from "../src/engine/segment";
+import { exportWork, groupIssues, importWork, parseAnswers } from "../src/work";
 import { tightenOrphans } from "../src/engine/tracking";
 
 let failed = 0;
@@ -416,6 +420,114 @@ await test("문항 배치: 균등 배치 뒤에도 문항 수·구조가 유지�
   const h = new HeaderIndex(HwpxPackage.fromBytes(r.hwpx));
   const fixed = after.filter((p) => kid(h.paraPr(p.getAttribute("paraPrIDRef") ?? "0")!, "switch") && getLineSpacingOf(h, p).type === "FIXED");
   assert.ok(b.changes.length === 0 || fixed.length + after.filter((p) => p.getAttribute("columnBreak") === "1").length >= 1);
+});
+
+
+console.log("수합 방식·교사 지정");
+const lv = (name: string, i: number) => analyzeSource(i, doc(name, makeHwpx(LEVEL2)), tpl);
+await test("수합 방식: 빈 번호가 있으면 번호 분담, 파일마다 1번부터 겹치면 이어 붙이기", () => {
+  assert.equal(detectMerge([s1, s2]), "split");
+  assert.equal(detectMerge([lv("가.hwpx", 0), lv("나.hwpx", 1)]), "append");
+});
+await test("이어 붙이기 순서: 파일 순서대로, 파일 안은 문서 순서", () => {
+  const a = lv("가.hwpx", 0);
+  const b = lv("나.hwpx", 1);
+  const o1 = defaultOrder([a, b], "append");
+  assert.deepEqual(o1.map((q) => `${q.fileIdx}:${q.srcNumber}`), ["0:1", "0:2", "1:1", "1:2"]);
+  const o2 = defaultOrder([a, b], "append", [1, 0]);
+  assert.deepEqual(o2.map((q) => `${q.fileIdx}:${q.srcNumber}`), ["1:1", "1:2", "0:1", "0:2"]);
+  const o3 = defaultOrder([a, b], "split");
+  assert.deepEqual(o3.map((q) => `${q.fileIdx}:${q.srcNumber}`), ["0:1", "1:1", "0:2", "1:2"]);
+});
+await test("검수: 이어 붙이기면 파일끼리 번호 겹침은 정보 1건, 번호 분담이면 확인 필요, 같은 내용은 중복 의심", () => {
+  const src = [lv("가.hwpx", 0), lv("나.hwpx", 1)];
+  const app = lint(tpl, src, defaultOrder(src, "append"), { ...tpl.spec, merge: "append" });
+  assert.ok(!app.some((i) => i.rule === "번호 중복"), "이어 붙이기: 번호 중복 없음");
+  assert.equal(app.filter((i) => i.rule === "번호 새로 매김").length, 1);
+  assert.ok(app.some((i) => i.rule === "중복 문항 의심" && i.severity === "warn"), "같은 문항 두 번");
+  const spl = lint(tpl, src, defaultOrder(src, "split"), { ...tpl.spec, merge: "split" });
+  assert.ok(spl.some((i) => i.rule === "번호 중복" && i.severity === "error"));
+});
+await test("배점 지정: 표기가 있으면 숫자를 바꾸고, 없으면 물음표 뒤에 넣는다", () => {
+  const noScore = analyzeSource(0, doc("무배점.hwpx", makeHwpx([{ pp: 1, text: "다음 중 옳은 것은?" }, { text: "① 가\t② 나\t③ 다\t④ 라\t⑤ 마" }])), tpl);
+  const q = { ...noScore.questions[0], scoreOverride: 4 };
+  const r = assemble({ template: tpl, sources: [noScore], order: [q], spec: tpl.spec });
+  const all = HwpxPackage.fromBytes(r.hwpx).topParagraphs().map((p) => ownText(p)).join("\n");
+  assert.ok(all.includes("옳은 것은? [4.0점]"), all.slice(0, 200));
+  const q1 = { ...order[0], scoreOverride: 3 };
+  const r2 = assemble({ template: tpl, sources: [s1, s2], order: [q1], spec: tpl.spec });
+  const all2 = HwpxPackage.fromBytes(r2.hwpx).topParagraphs().map((p) => ownText(p)).join("\n");
+  assert.ok(all2.includes("[3.0점]") && !all2.includes("[2.5점]"));
+  const iss = lint(tpl, [s1, s2], [q1], tpl.spec);
+  assert.ok(iss.some((i) => i.rule === "배점 지정"));
+});
+await test("기호 바꾸기: 교사가 고른 물결표만 바꾸고 기록을 남긴다", () => {
+  const src = analyzeSource(0, doc("물결.hwpx", makeHwpx([{ pp: 1, text: "10~20 사이의 값으로 옳은 것은? [3점]" }, { text: "① 가\t② 나\t③ 다\t④ 라\t⑤ 마" }])), tpl);
+  const plain = assemble({ template: tpl, sources: [src], order: src.questions, spec: tpl.spec });
+  assert.ok(HwpxPackage.fromBytes(plain.hwpx).topParagraphs().some((p) => ownText(p).includes("10~20")), "단추를 누르기 전에는 그대로");
+  const q = { ...src.questions[0], symbolFixes: [{ fam: "tilde", from: "~", to: "〜" }] };
+  const r = assemble({ template: tpl, sources: [src], order: [q], spec: tpl.spec });
+  assert.ok(HwpxPackage.fromBytes(r.hwpx).topParagraphs().some((p) => ownText(p).includes("10〜20")));
+  assert.ok(r.changes.some((c) => c.kind === "기호 바꿈"));
+  assert.deepEqual(validateHwpx(r.hwpx), []);
+});
+await test("학생 배부용: 선택형 정답 음영만 지우고 교사용은 그대로", () => {
+  const r = assemble({ template: tpl, sources: [s1, s2], order, spec: tpl.spec });
+  const shadedUsed = (bytes: Uint8Array) => {
+    const pk = HwpxPackage.fromBytes(bytes);
+    const h = new HeaderIndex(pk);
+    return descendants(pk.sections[0].documentElement, "run").filter((run) => {
+      const sc = h.charPr(run.getAttribute("charPrIDRef") ?? "")?.getAttribute("shadeColor");
+      return sc && sc !== "none" && !/^#?ffffff$/i.test(sc);
+    }).length;
+  };
+  assert.ok(shadedUsed(r.hwpx) > 0, "교사용에는 정답 음영");
+  const v = studentVariant(r, new Set(order.filter((q) => q.kind === "mcq").map((q) => q.id)));
+  assert.ok(v.cleared > 0);
+  assert.equal(shadedUsed(v.hwpx), 0);
+  assert.ok(shadedUsed(r.hwpx) > 0, "교사용 바이트는 바뀌지 않음");
+  assert.deepEqual(validateHwpx(v.hwpx), []);
+});
+await test("글자 고치기: 고친 문단은 바뀌고 요약이 새로 읽히며, 원래대로 되돌릴 수 있다", () => {
+  const src = analyzeSource(0, doc("고칠.hwpx", makeHwpx(TEACHER1)), tpl);
+  const q = src.questions[0];
+  const p = editableParas(q)[0];
+  const before = paraText(p);
+  setParaText(p, "고친 발문입니다? [2.5점]", new HeaderIndex(src.pkg));
+  refreshQuestion(q);
+  assert.ok(isEdited(p));
+  assert.ok(q.summary.startsWith("고친 발문입니다"), q.summary);
+  assert.ok(restorePara(p));
+  refreshQuestion(q);
+  assert.equal(paraText(p), before);
+});
+await test("정답 붙여넣기: 숫자·원문자·번호-정답 짝", () => {
+  assert.deepEqual(parseAnswers("31254").seq, [3, 1, 2, 5, 4]);
+  assert.deepEqual(parseAnswers("③①②⑤④").seq, [3, 1, 2, 5, 4]);
+  assert.deepEqual(parseAnswers("1-3, 2-1, 10-5").numbered, [[1, 3], [2, 1], [10, 5]]);
+  assert.deepEqual(parseAnswers("1번 ③ 2번 ①").numbered, [[1, 3], [2, 1]]);
+  assert.deepEqual(parseAnswers("3 7 1").bad, ["7"]);
+});
+await test("작업 저장·불러오기: 순서·뺀 문항·정답·배점·옵션이 되살아난다", () => {
+  const st = { order: [...order].reverse(), excluded: new Set([order[1].id]), answers: new Map([[order[0].id, [4]]]), scores: new Map([[order[2].id, 3.5]]), fixes: new Map(), spec: { ...tpl.spec, sizePt: 10.5, merge: "split" as const }, fileOrder: [0, 1] };
+  const json = exportWork(tpl.name, [s1, s2], st);
+  const r = importWork(json, tpl.name, [s1, s2], { ...st, order, excluded: new Set(), answers: new Map(), scores: new Map(), spec: tpl.spec });
+  assert.deepEqual(r.state.order.map((q) => q.id), st.order.map((q) => q.id));
+  assert.ok(r.state.excluded.has(order[1].id));
+  assert.deepEqual(r.state.answers.get(order[0].id), [4]);
+  assert.equal(r.state.scores.get(order[2].id), 3.5);
+  assert.equal(r.state.spec.sizePt, 10.5);
+  assert.equal(r.missing, 0);
+  assert.throws(() => importWork("{}", tpl.name, [s1, s2], st));
+});
+await test("검수 묶기: 번호만 다른 같은 내용은 한 묶음", () => {
+  const g = groupIssues([
+    { severity: "info", rule: "기호 불일치", message: "3번: 물결표 ‘~’", source: "x", questionId: "a" },
+    { severity: "info", rule: "기호 불일치", message: "7번: 물결표 ‘~’", source: "x", questionId: "b" },
+    { severity: "warn", rule: "배점 합계", message: "합계 90점", source: "y" },
+  ]);
+  assert.equal(g.length, 2);
+  assert.deepEqual(g[0].ids, ["a", "b"]);
 });
 
 console.log(failed ? `\n${failed}개 실패` : "\n모두 통과");

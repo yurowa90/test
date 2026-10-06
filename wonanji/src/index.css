@@ -15,7 +15,7 @@
   --color-paper: #f7f3ee;
   --color-ink: #2b1f22;
   --color-ink-2: #5c4a4e;
-  --color-ink-3: #7a6a6e;
+  --color-ink-3: #655458;
   --color-line: #c2b6b6;
   --color-line-strong: #9a8a8b;
   --color-primary: #7a1f2b;
@@ -176,6 +176,14 @@ details.fold[open] > summary::after {
   width: 100%;
   height: auto;
   background: #fff;
+}
+
+/* 고정 작업 띠(높이는 화면 폭에 따라 달라 App이 --nav-h로 알려 줌) 아래로 스크롤 */
+.scroll-mt-nav {
+  scroll-margin-top: calc(var(--nav-h, 48px) + 16px);
+}
+.top-nav {
+  top: calc(var(--nav-h, 48px) + 8px);
 }
 
 *:focus-visible {
