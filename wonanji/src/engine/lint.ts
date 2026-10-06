@@ -1,6 +1,7 @@
 // 편집 검수: 합친 원안지를 학교 양식·학교 출제 지침·평가문항 제작 연수 자료에 비추어 점검합니다.
 // 자동으로 고치는 규칙(서식)과 달리, 여기 규칙은 판단이 필요한 항목이라 "알림"으로만 보여 줍니다.
 import { descendants } from "./dom";
+import { isEditable, isEdited } from "./edit";
 import { HeaderIndex } from "./header";
 import { negationSpans } from "./normalize";
 import { collectSymbols, mergeProfiles, SYMBOL_LABEL, symbolMismatches } from "./symbols";
@@ -120,7 +121,7 @@ export function lint(
     }
   } else {
     const missing = missingIn(mcqs);
-    if (missing.length) add("warn", "번호 누락", `원래 번호 ${compress(missing)}번이 어느 파일에도 없습니다. 문항 파일이 빠졌는지 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
+    if (missing.length) add("warn", "번호 누락", `원래 번호 ${compress(missing)}번이 결과에 없습니다. 3단계에서 뺀 문항이 아니라면 문항 파일이 빠졌는지 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
   }
   // 같은 문항을 두 번 올린 경우(같은 시험지의 PDF와 사진 등): 글자 두 개씩 묶은 조각이 많이 겹치면 알립니다.
   const grams = new Map<string, Set<string>>();
@@ -142,10 +143,13 @@ export function lint(
         if (a.size < 25 || b.size < 25) continue;
         let inter = 0;
         for (const x of a) if (b.has(x)) inter++;
-        const sim = inter / (a.size + b.size - inter);
-        if (sim >= 0.6) {
+        // 자카드(합집합 대비)와 포함도(짧은 쪽 대비). 사진은 글이 일부만 인식되기 쉬워 포함도로도 봅니다.
+        // 실제 파일 측정: 같은 문항(PDF↔사진) 포함도 0.77~0.94, 서로 다른 시험의 문항끼리는 최대 0.60.
+        const jac = inter / (a.size + b.size - inter);
+        const contain = inter / Math.min(a.size, b.size);
+        if (jac >= 0.6 || (contain >= 0.72 && Math.min(a.size, b.size) >= 40)) {
           const src = (q: Question) => `「${q.fileName}」 원래 ${q.srcNumber ?? "?"}번`;
-          add("warn", "중복 문항 의심", `${num(list[i], numbers)}과 ${num(list[j], numbers)}의 내용이 ${Math.round(sim * 100)}% 같습니다(${src(list[i])}, ${src(list[j])}). 같은 문항을 두 파일에서 올렸다면 하나를 빼세요.`, cite.merge, list[j]);
+          add("warn", "중복 문항 의심", `${num(list[i], numbers)}과 ${num(list[j], numbers)}의 내용이 많이 겹칩니다(짧은 쪽 글의 ${Math.round(contain * 100)}%, ${src(list[i])}, ${src(list[j])}). 같은 문항을 두 파일에서 올렸다면 하나를 빼세요.`, cite.merge, list[j]);
         }
       }
     }
@@ -296,14 +300,17 @@ export function lint(
     const colors = new Set<string>();
     let unsure = "";
     let unsureN = 0;
+    let lockedN = 0;
     for (const p of q.paras.flatMap((x) => [x, ...descendants(x, "p")])) {
       let run = "";
+      const locked = !isEditable(p) && !isEdited(p);
       for (const it of itemsOf(p)) {
         if (it.kind !== "ch" || !it.ch.trim()) continue;
         const c = h.charPr(it.cp.split("|")[0])?.getAttribute("textColor");
         if (c && c.toUpperCase() === UNSURE_COLOR) {
           run += it.ch;
           unsureN++;
+          if (locked) lockedN++;
           continue;
         }
         if (run) unsure += (unsure ? " · " : "") + run;
@@ -314,7 +321,13 @@ export function lint(
     }
     // 이미지에서 인식한 글자 가운데 확신이 낮아 빨갛게 둔 것: 원본과 대조해야 합니다.
     // 10자 이상이면 문장이 깨졌을 가능성이 커서 ‘확인 필요’로 올립니다.
-    if (unsureN) add(unsureN >= 10 ? "error" : "warn", "글자 인식 확인", `${num(q, numbers)}: 사진에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. 3단계에서 문항을 펼쳐 원본 사진과 대조해 고치세요(고친 글자는 검정으로 바뀝니다).`, "사진 글자 인식(OCR) 결과", q);
+    if (unsureN) {
+      const where =
+        lockedN === unsureN
+          ? "모두 수식·그림이 든 문단에 있어 화면에서는 고칠 수 없으니, 한글에서 원본 사진과 대조해 고치고 글자색을 검정으로 바꾸세요."
+          : `3단계에서 문항을 펼쳐 원본 사진과 대조해 고치세요(고친 문단의 빨간 글자는 검정이 됩니다).${lockedN ? ` 이 가운데 ${lockedN}자는 수식·그림이 든 문단에 있어 한글에서 고쳐야 합니다.` : ""}`;
+      add(unsureN >= 10 ? "error" : "warn", "글자 인식 확인", `${num(q, numbers)}: 사진에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. ${where}`, "사진 글자 인식(OCR) 결과", q);
+    }
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
 
     // 기호: 양식(없으면 문항 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
@@ -335,7 +348,7 @@ export function lint(
         fix: fix.length ? fix : undefined,
       });
     }
-    if (q.symbolFixes?.length) add("info", "기호 바꿈", `${num(q, numbers)}: ${q.symbolFixes.map((f) => `${SYMBOL_LABEL[f.fam] ?? f.fam} ‘${f.from}’ → ‘${f.to}’`).join(" · ")} (교사 확인)`, cite.symbols, q);
+    if (q.symbolFixes?.length) add("info", "기호 바꿈", `${num(q, numbers)}: ${q.symbolFixes.map((f) => `${SYMBOL_LABEL[f.fam] ?? f.fam} ‘${f.from}’ → ‘${f.to}’`).join(" · ")} (교사 확인)`, "교사가 화면에서 고른 기호 바꾸기 — 앱이 스스로 바꾸지 않음", q);
     for (const el of q.paras.flatMap((p) => descendants(p, "pos"))) {
       const rel = `${el.getAttribute("vertRelTo")}/${el.getAttribute("horzRelTo")}`;
       if (el.getAttribute("treatAsChar") === "0" && /PAPER|PAGE/.test(rel)) {

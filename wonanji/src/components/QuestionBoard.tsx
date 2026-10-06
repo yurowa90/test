@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { editableParas, isEdited, paraSegments, paraText, restorePara, setParaText, unsureCount } from "../engine/edit";
+import { editableParas, lockedUnsureParas, isEdited, paraSegments, paraText, restorePara, setParaText, unsureCount } from "../engine/edit";
 import { HeaderIndex } from "../engine/header";
 import { refreshQuestion } from "../engine/segment";
 import type { FormatSpec, Issue, MergeMode, Question, SourceAnalysis, SymbolFix } from "../engine/types";
@@ -169,7 +169,17 @@ export default function QuestionBoard(props: Props) {
                 type="button"
                 role="radio"
                 aria-checked={spec.merge === m}
+                data-merge={m}
+                tabIndex={spec.merge === m ? 0 : -1}
                 onClick={() => spec.merge !== m && props.onMerge(m)}
+                onKeyDown={(e) => {
+                  // 라디오 묶음 관례: 방향키로 선택을 옮기고, 탭 정지점은 선택된 항목 하나
+                  if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(e.key)) return;
+                  e.preventDefault();
+                  const next: MergeMode = m === "split" ? "append" : "split";
+                  props.onMerge(next);
+                  (e.currentTarget.parentElement?.querySelector(`[data-merge="${next}"]`) as HTMLElement | null)?.focus();
+                }}
                 className={`border px-3 py-2 text-left ${spec.merge === m ? "border-primary bg-primary-soft" : "border-line-strong hover:border-primary"}`}
               >
                 <span className="flex items-center gap-2 text-[13px] font-bold text-ink">
@@ -273,10 +283,12 @@ export default function QuestionBoard(props: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {g.list.map((q) => (
+                  {g.list.map((q, k) => (
                     <Row
                       key={q.id}
                       q={q}
+                      first={k === 0}
+                      last={k === g.list.length - 1}
                       off={excluded.has(q.id)}
                       finalNo={finalNo.get(q.id)}
                       label={label(q)}
@@ -326,6 +338,9 @@ function IconBtn({ label, disabled, onClick, children }: { label: string; disabl
 interface RowProps extends Props {
   q: Question;
   off: boolean;
+  /** 같은 종류에서 맨 위·맨 아래(옮길 곳이 없는 방향의 단추는 끔) */
+  first: boolean;
+  last: boolean;
   finalNo?: number;
   label: string;
   list: Issue[];
@@ -456,10 +471,10 @@ function Row(p: RowProps) {
           {q.fileName}
         </td>
         <td className="whitespace-nowrap px-1 py-1 text-center">
-          <IconBtn label={`${p.label} 위로`} onClick={() => p.onMove(q.id, -1)}>
+          <IconBtn label={`${p.label} 위로`} disabled={p.first} onClick={() => p.onMove(q.id, -1)}>
             ↑
           </IconBtn>
-          <IconBtn label={`${p.label} 아래로`} onClick={() => p.onMove(q.id, 1)}>
+          <IconBtn label={`${p.label} 아래로`} disabled={p.last} onClick={() => p.onMove(q.id, 1)}>
             ↓
           </IconBtn>
         </td>
@@ -533,6 +548,8 @@ function TextEditor({ q, source, imageUrl, onEdited }: { q: Question; source?: S
   const index = useMemo(() => (source ? new HeaderIndex(source.pkg) : null), [source]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const paras = useMemo(() => editableParas(q), [q, rev]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const locked = useMemo(() => (index ? lockedUnsureParas(q, index) : []), [q, index, rev]);
   if (!index) return null;
   const unsureTotal = paras.reduce((a, p) => a + unsureCount(p, index), 0);
   const done = () => {
@@ -547,7 +564,7 @@ function TextEditor({ q, source, imageUrl, onEdited }: { q: Question; source?: S
         <figcaption className="flex items-center justify-between text-[11px] font-bold text-ink-3">
           <span>원본 사진(전체) — 이 문항 부분을 찾아 대조하세요</span>
           <button type="button" onClick={() => setZoom(!zoom)} className="btn btn-line !min-h-0 !px-2 !py-0.5 text-[11px]" aria-pressed={zoom}>
-            {zoom ? "맞춰 보기" : "크게 보기"}
+            크게 보기
           </button>
         </figcaption>
         <div className="mt-1 max-h-[28rem] overflow-auto border border-line bg-white">
@@ -556,7 +573,7 @@ function TextEditor({ q, source, imageUrl, onEdited }: { q: Question; source?: S
       </figure>
       <div className="min-w-0">
         <p className="text-[11px] font-bold text-ink-3">
-          인식한 글자 — <span className="text-danger">빨간 글자</span> {unsureTotal}자는 확신이 낮습니다. 문단의 ‘고치기’를 눌러 원본대로 고치세요.
+          인식한 글자 — <span className="text-danger">빨간 글자</span> {unsureTotal}자는 확신이 낮습니다. 문단의 ‘고치기’를 눌러 원본대로 고치세요. 넣은 문단의 빨간 글자는 검정이 되고(고칠 것이 없으면 그대로 넣기만 해도 됨), 바꾸지 않은 글자의 밑줄·첨자는 그대로 남습니다.
         </p>
         <ol className="mt-1 max-h-[28rem] space-y-1.5 overflow-auto">
           {paras.map((p, i) => (
@@ -569,7 +586,7 @@ function TextEditor({ q, source, imageUrl, onEdited }: { q: Question; source?: S
                       type="button"
                       className="btn btn-primary !min-h-0 !px-2 !py-0.5 text-[12px]"
                       onClick={() => {
-                        if (draft !== paraText(p)) setParaText(p, draft, index);
+                        setParaText(p, draft, index);
                         done();
                       }}
                     >
@@ -623,6 +640,26 @@ function TextEditor({ q, source, imageUrl, onEdited }: { q: Question; source?: S
             </li>
           ))}
         </ol>
+        {locked.length > 0 && (
+          <div className="mt-2 border-l-[3px] border-l-warn bg-warn-soft px-2 py-1.5 text-[12px] text-warn">
+            <p className="font-bold">수식·그림이 든 문단 {locked.length}개 — 화면에서 고칠 수 없으니 한글에서 원본과 대조해 고치세요</p>
+            <ul className="mt-1 space-y-1 text-ink-2">
+              {locked.map((p, i) => (
+                <li key={i} className="whitespace-pre-wrap">
+                  {paraSegments(p, index).map((s, k) =>
+                    s.unsure ? (
+                      <mark key={k} className="bg-danger-soft text-danger underline decoration-danger/50">
+                        {s.text}
+                      </mark>
+                    ) : (
+                      <span key={k}>{s.text.replace(/￼/g, "[개체]")}</span>
+                    ),
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -636,10 +673,15 @@ function BulkAnswers({ order, excluded, sources, finalNo, onApply }: { order: Qu
   const list = target === "all" ? included : sources[Number(target)]?.questions.filter((q) => q.kind === "mcq") ?? [];
   const parsed = parseAnswers(text);
   const numberOf = (q: Question) => (target === "all" ? finalNo.get(q.id) : q.srcNumber);
-  const pairs: [string, number][] = parsed.numbered
-    ? parsed.numbered.map(([n, a]) => [list.find((q) => numberOf(q) === n)?.id ?? "", a] as [string, number]).filter(([id]) => id)
-    : parsed.seq.slice(0, list.length).map((a, i) => [list[i].id, a]);
   const count = parsed.numbered ? parsed.numbered.length : parsed.seq.length;
+  // 순서 입력이 문항보다 많으면 어디가 어긋났는지 알 수 없어 넣지 않습니다(적으면 앞에서부터).
+  const tooMany = !parsed.numbered && count > list.length;
+  const pairs: [string, number][] = parsed.mixed || tooMany
+    ? []
+    : parsed.numbered
+      ? parsed.numbered.map(([n, a]) => [list.find((q) => numberOf(q) === n)?.id ?? "", a] as [string, number]).filter(([id]) => id)
+      : parsed.seq.map((a, i) => [list[i].id, a]);
+  const unknownNo = parsed.numbered ? parsed.numbered.length - pairs.length : 0;
   return (
     <div className="border border-line bg-paper px-3 py-3">
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
@@ -667,11 +709,22 @@ function BulkAnswers({ order, excluded, sources, finalNo, onApply }: { order: Qu
         aria-label="정답 붙여넣기"
       />
       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px]">
-        <span className={parsed.bad.length || (count && count !== list.length && !parsed.numbered) ? "text-warn" : "text-ink-2"}>
-          {parsed.bad.length
-            ? `1~5가 아닌 숫자(${parsed.bad.join(", ")})는 건너뜁니다. `
-            : ""}
-          읽은 정답 {count}개 / 대상 {list.length}문항{parsed.numbered ? " (번호-정답 짝으로 읽음)" : count && count !== list.length ? " — 개수가 다릅니다. 앞에서부터 넣습니다." : ""}
+        <span className={parsed.mixed || tooMany || unknownNo || parsed.bad.length || (count && count !== list.length && !parsed.numbered) ? "text-warn" : "text-ink-2"}>
+          {parsed.mixed ? (
+            "번호-정답 짝(예: 7-2)과 순서대로 쓴 정답이 섞여 있습니다. 한 가지 방식으로만 넣어 주세요."
+          ) : (
+            <>
+              {parsed.bad.length ? `1~5가 아닌 숫자(${parsed.bad.join(", ")})는 건너뜁니다. ` : ""}
+              읽은 정답 {count}개 / 대상 {list.length}문항
+              {parsed.numbered
+                ? ` (번호-정답 짝으로 읽음${unknownNo ? ` — 대상에 없는 번호 ${unknownNo}개는 건너뜀` : ""})`
+                : tooMany
+                  ? " — 정답이 문항보다 많아 넣지 않습니다. 대상이나 입력을 확인하세요."
+                  : count && count !== list.length
+                    ? ` — 개수가 다릅니다. 앞에서부터 ${count}문항에만 넣습니다.`
+                    : ""}
+            </>
+          )}
         </span>
         <button
           type="button"

@@ -9,7 +9,8 @@ import { analyzeSource } from "./engine/segment";
 import { analyzeTemplate } from "./engine/template";
 import { tightenOrphans } from "./engine/tracking";
 import { balanceColumns } from "./engine/balance";
-import type { Change, FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./engine/types";
+import type { Change, FormatSpec, Issue, Question, SourceAnalysis, TeacherEdit, TemplateAnalysis } from "./engine/types";
+import { teacherEdits } from "./engine/edit";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -42,11 +43,19 @@ export interface BuildOutput {
   pageOf: Map<string, number>;
   /** 첫 쪽 오른쪽 단을 한글처럼 머리 표 아래에서 시작하도록 미리보기를 맞췄는지 */
   previewAdjusted: boolean;
+  /** 맞추지 못해 미리보기 첫 쪽 오른쪽 단이 머리 표와 겹쳐 보일 수 있음 */
+  previewOverlapRisk: boolean;
   /** 학생 배부용(선택형 정답 음영을 지운) HWP·HWPX를 만듭니다(누를 때 한 번 만들고 기억). */
   student: () => Promise<{ hwp: Uint8Array; hwpx: Uint8Array; cleared: number }>;
+  /** 이 결과를 만들 때의 문항(순서·정답·배점 지정 포함). 결과를 만든 뒤 화면에서 바꾼 것과 섞지 않으려고 둡니다. */
+  order: Question[];
+  /** 교사가 화면에서 고친 문단(바꾸기 전·후) */
+  teacherEdits: TeacherEdit[];
 }
 
 export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], order: Question[], spec: FormatSpec): Promise<BuildOutput> {
+  // 만드는 동안 화면에서 글을 고쳐도 섞이지 않게, 시작할 때 읽어 둡니다.
+  const edits: TeacherEdit[] = order.flatMap((q) => teacherEdits(q).map((e) => ({ questionId: q.id, ...e })));
   await tick();
   const res = assemble({ template: tpl, sources, order, spec });
   await tick();
@@ -84,6 +93,9 @@ export async function build(tpl: TemplateAnalysis, sources: SourceAnalysis[], or
     previewNoNumber: res.previewNoNumber.map((id) => res.numbers.get(id) ?? 0).filter(Boolean),
     pageOf: pv.pageOf,
     previewAdjusted: pv.adjusted,
+    previewOverlapRisk: pv.overlapRisk,
+    order,
+    teacherEdits: edits,
     student,
   };
 }

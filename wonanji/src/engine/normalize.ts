@@ -5,7 +5,7 @@ import { descendants, hp, kid, kids } from "./dom";
 import { getMargin, type Importer } from "./header";
 import { floatRight, isInline, objKind, objWidth, setObjWidth, shrinkFloatOffset, topObjects } from "./objects";
 import { charPositions } from "./pagectl";
-import { indexText, isBlank, itemsOf, replaceItems, restyle, shiftLinesegs, textOf, trimLeading, trimTrailing, type Item } from "./text";
+import { indexText, isBlank, itemsOf, ownText, replaceItems, restyle, shiftLinesegs, textOf, trimLeading, trimTrailing, type Item } from "./text";
 import type { Change, FormatSpec, Issue, Question, SymbolFix } from "./types";
 
 /** 배점 숫자 표기: 소수점 한 자리(4 → 4.0) 또는 정수 그대로(4 → 4) */
@@ -453,27 +453,53 @@ function renumberEssay(p: Element, n: number, numberSizeHU: number): boolean {
 }
 
 const BOGI_REF = /([<〈＜《[［])\s*보\s*기\s*([>〉＞》\]］])/g;
+/** 발문 속 〈보기〉로 세는 줄(symbols.ts의 검출과 같은 조건) */
+const BOGI_REF_LINE = /고른|에서|를\s*참고|의\s*내용/;
+/** 가운뎃점으로 세는 자리(symbols.ts의 검출과 같은 조건: 앞뒤가 글자·숫자) */
+const MIDDOT_AT = /(?<=[가-힣A-Za-z0-9)\]])\s?([·ㆍ∙])\s?(?=[가-힣A-Za-z0-9(])/g;
 
 /**
- * 교사가 확인하고 고른 기호 바꾸기. 한 글자 기호(물결표·가운뎃점)와 전각 괄호는 표 안까지,
- * 발문 속 〈보기〉는 표 밖 문단에서만 바꿉니다(상자 표시는 상자 틀이 정함). 바꾼 개수를 돌려줍니다.
+ * 교사가 확인하고 고른 기호 바꾸기. 검출(symbols.ts)과 같은 범위만 바꿉니다:
+ * 물결표·전각 괄호는 모든 자리, 가운뎃점은 글자·숫자 사이에 낀 것만(아래아 ‘ㆍ’·줄머리 ‘·’는 그대로),
+ * 발문 속 〈보기〉는 발문 어휘(고른·에서 …)가 있는 줄의 것만(상자 표시는 그대로). 표 안 문단도 같은 규칙입니다.
+ * 괄호 글자만 그 자리에서 바꿔 ‘보기’의 글자 모양은 남깁니다. 바꾼 개수를 돌려줍니다.
  */
 export function applySymbolFixes(paras: Element[], fixes: SymbolFix[]): number {
   let n = 0;
   const all = paras.flatMap((p) => [p, ...descendants(p, "p")]);
   for (const f of fixes) {
-    if (f.fam === "bogiRef") {
-      for (const p of paras) {
-        for (let guard = 0; guard < 8; guard++) {
-          const items = itemsOf(p);
-          const ix = indexText(items);
-          const m = [...ix.text.matchAll(BOGI_REF)].find((x) => `${x[1]}보기${x[2]}` === f.from);
-          if (!m) break;
-          const [a, b] = ix.range(m.index!, m.index! + m[0].length);
-          if (items.slice(a, b).some((i) => i.kind === "obj")) break;
-          replaceItems(items, a, b, f.to);
-          n++;
+    if (f.fam === "bogiRef" || f.fam === "middot") {
+      for (const p of all) {
+        const items = itemsOf(p);
+        const ix = indexText(items);
+        // 바꿀 글자 항목 [번호, 새 글자]; 뒤에서부터 바꿔 앞 항목의 위치가 흔들리지 않게 합니다.
+        const edits: [number, string][] = [];
+        let hits = 0;
+        if (f.fam === "middot") {
+          for (const m of ix.text.matchAll(MIDDOT_AT)) {
+            if (m[1] !== f.from) continue;
+            const at = m.index! + m[0].indexOf(m[1]);
+            edits.push([ix.range(at, at + 1)[0], f.to]);
+            hits++;
+          }
+        } else {
+          for (const m of ix.text.matchAll(BOGI_REF)) {
+            if (`${m[1]}보기${m[2]}` !== f.from) continue;
+            const s0 = ix.text.lastIndexOf("\n", m.index!) + 1;
+            const e0 = ix.text.indexOf("\n", m.index!);
+            if (!BOGI_REF_LINE.test(ix.text.slice(s0, e0 < 0 ? undefined : e0))) continue;
+            const [a, b] = ix.range(m.index!, m.index! + m[0].length);
+            const span = items.slice(a, b);
+            if (span.some((i) => i.kind === "obj" || i.kind === "mark")) continue;
+            // 여는·닫는 괄호는 바꾸고, 괄호 안 공백(‘< 보 기 >’)은 양식 표기에 맞춰 지웁니다. ‘보기’ 두 글자는 그대로.
+            edits.push([a, f.to[0]], [b - 1, f.to[f.to.length - 1]]);
+            for (let k = a + 1; k < b - 1; k++) if (!items[k].ch.trim()) edits.push([k, ""]);
+            hits++;
+          }
         }
+        if (!edits.length) continue;
+        n += hits;
+        for (const [k, t] of edits.sort((x, y) => y[0] - x[0])) replaceItems(items, k, k + 1, t);
       }
       continue;
     }
@@ -498,42 +524,91 @@ export function applySymbolFixes(paras: Element[], fixes: SymbolFix[]): number {
   return n;
 }
 
+/** 문단의 마지막 글자 항목 다음 자리(뒤 공백 제외). 글자가 없으면 -1. */
+function afterLastChar(items: Item[]): number {
+  for (let k = items.length - 1; k >= 0; k--) if (items[k].kind === "ch" && items[k].ch.trim()) return k + 1;
+  return -1;
+}
+
 /**
- * 교사가 화면에서 정한 배점을 결과에 씁니다. 배점 표기가 있으면 그 숫자를, 없으면 발문의 마지막 물음표 뒤
- * (없으면 발문 끝)에 [x점]을 넣습니다. 선지 문단에는 넣지 않습니다.
+ * 교사가 화면에서 정한 배점을 결과에 씁니다(선지 문단에는 넣지 않음).
+ * - 배점 표기가 있으면 그 숫자를 바꿉니다. 논술형은 머리 문단(【문항n-논술형】 줄)의 표기를 총점으로 보고,
+ *   머리에 없고 하위 문항 배점이 여럿이면 어느 것을 바꿀지 모호하므로 바꾸지 않습니다.
+ * - 빈 배점 칸 ‘[ 점]’이 있으면 그 칸을 채웁니다.
+ * - 둘 다 없으면 선택형은 발문의 마지막 물음표가 있는 문단 끝(‘(단, …)’ 단서 뒤), 논술형은 ‘~시오.’ 문단 끝에 넣습니다.
+ * - 양식이 이 배점을 표기하지 않는 관례(예: 2점 생략)면 표기를 넣지 않고, 있던 표기는 지웁니다.
+ * 돌려주는 값: 변경 기록 문구, 바꾸지 못했으면 { skipped: 이유 }.
  */
-export function applyScoreOverride(paras: Element[], firstChoice: number, score: number, decimal: boolean): string | null {
-  const want = `[${formatScore(score, decimal)}점]`;
-  for (let i = paras.length - 1; i >= 0; i--) {
-    const items = itemsOf(paras[i]);
-    const ix = indexText(items);
-    const ms = [...ix.text.matchAll(RX.score)];
-    const m = ms[ms.length - 1];
-    if (!m) continue;
-    const [a, b] = ix.range(m.index!, m.index! + m[0].length);
-    if (items.slice(a, b).some((it) => it.kind === "obj" || it.kind === "mark")) return null;
-    if (m[0] === want) return null;
-    replaceItems(items, a, b, want);
-    return `${m[0]} → ${want}(화면에서 지정)`;
+export function applyScoreOverride(
+  paras: Element[],
+  q: Pick<Question, "kind" | "headIdx" | "choices">,
+  score: number,
+  spec: Pick<FormatSpec, "scoreDecimal" | "unmarkedScore">,
+): string | { skipped: string } | null {
+  const want = `[${formatScore(score, spec.scoreDecimal)}점]`;
+  const omit = spec.unmarkedScore != null && score === spec.unmarkedScore;
+  const headIdx = Math.min(q.headIdx ?? 0, paras.length - 1);
+  const stemEnd = Math.max(headIdx + 1, Math.min(paras.length, q.choices?.paraIdx[0] ?? paras.length));
+  type Hit = { p: number; items: Item[]; a: number; b: number; raw: string };
+  const find = (rx: RegExp, from: number, to: number): Hit[] => {
+    const hits: Hit[] = [];
+    for (let i = from; i < to; i++) {
+      const items = itemsOf(paras[i]);
+      const ix = indexText(items);
+      for (const m of ix.text.matchAll(new RegExp(rx.source, "g"))) {
+        const [a, b] = ix.range(m.index!, m.index! + m[0].length);
+        hits.push({ p: i, items, a, b, raw: m[0] });
+      }
+    }
+    return hits;
+  };
+  const put = (h: Hit, text: string) => {
+    if (h.items.slice(h.a, h.b).some((it) => it.kind === "obj" || it.kind === "mark")) return false;
+    // 표기를 지울 때는 앞 공백 하나도 함께 지웁니다.
+    const a = !text && h.a > 0 && h.items[h.a - 1].kind === "ch" && !h.items[h.a - 1].ch.trim() ? h.a - 1 : h.a;
+    replaceItems(h.items, a, h.b, text);
+    return true;
+  };
+
+  let marks = find(RX.score, 0, paras.length);
+  if (q.kind === "essay" && marks.length) {
+    const head = marks.filter((h) => h.p === headIdx);
+    if (head.length) marks = [head[0]];
+    else if (marks.length > 1) return { skipped: `하위 문항 배점이 ${marks.length}곳(${marks.map((h) => h.raw).join(" ")})이라 어느 것을 바꿀지 정할 수 없어 그대로 둠` };
   }
-  const stemEnd = Math.max(1, Math.min(paras.length, firstChoice));
-  for (let i = stemEnd - 1; i >= 0; i--) {
-    const items = itemsOf(paras[i]);
-    const ix = indexText(items);
-    const q = ix.text.lastIndexOf("?");
-    if (q < 0) continue;
-    const [, b] = ix.range(q, q + 1);
-    replaceItems(items, b, b, ` ${want}`);
-    return `배점 표기가 없어 물음표 뒤에 ${want}을 넣음(화면에서 지정)`;
+  const mark = marks[marks.length - 1];
+  if (mark) {
+    if (omit) return put(mark, "") ? `${mark.raw} 표기를 지움(${formatScore(score, spec.scoreDecimal)}점은 표기하지 않는 양식, 화면에서 지정)` : null;
+    if (mark.raw === want) return null;
+    return put(mark, want) ? `${mark.raw} → ${want}(화면에서 지정)` : null;
   }
-  for (let i = stemEnd - 1; i >= 0; i--) {
-    const items = itemsOf(paras[i]);
-    const last = items.map((it, k) => (it.kind === "ch" ? k : -1)).filter((k) => k >= 0).pop();
-    if (last == null) continue;
-    replaceItems(items, last + 1, last + 1, ` ${want}`);
-    return `배점 표기가 없어 발문 끝에 ${want}을 넣음(화면에서 지정)`;
+  const blanks = find(RX.emptyScore, 0, paras.length);
+  const blank = blanks[blanks.length - 1];
+  if (blank) {
+    if (omit) return put(blank, "") ? `빈 배점 칸 ${blank.raw}을 지움(${formatScore(score, spec.scoreDecimal)}점은 표기하지 않는 양식, 화면에서 지정)` : null;
+    return put(blank, want) ? `빈 배점 칸 ${blank.raw}에 ${want}을 채움(화면에서 지정)` : null;
   }
-  return null;
+  if (omit) return null;
+
+  // 넣을 문단: 선택형은 마지막 물음표가 있는 발문 문단, 논술형은 ‘~시오’로 끝나는 마지막 문단(제시문 속 물음표는 보지 않음).
+  let at = -1;
+  let where = "";
+  for (let i = stemEnd - 1; i >= headIdx && at < 0; i--) {
+    const t = ownText(paras[i]);
+    if (q.kind === "essay" ? /시오\s*[.。]?\s*$/.test(t.replace(/￼/g, "").trim()) : t.includes("?")) {
+      at = i;
+      where = q.kind === "essay" ? "‘~시오.’ 문단 끝" : t.slice(t.lastIndexOf("?") + 1).trim() ? "물음표가 있는 발문 문단 끝(단서 뒤)" : "물음표 뒤";
+    }
+  }
+  if (at < 0) {
+    for (let i = stemEnd - 1; i >= headIdx && at < 0; i--) if (afterLastChar(itemsOf(paras[i])) >= 0) at = i;
+    where = "발문 끝";
+  }
+  if (at < 0) return { skipped: "배점을 넣을 발문 문단을 찾지 못해 그대로 둠" };
+  const items = itemsOf(paras[at]);
+  const k = afterLastChar(items);
+  replaceItems(items, k, k, ` ${want}`);
+  return `배점 표기가 없어 ${where}에 ${want}을 넣음(화면에서 지정)`;
 }
 
 export function buildQuestion(
@@ -547,6 +622,7 @@ export function buildQuestion(
   const changes: Change[] = [];
   const issues: Issue[] = [];
   const log = (kind: string, detail: string) => changes.push({ questionId: q.id, kind, detail });
+  const logTeacher = (kind: string, detail: string) => changes.push({ questionId: q.id, kind, detail, byTeacher: true });
   const warn = (message: string) =>
     issues.push({ severity: "warn", rule: "개체 크기", message, source: "양식 배치 규격(단 폭) — 결과 원안지", questionId: q.id });
   let paras = q.paras.map((p) => doc.importNode(p, true) as Element);
@@ -565,26 +641,35 @@ export function buildQuestion(
   // 0) 교사가 화면에서 고른 기호 바꾸기와 배점(교사가 단추·입력으로 정한 것만)
   if (q.symbolFixes?.length) {
     const n = applySymbolFixes(paras, q.symbolFixes);
-    if (n) log("기호 바꿈", `${q.symbolFixes.map((f) => `‘${f.from}’ → ‘${f.to}’`).join(", ")} ${n}곳(교사 확인)`);
+    if (n) logTeacher("기호 바꿈", `${q.symbolFixes.map((f) => `‘${f.from}’ → ‘${f.to}’`).join(", ")} ${n}곳(교사 확인)`);
   }
   if (q.scoreOverride != null) {
-    const d = applyScoreOverride(paras, q.choices?.paraIdx[0] ?? paras.length, q.scoreOverride, spec.scoreDecimal);
-    if (d) log("배점", d);
+    const d = applyScoreOverride(paras, q, q.scoreOverride, spec);
+    if (typeof d === "string") logTeacher("배점", d);
+    else if (d)
+      issues.push({ severity: "warn", rule: "배점 지정", message: `화면에서 지정한 배점을 결과에 넣지 못했습니다: ${d.skipped}. 한글에서 직접 고치세요.`, source: "교사 지정 배점", questionId: q.id });
   }
 
-  // 1-1) 교사가 화면에서 지정한 정답: 선지 번호(①~⑤)에 정답 음영, 다른 번호의 음영은 지움(글자는 그대로)
+  // 1-1) 교사가 화면에서 지정한 정답: 선지 번호(①~⑤)에 정답 음영. 지정하지 않은 선지 구간(번호부터 다음 번호 전까지,
+  //      정답 판정과 같은 범위)에 남은 원래 형광펜 음영은 지웁니다(글자는 그대로).
   if (q.kind === "mcq" && q.answerOverride) {
     const want = new Set(q.answerOverride);
     for (const p of paras.flatMap((x) => [x, ...descendants(x, "p")])) {
-      restyle(p, (it) => {
-        if (it.kind !== "ch") return null;
-        const ci = circledIndex(it.ch);
-        if (ci < 0) return null;
-        if (want.has(ci + 1)) return "shade=#FFFF00";
+      const choiceAt: number[] = [];
+      let cur = -1;
+      for (const it of itemsOf(p)) {
+        if (it.kind === "ch" && circledIndex(it.ch) >= 0) cur = circledIndex(it.ch);
+        choiceAt.push(cur);
+      }
+      restyle(p, (it, i) => {
+        const c = choiceAt[i] ?? -1;
+        if (c < 0) return null;
+        if (it.kind === "ch" && circledIndex(it.ch) >= 0 && want.has(c + 1)) return "shade=#FFFF00";
+        if (want.has(c + 1)) return null;
         return importer.src.shadeOf(it.cp) ? "shade=none" : null;
       });
     }
-    log("정답", `화면에서 지정한 정답 ${[...want].map((a) => "①②③④⑤"[a - 1]).join("")}에 음영 표시`);
+    logTeacher("정답", `화면에서 지정한 정답 ${[...want].map((a) => "①②③④⑤"[a - 1]).join("")}에 음영 표시`);
   }
 
   // 2) 선지 다시 짜기

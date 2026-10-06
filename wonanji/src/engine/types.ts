@@ -196,4 +196,13 @@ export interface Change {
   questionId: string | null;
   kind: string;
   detail: string;
+  /** 교사가 화면에서 고른 편집(정답·배점·기호 바꾸기)으로 생긴 변경. 앱이 스스로 한 형식 정리와 따로 보여 줍니다. */
+  byTeacher?: boolean;
+}
+
+/** 교사가 화면에서 고친 문단(바꾸기 전·후 글) */
+export interface TeacherEdit {
+  questionId: string;
+  before: string;
+  after: string;
 }

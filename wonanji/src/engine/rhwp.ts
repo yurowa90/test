@@ -156,6 +156,8 @@ export interface ParaPos {
   lastPage: number;
   /** 마지막 줄의 x(단이 바뀌었는지 보는 용도) */
   lastXHU: number;
+  /** 첫 쪽에 그려진 이 문단의 개체(아래 끝·폭). 머리말·꼬리말처럼 다른 쪽에도 반복되는 개체는 쪽마다 따로 잡힙니다. */
+  page0Objects?: { bottomHU: number; wHU: number }[];
 }
 
 /**
@@ -168,13 +170,15 @@ export async function layoutPositions(hwpx: Uint8Array, reflow = true): Promise<
     if (reflow) doc.reflowLinesegs();
     const n = doc.getParagraphCount(0);
     const ctrlBottom = new Map<number, { page: number; bottom: number }[]>();
+    const page0 = new Map<number, { bottomHU: number; wHU: number }[]>();
     for (let pg = 0; pg < doc.pageCount(); pg++) {
       try {
-        const j = JSON.parse(doc.getPageControlLayout(pg)) as { controls?: { secIdx?: number; paraIdx?: number; y?: number; h?: number; cellPath?: unknown; parentParaIdx?: number; stableIndex?: number[] }[] };
+        const j = JSON.parse(doc.getPageControlLayout(pg)) as { controls?: { secIdx?: number; paraIdx?: number; y?: number; h?: number; w?: number; cellPath?: unknown; parentParaIdx?: number; stableIndex?: number[] }[] };
         for (const c of j.controls ?? []) {
           if ((c.secIdx ?? 0) !== 0 || typeof c.paraIdx !== "number") continue;
           if (c.cellPath || c.parentParaIdx != null || (Array.isArray(c.stableIndex) && c.stableIndex.length > 3)) continue;
           ctrlBottom.set(c.paraIdx, [...(ctrlBottom.get(c.paraIdx) ?? []), { page: pg, bottom: ((c.y ?? 0) + (c.h ?? 0)) * 75 }]);
+          if (pg === 0) page0.set(c.paraIdx, [...(page0.get(c.paraIdx) ?? []), { bottomHU: ((c.y ?? 0) + (c.h ?? 0)) * 75, wHU: (c.w ?? 0) * 75 }]);
         }
       } catch {
         /* 개체 배치 정보가 없으면 글줄 위치만 씁니다 */
@@ -194,7 +198,7 @@ export async function layoutPositions(hwpx: Uint8Array, reflow = true): Promise<
             lastPage = c.page;
           }
         }
-        out.push({ page: first.pageIndex, xHU: first.x * 75, topHU: first.y * 75, bottomHU: bottom, lastPage, lastXHU: (last.x ?? first.x) * 75 });
+        out.push({ page: first.pageIndex, xHU: first.x * 75, topHU: first.y * 75, bottomHU: bottom, lastPage, lastXHU: (last.x ?? first.x) * 75, page0Objects: page0.get(i) });
       } catch {
         out.push({ page: -1, xHU: 0, topHU: 0, bottomHU: 0, lastPage: -1, lastXHU: 0 });
       }

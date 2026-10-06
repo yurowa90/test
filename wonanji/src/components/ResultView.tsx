@@ -154,11 +154,11 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
                 ▶
               </button>
               <button type="button" onClick={() => setZoom(!zoom)} className="btn btn-line !min-h-9 !px-2.5 !py-0.5 text-xs" aria-pressed={zoom}>
-                {zoom ? "맞춰 보기" : "크게 보기"}
+                크게 보기
               </button>
             </div>
           </div>
-          {page === 0 && (
+          {page === 0 && (out.previewAdjusted || out.previewOverlapRisk) && (
             <p className={`mb-2 border-l-[3px] px-3 py-1.5 text-[12px] ${out.previewAdjusted ? "border-l-ok bg-ok-soft text-ok" : "border-l-warn bg-warn-soft text-warn"}`}>
               {out.previewAdjusted
                 ? "첫 쪽 오른쪽 단은 한글처럼 머리 표 아래에서 시작하도록 맞춰 그렸습니다(내려받는 파일은 그대로)."

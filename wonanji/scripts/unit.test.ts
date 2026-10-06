@@ -488,6 +488,81 @@ await test("학생 배부용: 선택형 정답 음영만 지우고 교사용은 
   assert.ok(shadedUsed(r.hwpx) > 0, "교사용 바이트는 바뀌지 않음");
   assert.deepEqual(validateHwpx(v.hwpx), []);
 });
+const mcqSrc = (name: string, paras: Parameters<typeof makeHwpx>[0]) => analyzeSource(0, doc(name, makeHwpx(paras)), tpl);
+const CHOICES = { text: "① 가\t② 나\t③ 다\t④ 라\t⑤ 마" };
+const textOfResult = (bytes: Uint8Array) => HwpxPackage.fromBytes(bytes).topParagraphs().map((p) => deepTextOf(p)).join("\n");
+const shadedRuns = (bytes: Uint8Array) => {
+  const pk = HwpxPackage.fromBytes(bytes);
+  const h = new HeaderIndex(pk);
+  return descendants(pk.sections[0].documentElement, "run")
+    .filter((run) => {
+      const sc = h.charPr(run.getAttribute("charPrIDRef") ?? "")?.getAttribute("shadeColor");
+      return sc && sc !== "none" && !/^#?ffffff$/i.test(sc);
+    })
+    .map((run) => run.textContent ?? "");
+};
+await test("배점 지정: 빈 배점 칸은 채우고, 단서 뒤·‘~시오.’ 뒤에 넣으며, 표기하지 않는 배점은 넣지 않는다", () => {
+  const one = (paras: Parameters<typeof makeHwpx>[0], score: number, spec = tpl.spec) => {
+    const src = mcqSrc("배점.hwpx", paras);
+    const q = { ...src.questions[src.questions.length - 1], scoreOverride: score };
+    const r = assemble({ template: tpl, sources: [src], order: [q], spec });
+    return { text: textOfResult(r.hwpx), r };
+  };
+  const blank = one([{ pp: 1, text: "다음 중 옳은 것은? [ 점]" }, CHOICES], 3).text;
+  assert.ok(blank.includes("옳은 것은? [3.0점]") && !blank.includes("[ 점]"), blank.slice(0, 120));
+  const dan = one([{ pp: 1, text: "옳은 것만을 고른 것은? (단, 각 도형은 1개체이다.)" }, CHOICES], 3).text;
+  assert.ok(dan.includes("1개체이다.) [3.0점]") && !dan.includes("? [3.0점]"), dan.slice(0, 160));
+  const essay = one(
+    [
+      { cp: 1, text: "다음 문항부터는 논술형 문항입니다." },
+      { cp: 1, text: "【문항1-논술형】" },
+      { text: "“바닷물은 왜 짤까?”" },
+      { text: "이 질문에 대한 답을 물의 순환과 관련지어 서술하시오." },
+    ],
+    6,
+  ).text;
+  assert.ok(essay.includes("서술하시오. [6.0점]") && !essay.includes("짤까? ["), essay.slice(0, 200));
+  const omit = one([{ pp: 1, text: "다음 중 옳은 것은? [3점]" }, CHOICES], 2, { ...tpl.spec, unmarkedScore: 2 });
+  assert.ok(!/\[\s*[23](\.0)?\s*점\]/.test(omit.text), omit.text.slice(0, 120));
+  assert.ok(omit.r.changes.some((c) => c.kind === "배점" && c.byTeacher));
+});
+await test("기호 바꾸기: 가운뎃점은 글자 사이 것만, 발문 속 〈보기〉는 발문 줄의 괄호 글자만 바꾼다", () => {
+  const src = mcqSrc("기호.hwpx", [
+    { pp: 1, runs: [[0, "모음 ‘ㆍ’와 자음ㆍ모음에 대해 옳은 것만을 <"], [4, "보기"], [0, ">에서 고른 것은? [3점]"]] },
+    { text: "< 보 기 >" },
+    CHOICES,
+  ]);
+  const q = { ...src.questions[0], symbolFixes: [{ fam: "middot", from: "ㆍ", to: "·" }, { fam: "bogiRef", from: "<보기>", to: "〈보기〉" }] };
+  const r = assemble({ template: tpl, sources: [src], order: [q], spec: tpl.spec });
+  const t = textOfResult(r.hwpx);
+  assert.ok(t.includes("‘ㆍ’") && t.includes("자음·모음"), "아래아는 그대로, 글자 사이 가운뎃점만");
+  assert.ok(t.includes("〈보기〉에서") && t.includes("< 보 기 >"), "발문 줄만, 상자 표시 줄은 그대로");
+  // ‘보기’ 두 글자의 글자 모양(굵게+밑줄)이 남아 있어야 합니다.
+  const pk = HwpxPackage.fromBytes(r.hwpx);
+  const h = new HeaderIndex(pk);
+  const bogiRun = descendants(pk.sections[0].documentElement, "run").find((run) => run.textContent === "보기");
+  assert.ok(bogiRun && kid(h.charPr(bogiRun.getAttribute("charPrIDRef") ?? "")!, "bold"), "‘보기’ 굵게 유지");
+  assert.deepEqual(validateHwpx(r.hwpx), []);
+});
+await test("학생 배부용·지정 정답: 선지 구간의 음영만 다루고 발문의 내용 음영은 남긴다", () => {
+  const src = mcqSrc("음영.hwpx", [
+    { pp: 1, runs: [[0, "다음 중 "], [3, "광합성"], [0, "에 대한 설명으로 옳은 것은? [3점]"]] },
+    { runs: [[0, "① 가\t② 나\t"], [3, "③ 다"], [0, "\t④ 라\t⑤ 마"]] },
+  ]);
+  const r = assemble({ template: tpl, sources: [src], order: src.questions, spec: tpl.spec });
+  const v = studentVariant(r, new Set(src.questions.map((q) => q.id)));
+  const st = shadedRuns(v.hwpx);
+  assert.ok(st.includes("광합성") && !st.some((x) => /③|다/.test(x)), st.join("|"));
+  const q = { ...src.questions[0], answers: [4], answerOverride: [4] };
+  const r2 = assemble({ template: tpl, sources: [src], order: [q], spec: tpl.spec });
+  const sh = shadedRuns(r2.hwpx);
+  assert.ok(sh.some((x) => x.includes("④")) && !sh.some((x) => x.includes("다")) && sh.includes("광합성"), sh.join("|"));
+});
+await test("수합 방식: 마지막 문항 뒤에 남은 빈 번호는 번호 분담의 근거로 보지 않는다", () => {
+  const withTail = analyzeSource(0, doc("꼬리.hwpx", makeHwpx([...LEVEL2, { pp: 5, text: "" }])), tpl);
+  assert.ok(withTail.placeholders.length > 0, "빈 번호가 잡혀야 시험이 됨");
+  assert.equal(detectMerge([withTail, lv("나.hwpx", 1)]), "append");
+});
 await test("글자 고치기: 고친 문단은 바뀌고 요약이 새로 읽히며, 원래대로 되돌릴 수 있다", () => {
   const src = analyzeSource(0, doc("고칠.hwpx", makeHwpx(TEACHER1)), tpl);
   const q = src.questions[0];
@@ -506,12 +581,45 @@ await test("글자 고치기: 고친 문단은 바뀌고 요약이 새로 읽히
   assert.ok(!/\n/.test(p.textContent ?? ""), "글자 안에 줄 바꿈 문자가 남지 않음");
   restorePara(p);
 });
+await test("글자 고치기: 바뀐 구간만 바꿔 다른 글자의 서식은 남고, 비운 문단도 순번을 지킨다", () => {
+  const src = analyzeSource(0, doc("서식.hwpx", makeHwpx(TEACHER1)), tpl);
+  const q = src.questions[0];
+  const index = new HeaderIndex(src.pkg);
+  const list = editableParas(q);
+  const p = list[0];
+  // 첫 run의 글자 모양을 다른 것(밑줄 친 부분이라 가정)으로 나눠 둡니다.
+  const runs = [...p.childNodes].filter((n) => (n as Element).localName === "run") as Element[];
+  const r0 = runs.find((r) => (r.textContent ?? "").length > 4)!;
+  const t0 = [...r0.childNodes].find((n) => (n as Element).localName === "t") as Element;
+  const whole = t0.textContent ?? "";
+  t0.textContent = whole.slice(0, 2);
+  const r1 = r0.cloneNode(true) as Element;
+  r1.setAttribute("charPrIDRef", "@marked");
+  (r1.firstChild as Element).textContent = whole.slice(2);
+  p.insertBefore(r1, r0.nextSibling);
+  const before = paraText(p);
+  setParaText(p, before.slice(0, 2) + "새" + before.slice(3), index);
+  assert.equal(paraText(p), before.slice(0, 2) + "새" + before.slice(3));
+  assert.ok([...p.childNodes].some((n) => (n as Element).getAttribute?.("charPrIDRef") === "@marked"), "바뀌지 않은 쪽 글자 모양은 그대로");
+  // 둘째 문단을 비우고 셋째 문단을 고쳐도 목록 순번이 그대로여야 작업 저장이 맞습니다.
+  if (list.length >= 3) {
+    setParaText(list[1], "", index);
+    setParaText(list[2], "셋째 고침", index);
+    assert.equal(editableParas(q).length, list.length);
+    assert.equal(paraText(editableParas(q)[2]), "셋째 고침");
+  }
+});
 await test("정답 붙여넣기: 숫자·원문자·번호-정답 짝", () => {
   assert.deepEqual(parseAnswers("31254").seq, [3, 1, 2, 5, 4]);
   assert.deepEqual(parseAnswers("③①②⑤④").seq, [3, 1, 2, 5, 4]);
   assert.deepEqual(parseAnswers("1-3, 2-1, 10-5").numbered, [[1, 3], [2, 1], [10, 5]]);
   assert.deepEqual(parseAnswers("1번 ③ 2번 ①").numbered, [[1, 3], [2, 1]]);
   assert.deepEqual(parseAnswers("3 7 1").bad, ["7"]);
+  // 짝이 하나뿐이어도 짝으로(번호 숫자를 정답으로 읽지 않음), 표에서 붙여 넣은 탭 구분도 짝으로
+  assert.deepEqual(parseAnswers("7-2").numbered, [[7, 2]]);
+  assert.deepEqual(parseAnswers("12번 ③").numbered, [[12, 3]]);
+  assert.deepEqual(parseAnswers("1\t3\n2\t1").numbered, [[1, 3], [2, 1]]);
+  assert.ok(parseAnswers("3 1 2 7-2").mixed, "짝과 순서 입력이 섞이면 넣지 않음");
 });
 await test("작업 저장·불러오기: 순서·뺀 문항·정답·배점·옵션이 되살아난다", () => {
   const st = { order: [...order].reverse(), excluded: new Set([order[1].id]), answers: new Map([[order[0].id, [4]]]), scores: new Map([[order[2].id, 3.5]]), fixes: new Map(), spec: { ...tpl.spec, sizePt: 10.5, merge: "split" as const }, fileOrder: [0, 1] };

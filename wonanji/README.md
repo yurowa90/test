@@ -76,7 +76,7 @@ HWP/HWPX ─rhwp(WASM)→ HWPX(XML) ─┬─ 형광펜 복원(HWP 바이너리�
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 합성 문서로 엔진·작업 저장 전체 점검 49건(실제 시험 파일 불필요)
+npm test           # 합성 문서로 엔진·작업 저장 전체 점검 54건(실제 시험 파일 불필요)
 npm run build      # 타입 검사 + 정적 빌드(dist/)
 npx tsx scripts/e2e.ts 양식.hwp 출제1.hwp 출제2.hwp --out out   # 로컬 실제 파일로 전체 흐름
 npx tsx scripts/validate.ts out/merged.hwpx                        # 결과 HWPX 구조 검증

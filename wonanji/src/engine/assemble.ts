@@ -276,7 +276,12 @@ export function assemble(input: AssembleInput): AssembleResult {
 export function detectMerge(sources: SourceAnalysis[]): MergeMode {
   const files = sources.map((s) => s.questions.filter((q) => q.kind === "mcq" && q.srcNumber != null)).filter((qs) => qs.length);
   if (files.length < 2) return "split";
-  if (sources.some((s) => s.placeholders.length)) return "split";
+  // 빈 번호 자리가 문항 사이에 있으면 번호 분담입니다. 마지막 문항 뒤에 남은 빈 번호(양식 예시를 비우고 번호만 남긴 것)는 보지 않습니다.
+  const interior = (s: SourceAnalysis) => {
+    const last = Math.max(0, ...s.questions.filter((q) => q.kind === "mcq" && q.srcNumber != null).map((q) => q.srcNumber!));
+    return s.placeholders.some((n) => n < last);
+  };
+  if (sources.some(interior)) return "split";
   const seen = new Map<number, number>();
   for (const qs of files) for (const n of new Set(qs.map((q) => q.srcNumber!))) seen.set(n, (seen.get(n) ?? 0) + 1);
   const shared = [...seen.values()].filter((c) => c > 1).length;

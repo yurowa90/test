@@ -33,7 +33,7 @@ export default function RulesGuide() {
       <blockquote className="border-l-4 border-l-primary bg-paper px-4 py-3">
         <p className="serif text-[15.5px] font-semibold leading-relaxed text-ink">형식은 맞추고, 내용은 건드리지 않습니다.</p>
         <p className="mt-1 text-[12.5px] leading-relaxed text-ink-2">
-          기호 하나를 임의로 바꾸면 〈보기〉·선지와 짝이 어긋나 문항 오류가 될 수 있습니다. 그래서 글자·기호·숫자는 원문 그대로 두고, 다른 점은 화면과 편집 검수 보고서에 알려 원본에서 고치도록 했습니다.
+          기호 하나를 임의로 바꾸면 〈보기〉·선지와 짝이 어긋나 문항 오류가 될 수 있습니다. 그래서 앱은 글자·기호·숫자를 스스로 바꾸지 않고, 다른 점을 화면과 편집 검수 보고서에 알립니다. 물결표·가운뎃점·전각 괄호·발문 속 〈보기〉처럼 뜻과 상관없는 표기는 교사가 확인하고 ‘양식 기호로 바꾸기’를 누를 때만 바꾸며, 〈보기〉 항목 기호·㉠·불릿은 원본에서 고치도록 했습니다. 교사가 바꾼 것은 보고서에 따로 적습니다.
         </p>
       </blockquote>
       <div className="border border-line bg-paper px-4 py-3 text-[12.5px] leading-relaxed text-ink-2">

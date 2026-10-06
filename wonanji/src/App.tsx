@@ -5,7 +5,7 @@ import type { LoadedDoc } from "./engine/load";
 import { errText } from "./engine/rhwp";
 import type { FormatSpec, MergeMode, Question, SourceAnalysis, SymbolFix, TemplateAnalysis } from "./engine/types";
 import { build, download, readFile, readSource, readTemplate, type BuildOutput } from "./pipeline";
-import { buildReport, exportWork, importWork, scoreOf } from "./work";
+import { buildReport, exportWork, importWork, qKey, scoreOf } from "./work";
 import Dropzone from "./components/Dropzone";
 import TemplateCard from "./components/TemplateCard";
 import SourceList from "./components/SourceList";
@@ -44,6 +44,13 @@ export default function App() {
   const [stale, setStale] = useState(false);
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
   const navRef = useRef<HTMLElement>(null);
+  // 변경 번호: 원안지를 만드는 동안 바뀐 것이 있으면 결과를 ‘바뀐 내용 미반영’으로 둡니다.
+  const rev = useRef(0);
+  // 파일이 바뀔 때마다 늘어남: 그 전에 시작한 만들기 결과는 버립니다.
+  const gen = useRef(0);
+  // 교사가 순서·합치는 방식을 직접 바꿨는지(파일을 더 올려도 그대로 두려고)
+  const touched = useRef({ order: false, merge: false });
+  const [builtExcluded, setBuiltExcluded] = useState<Question[]>([]);
 
   const setBusy = (text: string | null) => {
     setBusyState(text ? { text, start: Date.now() } : null);
@@ -94,18 +101,66 @@ export default function App() {
     return { sources, docOf, failed };
   }, [docs, tpl]);
   const sources = analysis.sources;
+  // 지금 파일들에 실제로 있는 문항(파일을 뺀 직후 렌더에서 예전 문항으로 검수가 돌지 않게)
+  const live = useMemo(() => new Set(sources.flatMap((s) => s.questions)), [sources]);
+  // 파일을 더하거나 빼면 문항을 다시 읽습니다. 교사가 지정한 정답·배점·기호 바꾸기·뺀 문항·순서는
+  // 파일 이름과 파일 안 순번(작업 저장과 같은 열쇠)으로 새 문항에 옮겨 둡니다.
+  const prevState = useRef<{ order: Question[]; excluded: Set<string>; answers: Map<string, number[]>; scores: Map<string, number>; fixes: Map<string, SymbolFix[]>; fileOrder: number[]; names: string[]; merge: MergeMode | null }>(null);
+  prevState.current = { order, excluded, answers, scores, fixes, fileOrder, names: prevState.current?.names ?? [], merge: spec?.merge ?? null };
   useEffect(() => {
-    const m = detectMerge(sources);
-    const fo = sources.map((_, i) => i);
+    gen.current++;
+    const prev = prevState.current;
+    const names = sources.map((s) => s.name);
+    const byKey = new Map(sources.flatMap((s) => s.questions).map((q) => [qKey(q), q]));
+    const oldById = new Map(prev?.order.map((q) => [q.id, q]) ?? []);
+    const moveIds = <T,>(m: Map<string, T>) => {
+      const n = new Map<string, T>();
+      for (const [id, v] of m) {
+        const o = oldById.get(id);
+        const q = o && byKey.get(qKey(o));
+        if (q) n.set(q.id, v);
+      }
+      return n;
+    };
+    // 파일 순서: 이름으로 옮기고, 새 파일은 끝에
+    const fo = [
+      ...(prev?.fileOrder ?? []).map((i) => names.indexOf(prev!.names[i])).filter((i) => i >= 0),
+      ...names.map((_, i) => i).filter((i) => !(prev?.fileOrder ?? []).some((j) => prev!.names[j] === names[i])),
+    ];
+    const m = touched.current.merge && prev?.merge ? prev.merge : detectMerge(sources);
+    const base = defaultOrder(sources, m, fo);
+    let nextOrder = base;
+    if (touched.current.order && prev?.order.length) {
+      const kept = prev.order.map((o) => byKey.get(qKey(o))).filter((q): q is Question => !!q);
+      const keptSet = new Set(kept);
+      const added = base.filter((q) => !keptSet.has(q));
+      nextOrder = [...kept.filter((q) => q.kind === "mcq"), ...added.filter((q) => q.kind === "mcq"), ...kept.filter((q) => q.kind === "essay"), ...added.filter((q) => q.kind === "essay")];
+    }
+    const ex = new Set([...(prev?.excluded ?? [])].map((id) => oldById.get(id)).map((o) => o && byKey.get(qKey(o))?.id).filter((x): x is string => !!x));
+    const an = moveIds(prev?.answers ?? new Map());
+    const sc = moveIds(prev?.scores ?? new Map());
+    const fx = moveIds(prev?.fixes ?? new Map());
+    const lost = (prev?.answers.size ?? 0) + (prev?.scores.size ?? 0) + (prev?.fixes.size ?? 0) + (prev?.excluded.size ?? 0) - (an.size + sc.size + fx.size + ex.size);
     setFileOrder(fo);
-    setSpec((s) => (s ? { ...s, merge: m } : s));
-    setOrder(defaultOrder(sources, m, fo));
-    setExcluded(new Set());
-    setAnswers(new Map());
-    setScores(new Map());
-    setFixes(new Map());
+    setSpec((s) => {
+      if (!s) return s;
+      // 머리 표를 가져올 파일도 이름으로 다시 맞춥니다(없어졌으면 양식).
+      const hf = typeof s.headerFrom === "number" ? names.indexOf(prev?.names[s.headerFrom] ?? "") : -1;
+      return { ...s, merge: m, headerFrom: typeof s.headerFrom === "number" ? (hf >= 0 ? hf : "template") : s.headerFrom };
+    });
+    setOrder(nextOrder);
+    setExcluded(ex);
+    setAnswers(an);
+    setScores(sc);
+    setFixes(fx);
     setOut(null);
     setStale(false);
+    if (an.size + sc.size + fx.size + ex.size > 0 || lost > 0)
+      setNotice(
+        `문항 파일이 바뀌어 문항을 다시 읽었습니다. 직접 지정한 정답 ${an.size}·배점 ${sc.size}·기호 바꾸기 ${fx.size}·뺀 문항 ${ex.size}개는 그대로 두었습니다${lost > 0 ? `(뺀 파일의 지정 ${lost}개는 없어짐)` : ""}.${touched.current.order ? " 직접 바꾼 순서도 유지하고, 새 파일 문항은 끝에 붙였습니다." : ""}`,
+      );
+    prevState.current = { ...prevState.current!, names };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sources]);
 
   // 사진 파일의 원본 그림(3단계 글자 교정에서 대조용)
@@ -123,7 +178,7 @@ export default function App() {
   const active = useMemo(
     () =>
       order
-        .filter((q) => !excluded.has(q.id))
+        .filter((q) => live.has(q) && !excluded.has(q.id))
         .map((q) => {
           const a = answers.get(q.id);
           const sc = scores.get(q.id);
@@ -133,11 +188,14 @@ export default function App() {
         }),
     // editRev: 교사가 글자를 고치면 문항 내용(발문·요약)이 바뀌므로 다시 계산
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [order, excluded, answers, scores, fixes, editRev],
+    [order, excluded, answers, scores, fixes, editRev, live],
   );
   const preIssues = useMemo(() => (tpl && spec && active.length ? lint(tpl, sources, active, spec) : []), [tpl, spec, sources, active]);
   const excludedList = useMemo(() => order.filter((q) => excluded.has(q.id)), [order, excluded]);
-  const markStale = () => setStale(true);
+  const markStale = () => {
+    rev.current++;
+    setStale(true);
+  };
 
   async function openTemplate(name: string, get: () => Promise<LoadedDoc>) {
     setErrors([]);
@@ -163,8 +221,8 @@ export default function App() {
     const next: LoadedDoc[] = [];
     const errs: string[] = [];
     for (const [i, f] of files.entries()) {
-      if (docs.some((d) => d.name === f.name)) {
-        errs.push(`「${f.name}」은 이미 올렸습니다.`);
+      if (docs.some((d) => d.name === f.name) || next.some((d) => d.name === f.name) || files.slice(0, i).some((x) => x.name === f.name)) {
+        errs.push(`「${f.name}」은 이미 올렸습니다(이름이 같은 파일은 하나만 올릴 수 있습니다. 다른 파일이면 이름을 바꿔 올려 주세요).`);
         continue;
       }
       const kind = /\.pdf$/i.test(f.name) ? "PDF를 읽고 그림을 자르는 중" : /\.(png|jpe?g|webp)$/i.test(f.name) ? "사진 글자를 인식하는 중(한 장에 10~30초)" : "읽는 중";
@@ -195,35 +253,36 @@ export default function App() {
   }
 
   function move(id: string, dir: -1 | 1) {
-    setOrder((o) => {
-      const i = o.findIndex((q) => q.id === id);
-      if (i < 0) return o;
-      let j = i + dir;
-      while (j >= 0 && j < o.length && o[j].kind !== o[i].kind) j += dir;
-      if (j < 0 || j >= o.length) return o;
-      const n = [...o];
-      [n[i], n[j]] = [n[j], n[i]];
-      return n;
-    });
+    const i = order.findIndex((q) => q.id === id);
+    if (i < 0) return;
+    let j = i + dir;
+    while (j >= 0 && j < order.length && order[j].kind !== order[i].kind) j += dir;
+    if (j < 0 || j >= order.length) return; // 맨 위·맨 아래: 바뀌는 것이 없으면 결과도 그대로
+    const n = [...order];
+    [n[i], n[j]] = [n[j], n[i]];
+    setOrder(n);
+    touched.current.order = true;
     markStale();
   }
 
   /** 포함한 문항 가운데 n번째 자리로 옮깁니다(같은 종류 안에서). */
   function moveTo(id: string, n: number) {
-    setOrder((o) => {
-      const q = o.find((x) => x.id === id);
-      if (!q) return o;
-      const same = o.filter((x) => x.kind === q.kind && x.id !== id);
-      const incl = same.filter((x) => !excluded.has(x.id));
-      const before = incl[n - 1];
-      const at = before ? same.indexOf(before) : same.length;
-      same.splice(at, 0, q);
-      const mcq = q.kind === "mcq" ? same : o.filter((x) => x.kind === "mcq");
-      const essay = q.kind === "essay" ? same : o.filter((x) => x.kind === "essay");
-      return [...mcq, ...essay];
-    });
-    markStale();
+    const o = order;
+    const q = o.find((x) => x.id === id);
+    if (!q) return;
+    const same = o.filter((x) => x.kind === q.kind && x.id !== id);
+    const incl = same.filter((x) => !excluded.has(x.id));
+    const before = incl[n - 1];
+    const at = before ? same.indexOf(before) : same.length;
+    same.splice(at, 0, q);
+    const mcq = q.kind === "mcq" ? same : o.filter((x) => x.kind === "mcq");
+    const essay = q.kind === "essay" ? same : o.filter((x) => x.kind === "essay");
+    const next = [...mcq, ...essay];
     setFocus({ id, n: Date.now() });
+    if (next.every((x, k) => x === o[k])) return; // 같은 자리로 옮김
+    setOrder(next);
+    touched.current.order = true;
+    markStale();
   }
 
   function toggle(id: string) {
@@ -294,13 +353,15 @@ export default function App() {
   }
 
   function setMerge(m: MergeMode) {
-    if (!spec) return;
+    if (!spec || spec.merge === m) return;
+    touched.current = { order: false, merge: true };
     setSpec({ ...spec, merge: m });
     setOrder(defaultOrder(sources, m, fileOrder));
     markStale();
   }
 
   function changeFileOrder(fo: number[]) {
+    touched.current.order = false;
     setFileOrder(fo);
     if (spec) setOrder(defaultOrder(sources, spec.merge, fo));
     markStale();
@@ -326,6 +387,7 @@ export default function App() {
       setFixes(r.state.fixes);
       setSpec(r.state.spec);
       setFileOrder(r.state.fileOrder);
+      touched.current = { order: true, merge: true };
       if (r.edits) setEditRev((x) => x + 1);
       markStale();
       setNotice(
@@ -344,9 +406,17 @@ export default function App() {
     if (!tpl || !spec) return;
     setErrors([]);
     setBusy("원안지를 만드는 중… (조립 → 줄 맞춤 → 균등 배치 → 미리보기)");
+    const startRev = rev.current;
+    const startGen = gen.current;
+    const ex = excludedList;
     try {
-      setOut(await build(tpl, sources, active, spec));
-      setStale(false);
+      const result = await build(tpl, sources, active, spec);
+      // 만드는 동안 파일이 바뀌었으면 이 결과는 버립니다.
+      if (gen.current !== startGen) return;
+      setOut(result);
+      setBuiltExcluded(ex);
+      // 만드는 동안 정답·배점·순서·옵션을 바꿨으면 결과는 그 전 상태이므로 ‘바뀐 내용 미반영’으로 둡니다.
+      setStale(rev.current !== startRev);
       requestAnimationFrame(() => document.getElementById("s-result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
     } catch (e) {
       setErrors([`원안지를 만들지 못했습니다: ${errText(e)}`]);
@@ -360,7 +430,7 @@ export default function App() {
     const name = base.trim() || "원안지";
     if (kind === "hwp") download(out.hwp, `${name}_교사용.hwp`);
     else if (kind === "hwpx") download(out.hwpx, `${name}_교사용.hwpx`);
-    else if (kind === "report") download(buildReport({ tplName: tpl.name, sources, active, excluded: excludedList, spec, out }), `${name}_검수보고서.txt`, "text/plain;charset=utf-8");
+    else if (kind === "report") download(buildReport({ tplName: tpl.name, sources, active: out.order, excluded: builtExcluded, spec, out }), `${name}_검수보고서.txt`, "text/plain;charset=utf-8");
     else {
       setBusy("학생 배부용(정답 음영 없음) 파일을 만드는 중…");
       try {
@@ -385,7 +455,8 @@ export default function App() {
     if (noAns.length) items.push({ label: `정답 미지정 ${noAns.length}`, ids: noAns, tone: "danger" });
     if (noScore.length) items.push({ label: `배점 없음 ${noScore.length}`, ids: noScore, tone: "danger" });
     const ocr = ids("글자 인식 확인");
-    if (ocr.length) items.push({ label: `사진 글자 확인 ${ocr.length}`, ids: ocr, tone: "warn" });
+    // 색은 그 항목의 가장 높은 심각도를 따릅니다(10자 이상이면 ‘확인 필요’).
+    if (ocr.length) items.push({ label: `사진 글자 확인 ${ocr.length}`, ids: ocr, tone: ids("글자 인식 확인", "error").length ? "danger" : "warn" });
     const dup = ids("번호 중복");
     if (dup.length) items.push({ label: `번호 중복 ${dup.length}`, ids: dup, tone: "danger" });
     const same = ids("중복 문항 의심");
@@ -624,7 +695,7 @@ export default function App() {
                 </div>
                 {out && (
                   <div className="mt-6">
-                    <ResultView out={out} order={active} excluded={excludedList} spec={spec} stale={stale} busy={!!busy} onRebuild={make} onDownload={onDownload} onFocusQuestion={focusQuestion} onFixAll={fixAll} />
+                    <ResultView out={out} order={out.order} excluded={builtExcluded} spec={spec} stale={stale} busy={!!busy} onRebuild={make} onDownload={onDownload} onFocusQuestion={focusQuestion} onFixAll={fixAll} />
                   </div>
                 )}
               </Step>

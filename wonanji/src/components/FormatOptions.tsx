@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { createContext, useContext, useId, type ReactNode } from "react";
 import type { FormatSpec, SourceAnalysis } from "../engine/types";
 
 interface Props {
@@ -184,7 +184,7 @@ export default function FormatOptions({ spec, sources, boxFrame, negRule, onChan
       </details>
 
       <p className="border-l-[3px] border-l-ink bg-paper px-3 py-2 text-[12.5px] text-ink-2">
-        <b className="text-ink">바꾸지 않는 것</b> — 문항 글자, 기호(〈보기〉 ㄱ·ㄴ·ㄷ, ㉠, 불릿, 괄호), 숫자, 선지 내용. 양식과 다른 기호는 3단계 문항 목록과 편집 검수에 알려 드리니 원본에서 고쳐 주세요.
+        <b className="text-ink">앱이 스스로 바꾸지 않는 것</b> — 문항 글자, 기호, 숫자, 선지 내용. 양식과 다른 기호는 3단계 문항 목록과 편집 검수에 알려 드립니다. 그 가운데 물결표·가운뎃점·전각 괄호·발문 속 〈보기〉는 확인한 뒤 ‘양식 기호로 바꾸기’를 눌러 바꿀 수 있고, 〈보기〉 항목 기호(ㄱ·ㄴ·ㄷ)·㉠·불릿은 뜻과 맞물려 있어 원본에서 고쳐 주세요. 배점은 3단계 배점 칸에서 정할 수 있습니다.
       </p>
     </div>
   );
@@ -203,12 +203,25 @@ function Group({ title, note, children }: { title: string; note?: string; childr
   );
 }
 
+// 칸 이름·도움말을 그 안의 select·input에 이어 줍니다(화면 읽기 프로그램이 무엇을 정하는 칸인지 읽도록).
+const FieldIds = createContext<{ label: string; hint?: string } | null>(null);
+
 function Field({ label, hint, warn, children }: { label: string; hint?: string; warn?: boolean; children: ReactNode }) {
+  const id = useId();
+  const ids = { label: `${id}-l`, hint: hint ? `${id}-h` : undefined };
   return (
-    <div>
-      <span className="text-[13px] font-bold text-ink">{label}</span>
-      <div className="mt-1">{children}</div>
-      {hint && <span className={`mt-1 block text-[11.5px] leading-snug ${warn ? "text-warn" : "text-ink-3"}`}>{hint}</span>}
+    <div role="group" aria-labelledby={ids.label}>
+      <span id={ids.label} className="text-[13px] font-bold text-ink">
+        {label}
+      </span>
+      <FieldIds.Provider value={ids}>
+        <div className="mt-1">{children}</div>
+      </FieldIds.Provider>
+      {hint && (
+        <span id={ids.hint} className={`mt-1 block text-[11.5px] leading-snug ${warn ? "text-warn" : "text-ink-3"}`}>
+          {hint}
+        </span>
+      )}
     </div>
   );
 }
@@ -232,8 +245,9 @@ function NumberInput({ value, min, max, step, onChange, label }: { value: number
 }
 
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
+  const ids = useContext(FieldIds);
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="field max-w-sm">
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="field max-w-sm" aria-labelledby={ids?.label} aria-describedby={ids?.hint}>
       {options.map(([v, l]) => (
         <option key={v} value={v}>
           {l}

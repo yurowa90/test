@@ -3,7 +3,7 @@
 import { editableParas, isEdited, paraText, setParaText } from "./engine/edit";
 import { HeaderIndex } from "./engine/header";
 import { refreshQuestion } from "./engine/segment";
-import type { Change, FormatSpec, Issue, MergeMode, Question, SourceAnalysis, SymbolFix } from "./engine/types";
+import type { Change, FormatSpec, Issue, MergeMode, Question, SourceAnalysis, SymbolFix, TeacherEdit } from "./engine/types";
 
 /** 파일 이름 + 파일 안 문항 순번(같은 파일을 다시 올리면 같은 값) */
 export const qKey = (q: Question) => `${q.fileName}#${q.id.slice(q.id.indexOf("-") + 1)}`;
@@ -150,13 +150,19 @@ export function importWork(json: string, tplName: string, sources: SourceAnalysi
 }
 
 /** 정답 붙여넣기: ‘31254’, ‘③①②⑤④’, ‘1-3, 2-1’, ‘1번 ③’ 모두 받습니다. 번호가 붙어 있으면 [번호, 정답] 목록. */
-export function parseAnswers(s: string): { seq: number[]; numbered: [number, number][] | null; bad: string[] } {
+export function parseAnswers(s: string): { seq: number[]; numbered: [number, number][] | null; bad: string[]; mixed: boolean } {
   const norm = s.replace(/[①②③④⑤]/g, (c) => String("①②③④⑤".indexOf(c) + 1));
-  const pairs = [...norm.matchAll(/(\d+)\s*(?:번|[.)\-:=])\s*([1-5])(?!\d)/g)].map((m) => [Number(m[1]), Number(m[2])] as [number, number]);
-  if (pairs.length >= 2) return { seq: [], numbered: pairs, bad: [] };
+  // 번호-정답 짝: ‘7-2’, ‘7번 ②’, ‘7) 2’, ‘7:2’, 표에서 붙여 넣은 ‘7⇥2’. 짝이 하나뿐이어도 짝으로 읽습니다.
+  const PAIR = /(\d+)\s*(?:번\s*[.)\-:=]?|[.)\-:=]|\t)\s*([1-5])(?!\d)/g;
+  const pairs = [...norm.matchAll(PAIR)].map((m) => [Number(m[1]), Number(m[2])] as [number, number]);
+  if (pairs.length) {
+    // 짝 말고 다른 숫자가 섞여 있으면(순서 입력과 짝이 섞임) 어느 쪽인지 알 수 없어 넣지 않습니다.
+    const rest = norm.replace(PAIR, "").replace(/[\s,;/|·]+/g, "");
+    return rest ? { seq: [], numbered: null, bad: [], mixed: true } : { seq: [], numbered: pairs, bad: [], mixed: false };
+  }
   const bad = [...new Set(norm.match(/[06-9]/g) ?? [])];
   const seq = [...norm.matchAll(/[1-5]/g)].map((m) => Number(m[0]));
-  return { seq, numbered: null, bad };
+  return { seq, numbered: null, bad, mixed: false };
 }
 
 // ── 검수 항목 묶기 ──
@@ -207,7 +213,7 @@ export interface ReportInput {
   active: Question[];
   excluded: Question[];
   spec: FormatSpec;
-  out: { pages: number; issues: Issue[]; changes: Change[]; numbers: Map<string, number>; loss: { count: number; items: string[] }; previewAdjusted: boolean };
+  out: { pages: number; issues: Issue[]; changes: Change[]; numbers: Map<string, number>; loss: { count: number; items: string[] }; previewAdjusted: boolean; previewOverlapRisk?: boolean; teacherEdits?: TeacherEdit[] };
 }
 
 export function scoreOf(q: Question, spec: FormatSpec): number | null {
@@ -218,9 +224,11 @@ export function checklist(o: ReportInput["out"], active: Question[], spec: Forma
   const unsure = o.issues.filter((i) => i.rule === "글자 인식 확인").length;
   const fixed = o.issues.filter((i) => i.rule === "쪽 기준 개체").length;
   const list = [
-    o.previewAdjusted
-      ? "첫 쪽 오른쪽 단이 머리 표 아래에서 시작하는지(미리보기도 한글처럼 맞춰 그렸습니다)"
-      : "첫 쪽 오른쪽 단이 머리 표 아래에서 시작하는지(미리보기 엔진은 겹쳐 그릴 수 있습니다)",
+    ...(o.previewAdjusted
+      ? ["첫 쪽 오른쪽 단이 머리 표 아래에서 시작하는지(미리보기도 한글처럼 맞춰 그렸습니다)"]
+      : o.previewOverlapRisk
+        ? ["첫 쪽 오른쪽 단이 머리 표 아래에서 시작하는지(미리보기 엔진은 겹쳐 그릴 수 있습니다)"]
+        : []),
     spec.keepTogether ? "한 문항이 단·쪽에서 쪼개지지 않았는지(‘문항이 쪼개지지 않게’는 한글에서만 반영)" : "단·쪽에서 쪼개진 문항이 없는지",
     "그림·표·〈보기〉 상자가 문항 안 제자리에 있고 글자와 겹치지 않는지",
     "학생 배부용은 ‘학생 배부용(정답 음영 없음)’ 파일로 인쇄할 것(교사용 파일에는 정답 음영이 있음)",
@@ -229,6 +237,7 @@ export function checklist(o: ReportInput["out"], active: Question[], spec: Forma
   if (fixed) list.push(`쪽 기준으로 고정된 그림·도형(${fixed}문항)의 위치`);
   if (o.loss.count) list.push(`변환 손실 보고 ${o.loss.count}건(보고서 끝 목록)`);
   if (active.some((q) => q.symbolFixes?.length)) list.push("교사가 바꾼 기호가 〈보기〉·선지와 맞는지");
+  if (o.teacherEdits?.length) list.push(`화면에서 고친 문단 ${o.teacherEdits.length}개가 원본과 맞는지(보고서 ‘교사가 화면에서 바꾼 것’)`);
   return list;
 }
 
@@ -258,7 +267,20 @@ export function buildReport(r: ReportInput): string {
     L.push("", "■ 뺀 문항");
     for (const q of r.excluded) L.push(`  「${q.fileName}」 원래 ${q.srcNumber ?? "?"}번 ${q.kind === "essay" ? "(논술형)" : ""} ${q.summary.slice(0, 40)}`);
   }
-  L.push("", "■ 편집 검수(문항 글자·기호는 바꾸지 않았습니다)");
+  // 교사가 화면에서 고른 편집(정답·배점·기호 바꾸기, 고친 문단)은 앱이 한 형식 정리와 따로 적습니다.
+  const teacher = o.changes.filter((c) => c.byTeacher);
+  const edits = o.teacherEdits ?? [];
+  L.push("", "■ 교사가 화면에서 바꾼 것(정답·배점·기호·글자)");
+  if (!teacher.length && !edits.length) L.push("  없음");
+  for (const c of teacher) {
+    const q = c.questionId ? active.find((x) => x.id === c.questionId) : null;
+    L.push(`  - ${q ? num(q) + " " : ""}[${c.kind}] ${c.detail}`);
+  }
+  for (const e of edits) {
+    const q = active.find((x) => x.id === e.questionId);
+    L.push(`  - ${q ? num(q) + " " : ""}[고친 문단] “${e.before}” → “${e.after}”`);
+  }
+  L.push("", "■ 편집 검수(앱이 스스로 바꾼 문항 글자·기호는 없습니다. 교사가 바꾼 것은 위 절 참고)");
   for (const g of groupIssues(o.issues)) {
     const nums = g.ids.map((id) => active.find((q) => q.id === id)).filter((q): q is Question => !!q).map(num);
     L.push(`  [${SEV_LABEL[g.severity]}] ${g.rule}${nums.length ? ` (${nums.join(", ")})` : ""}: ${g.message}`, `      근거: ${g.source}`);
@@ -267,7 +289,7 @@ export function buildReport(r: ReportInput): string {
   checklist(o, active, spec).forEach((c, i) => L.push(`  ${i + 1}. ${c}`));
   L.push("", "■ 형식만 고친 것");
   const byKind = new Map<string, Change[]>();
-  for (const c of o.changes) byKind.set(c.kind, [...(byKind.get(c.kind) ?? []), c]);
+  for (const c of o.changes) if (!c.byTeacher) byKind.set(c.kind, [...(byKind.get(c.kind) ?? []), c]);
   for (const [k, list] of byKind) {
     L.push(`  ${k} ${list.length}건`);
     for (const c of list) {
