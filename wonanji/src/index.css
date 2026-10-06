@@ -1,0 +1,209 @@
+@import "tailwindcss";
+
+/*
+ * 3색 60·30·10 (「논술형 평가 문항 설계」와 같은 체계, 버건디 기준)
+ *  60 바탕  따뜻한 회색  #DDD6D4 / 면 #EEE9E7
+ *  30 먹색  #2B1F22  제목·굵은 윗선·도장(자주빛이 도는 먹)
+ *  10 강조  버건디 #7A1F2B  키커·현재 단계·선택
+ * 상태색(확인·주의·위험)은 강조색과 구별되도록 초록·황토·벽돌색으로 둡니다.
+ */
+@theme {
+  --color-bg: #ddd6d4;
+  --color-surface: #eee9e7;
+  --color-surface-2: #e3dcda;
+  --color-canvas: #cfc5c3;
+  --color-paper: #f7f3ee;
+  --color-ink: #2b1f22;
+  --color-ink-2: #5c4a4e;
+  --color-ink-3: #655458;
+  --color-line: #c2b6b6;
+  --color-line-strong: #9a8a8b;
+  --color-primary: #7a1f2b;
+  --color-primary-hover: #5e1620;
+  --color-primary-soft: #f0dcde;
+  --color-ok: #3b6b4f;
+  --color-ok-soft: #dfeae1;
+  --color-warn: #7c5b21;
+  --color-warn-soft: #f1e9d8;
+  --color-danger: #9c4a21;
+  --color-danger-soft: #f3e2d8;
+  --color-answer: #fff27a;
+
+  --font-serif: "Noto Serif KR", "Nanum Myeongjo", AppleMyungjo, Batang, serif;
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.025em;
+}
+
+/* 키커: 작은 굵은 버건디 머리글 */
+.kicker {
+  display: block;
+  color: var(--color-primary);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+/* 먹색 굵은 윗선 면 */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-top: 4px solid var(--color-ink);
+  border-radius: 2px;
+}
+.panel-accent {
+  border-top-color: var(--color-primary);
+}
+
+/* 단계 번호 "01 /" */
+.step-no {
+  white-space: nowrap;
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+.step-no::after {
+  content: " /";
+  color: var(--color-line-strong);
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.45rem 0.95rem;
+  border-radius: 2px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  border: 1px solid var(--color-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+.btn-ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border: 1px solid var(--color-ink);
+}
+.btn-line {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line-strong);
+}
+.btn-line:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.field {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 2px;
+  background: #f6f2f0;
+  color: var(--color-ink);
+  font: inherit;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+/* 접는 안내: 기본 삼각형 대신 오른쪽 +/− */
+details.fold > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+details.fold > summary::-webkit-details-marker {
+  display: none;
+}
+details.fold > summary::after {
+  content: "+";
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--color-primary);
+}
+details.fold[open] > summary::after {
+  content: "−";
+}
+
+/* 원안지 미리보기: 종이처럼 */
+.sheet img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+}
+
+/* 고정 작업 띠(높이는 화면 폭에 따라 달라 App이 --nav-h로 알려 줌) 아래로 스크롤 */
+.scroll-mt-nav {
+  scroll-margin-top: calc(var(--nav-h, 48px) + 16px);
+}
+.top-nav {
+  top: calc(var(--nav-h, 48px) + 8px);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: riseIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
