@@ -500,6 +500,11 @@ await test("글자 고치기: 고친 문단은 바뀌고 요약이 새로 읽히
   assert.ok(restorePara(p));
   refreshQuestion(q);
   assert.equal(paraText(p), before);
+  // 줄 바꿈·탭은 글자가 아니라 hp:lineBreak·hp:tab으로 들어가 다시 읽어도 같다
+  setParaText(p, "첫 줄\n둘째\t줄", new HeaderIndex(src.pkg));
+  assert.equal(paraText(p), "첫 줄\n둘째\t줄");
+  assert.ok(!/\n/.test(p.textContent ?? ""), "글자 안에 줄 바꿈 문자가 남지 않음");
+  restorePara(p);
 });
 await test("정답 붙여넣기: 숫자·원문자·번호-정답 짝", () => {
   assert.deepEqual(parseAnswers("31254").seq, [3, 1, 2, 5, 4]);

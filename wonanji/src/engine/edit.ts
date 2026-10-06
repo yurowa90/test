@@ -101,15 +101,19 @@ export function setParaText(p: Element, text: string, index: HeaderIndex): void 
   const run = hp(doc, "run");
   run.setAttribute("charPrIDRef", cp);
   const t = hp(doc, "t");
-  text.split("\t").forEach((part, i) => {
-    if (i > 0) {
-      const tab = hp(doc, "tab");
-      tab.setAttribute("width", "4000");
-      tab.setAttribute("leader", "0");
-      tab.setAttribute("type", "1");
-      t.appendChild(tab);
-    }
-    if (part) t.appendChild(doc.createTextNode(part));
+  // 문단 안 줄 바꿈은 hp:lineBreak로(paraText가 "\n"으로 보여 준 것), 탭은 hp:tab으로 되돌립니다.
+  text.split("\n").forEach((line, j) => {
+    if (j > 0) t.appendChild(hp(doc, "lineBreak"));
+    line.split("\t").forEach((part, i) => {
+      if (i > 0) {
+        const tab = hp(doc, "tab");
+        tab.setAttribute("width", "4000");
+        tab.setAttribute("leader", "0");
+        tab.setAttribute("type", "1");
+        t.appendChild(tab);
+      }
+      if (part) t.appendChild(doc.createTextNode(part));
+    });
   });
   run.appendChild(t);
   const ls = kids(p).find((c) => c.localName === "linesegarray");
