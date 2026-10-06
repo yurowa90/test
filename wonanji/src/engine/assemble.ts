@@ -6,7 +6,7 @@ import { buildQuestion } from "./normalize";
 import { hasPageCtrl, pageCtrlKinds, splitPageControls } from "./pagectl";
 import { HwpxPackage } from "./pkg";
 import { deepText } from "./text";
-import type { Change, FormatSpec, Issue, Question, SourceAnalysis, TemplateAnalysis } from "./types";
+import type { Change, FormatSpec, Issue, MergeMode, Question, SourceAnalysis, TemplateAnalysis } from "./types";
 import { strToU8Bytes } from "./zip";
 
 export interface AssembleInput {
@@ -269,10 +269,37 @@ export function assemble(input: AssembleInput): AssembleResult {
 
 }
 
-/** 기본 순서: 선택형 번호순 → 논술형 번호순, 같은 번호는 파일 순서. */
-export function defaultOrder(sources: SourceAnalysis[]): Question[] {
+/**
+ * 합치는 방식 고르기. 파일마다 1번부터 매겨 원래 번호가 많이 겹치면 출처별 이어 붙이기(append),
+ * 비워 둔 번호가 있거나 번호가 거의 겹치지 않으면 선생님별 번호 분담(split)으로 봅니다.
+ */
+export function detectMerge(sources: SourceAnalysis[]): MergeMode {
+  const files = sources.map((s) => s.questions.filter((q) => q.kind === "mcq" && q.srcNumber != null)).filter((qs) => qs.length);
+  if (files.length < 2) return "split";
+  if (sources.some((s) => s.placeholders.length)) return "split";
+  const seen = new Map<number, number>();
+  for (const qs of files) for (const n of new Set(qs.map((q) => q.srcNumber!))) seen.set(n, (seen.get(n) ?? 0) + 1);
+  const shared = [...seen.values()].filter((c) => c > 1).length;
+  const minSize = Math.min(...files.map((qs) => qs.length));
+  return shared >= Math.max(2, minSize * 0.5) ? "append" : "split";
+}
+
+/**
+ * 기본 순서: 선택형 → 논술형.
+ * split(번호 분담): 원래 번호순, 같은 번호는 파일 순서.
+ * append(이어 붙이기): 파일 순서(fileOrder, 없으면 올린 순서)대로, 파일 안에서는 원래 문서 순서.
+ */
+export function defaultOrder(sources: SourceAnalysis[], merge: MergeMode = "split", fileOrder?: number[]): Question[] {
   const all = sources.flatMap((s) => s.questions);
-  const key = (q: Question) => [q.kind === "mcq" ? 0 : 1, q.srcNumber ?? 999, q.fileIdx];
+  const pos = new Map(sources.flatMap((s) => s.questions.map((q, i) => [q.id, i] as const)));
+  const rank = (f: number) => {
+    const r = fileOrder ? fileOrder.indexOf(f) : -1;
+    return r < 0 ? f + 1000 : r;
+  };
+  const key = (q: Question) =>
+    merge === "append"
+      ? [q.kind === "mcq" ? 0 : 1, rank(q.fileIdx), pos.get(q.id) ?? 0]
+      : [q.kind === "mcq" ? 0 : 1, q.srcNumber ?? 999, q.fileIdx];
   return all.sort((a, b) => {
     const ka = key(a);
     const kb = key(b);

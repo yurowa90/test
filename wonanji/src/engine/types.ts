@@ -52,6 +52,21 @@ export interface FormatSpec {
   layout: "balanced" | "fixed";
   /** template: 모든 〈보기〉 상자를 양식 예시 상자의 틀(격자·여백·이름표·항목 내어쓰기)로 다시 짬, keep: 원본 상자 유지(폭만 맞춤) */
   boxStyle: "template" | "keep";
+  /**
+   * 여러 파일을 합치는 방식.
+   * split: 선생님마다 맡은 번호만 쓰고 나머지는 비워 둔 파일(원래 번호순으로 모음, 다른 파일과 번호가 겹치면 확인 필요).
+   * append: 출처마다 1번부터 매긴 파일(파일 순서대로 이어 붙이고 번호는 새로 매김, 파일끼리 번호가 겹치는 것은 정상).
+   */
+  merge: MergeMode;
+}
+
+export type MergeMode = "split" | "append";
+
+/** 교사가 확인하고 고르게 한 기호 바꾸기(양식 기호로). 문항 글자는 교사가 단추를 누를 때만 바뀝니다. */
+export interface SymbolFix {
+  fam: string;
+  from: string;
+  to: string;
 }
 
 /** 양식의 문항 번호 방식 */
@@ -137,6 +152,10 @@ export interface Question {
   answers: number[];
   /** 화면에서 교사가 지정한 정답(있으면 형광펜 대신 이것을 결과에 음영으로 표시) */
   answerOverride?: number[];
+  /** 화면에서 교사가 지정한 배점(있으면 결과의 배점 표기를 이 값으로, 표기가 없으면 발문 끝에 넣음) */
+  scoreOverride?: number;
+  /** 교사가 단추로 고른 기호 바꾸기 */
+  symbolFixes?: SymbolFix[];
   choices: ChoiceInfo | null;
   objects: { tbl: number; pic: number; equation: number; shape: number; other: number };
   summary: string;
@@ -169,6 +188,8 @@ export interface Issue {
   /** 근거 문서와 위치 */
   source: string;
   questionId?: string;
+  /** 기호 불일치처럼 교사가 확인 후 단추로 바꿀 수 있는 것 */
+  fix?: SymbolFix[];
 }
 
 export interface Change {

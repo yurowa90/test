@@ -309,9 +309,9 @@ function detectAnswers(paras: Element[], index: HeaderIndex): number[] {
   return [...hits].sort((a, b) => a - b);
 }
 
-function buildQuestion(id: string, fileIdx: number, fileName: string, d: Draft, index: HeaderIndex): Question {
-  const els = d.paras.map((p) => p.el);
-  const choices = d.kind === "mcq" ? parseChoices(els) : null;
+/** 문항 문단에서 발문·전체 글·배점·선지·개체 수·요약을 읽습니다(문항을 만들 때와 교사가 글자를 고친 뒤 공통). */
+function describe(els: Element[], kind: Question["kind"], headIdx: number) {
+  const choices = kind === "mcq" ? parseChoices(els) : null;
   const firstChoice = choices?.paraIdx[0] ?? els.length;
   const stemParas = els.slice(0, firstChoice);
   const stem = stemParas.map((p) => ownText(p)).join("\n").replace(/￼/g, "").trim();
@@ -324,8 +324,21 @@ function buildQuestion(id: string, fileIdx: number, fileName: string, d: Draft, 
   }
   const text = els.map((p) => deepText(p)).join("\n");
   // 요약은 머리 문단부터(앞에 붙은 공통 지문·그림 문단 제외)
-  const headStem = els.slice(d.headIdx, Math.max(d.headIdx + 1, firstChoice)).map((p) => ownText(p)).join("\n").replace(/￼/g, "").trim();
+  const headStem = els.slice(headIdx, Math.max(headIdx + 1, firstChoice)).map((p) => ownText(p)).join("\n").replace(/￼/g, "").trim();
   const firstLine = headStem.replace(RX.literalNum, "").replace(/\s+/g, " ").trim();
+  return {
+    stem,
+    text,
+    score,
+    scoreRaw,
+    choices,
+    objects: countObjects(els),
+    summary: firstLine.slice(0, 70) || (kids(els[headIdx]).length ? "(그림·표로 시작)" : ""),
+  };
+}
+
+function buildQuestion(id: string, fileIdx: number, fileName: string, d: Draft, index: HeaderIndex): Question {
+  const els = d.paras.map((p) => p.el);
   return {
     id,
     fileIdx,
@@ -335,13 +348,12 @@ function buildQuestion(id: string, fileIdx: number, fileName: string, d: Draft, 
     numberSource: d.src,
     paras: els,
     headIdx: d.headIdx,
-    text,
-    stem,
-    score,
-    scoreRaw,
+    ...describe(els, d.kind, d.headIdx),
     answers: d.kind === "mcq" ? detectAnswers(els, index) : [],
-    choices,
-    objects: countObjects(els),
-    summary: firstLine.slice(0, 70) || (kids(els[d.headIdx]).length ? "(그림·표로 시작)" : ""),
   };
+}
+
+/** 교사가 문항 글자를 고친 뒤 발문·요약·배점·선지 정보를 다시 읽습니다(정답 표시·번호는 그대로). */
+export function refreshQuestion(q: Question): void {
+  Object.assign(q, describe(q.paras, q.kind, q.headIdx));
 }

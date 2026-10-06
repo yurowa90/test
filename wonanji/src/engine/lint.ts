@@ -40,6 +40,8 @@ const cite = {
 };
 
 const CHOICE_SYMBOL = /[ㄱ-ㅎ]/g;
+/** 교사가 단추로 바꿀 수 있는 기호(한 글자·짝 괄호·발문 속 〈보기〉). 상자 표시·항목 기호·불릿은 문항 구조와 맞물려 있어 원본에서 고칩니다. */
+export const FIXABLE = new Set(["tilde", "middot", "paren", "bogiRef"]);
 
 function num(q: Question, numbers: Map<string, number>): string {
   const n = numbers.get(q.id);
@@ -76,21 +78,77 @@ export function lint(
   const essays = order.filter((q) => q.kind === "essay");
 
   // ── 수합 ──
-  const byNum = new Map<number, Question[]>();
-  for (const q of mcqs) if (q.srcNumber != null) byNum.set(q.srcNumber, [...(byNum.get(q.srcNumber) ?? []), q]);
-  for (const [n, qs] of byNum) {
-    if (qs.length > 1) add("error", "번호 중복", `원래 ${n}번 문항이 ${qs.map((q) => `「${q.fileName}」`).join(", ")}에 모두 있습니다. 하나를 빼거나 순서를 정해 주세요.`, cite.merge, qs[1]);
+  // 번호 분담(split): 원래 번호가 다른 파일과 겹치면 같은 자리를 두 사람이 쓴 것이므로 확인이 필요합니다.
+  // 이어 붙이기(append): 파일마다 1번부터 매기는 것이 정상이므로 같은 파일 안에서 겹칠 때만 알립니다.
+  const append = spec.merge === "append";
+  const dupCheck = (list: Question[], label: (n: number) => string) => {
+    const byNum = new Map<number, Question[]>();
+    for (const q of list) if (q.srcNumber != null) byNum.set(q.srcNumber, [...(byNum.get(q.srcNumber) ?? []), q]);
+    let crossFile = 0;
+    for (const [n, qs] of byNum) {
+      if (qs.length < 2) continue;
+      const byFile = new Map<number, Question[]>();
+      for (const q of qs) byFile.set(q.fileIdx, [...(byFile.get(q.fileIdx) ?? []), q]);
+      for (const same of byFile.values()) {
+        if (same.length > 1) add("error", "번호 중복", `「${same[0].fileName}」 안에 ${label(n)}이 ${same.length}번 있습니다. 번호를 잘못 매겼는지, 같은 문항이 두 번 들어갔는지 원본을 확인해 주세요.`, cite.merge, same[1]);
+      }
+      if (byFile.size > 1) {
+        crossFile++;
+        if (!append) add("error", "번호 중복", `${label(n)}이 ${[...byFile.values()].map((x) => `「${x[0].fileName}」`).join(", ")}에 모두 있습니다. 번호를 나눠 맡았다면 한 파일의 ${label(n)}을 빼고, 파일마다 1번부터 매긴 것이면 3단계에서 합치는 방식을 ‘출처별로 이어 붙이기’로 바꾸세요.`, cite.merge, [...byFile.values()][1][0]);
+      }
+    }
+    return { byNum, crossFile };
+  };
+  const mcqDup = dupCheck(mcqs, (n) => `원래 ${n}번`);
+  const essayDup = dupCheck(essays, (n) => `원래 논술형 ${n}번`);
+  const files = new Set(order.map((q) => q.fileIdx)).size;
+  if (append && mcqDup.crossFile + essayDup.crossFile > 0) {
+    add("info", "번호 새로 매김", `파일 ${files}개가 각각 1번부터 번호를 매겼습니다. 결과 번호는 3단계 순서대로 1번부터 새로 매깁니다(원래 번호 ${mcqDup.crossFile + essayDup.crossFile}개가 파일끼리 겹치지만 정상).`, cite.merge);
   }
-  const essayNum = new Map<number, Question[]>();
-  for (const q of essays) if (q.srcNumber != null) essayNum.set(q.srcNumber, [...(essayNum.get(q.srcNumber) ?? []), q]);
-  for (const [n, qs] of essayNum) {
-    if (qs.length > 1) add("error", "번호 중복", `원래 논술형 ${n}번이 ${qs.map((q) => `「${q.fileName}」`).join(", ")}에 모두 있습니다.`, cite.merge, qs[1]);
-  }
-  const nums = [...byNum.keys()].sort((a, b) => a - b);
-  if (nums.length) {
+  const missingIn = (qs: Question[]) => {
+    const ns = [...new Set(qs.map((q) => q.srcNumber).filter((n): n is number => n != null))].sort((a, b) => a - b);
     const missing: number[] = [];
-    for (let n = 1; n <= nums[nums.length - 1]; n++) if (!byNum.has(n)) missing.push(n);
+    for (let n = 1; n <= (ns[ns.length - 1] ?? 0); n++) if (!ns.includes(n)) missing.push(n);
+    return missing;
+  };
+  if (append) {
+    const byFile = new Map<number, Question[]>();
+    for (const q of mcqs) byFile.set(q.fileIdx, [...(byFile.get(q.fileIdx) ?? []), q]);
+    for (const qs of byFile.values()) {
+      const missing = missingIn(qs);
+      if (missing.length) add("warn", "번호 누락", `「${qs[0].fileName}」에 원래 ${compress(missing)}번이 없습니다. 뺀 문항이 아니라면 원본을 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
+    }
+  } else {
+    const missing = missingIn(mcqs);
     if (missing.length) add("warn", "번호 누락", `원래 번호 ${compress(missing)}번이 어느 파일에도 없습니다. 문항 파일이 빠졌는지 확인하세요. (결과는 1번부터 이어서 매깁니다)`, cite.merge);
+  }
+  // 같은 문항을 두 번 올린 경우(같은 시험지의 PDF와 사진 등): 글자 두 개씩 묶은 조각이 많이 겹치면 알립니다.
+  const grams = new Map<string, Set<string>>();
+  const gramsOf = (q: Question) => {
+    let g = grams.get(q.id);
+    if (!g) {
+      const t = q.text.replace(/[\[［(（]\s*\d+(?:\.\d+)?\s*점\s*[\]］)）]/g, "").replace(/[\s\d①②③④⑤.,·?<>〈〉()\[\]「」￼]/g, "");
+      g = new Set<string>();
+      for (let i = 0; i + 1 < t.length; i++) g.add(t.slice(i, i + 2));
+      grams.set(q.id, g);
+    }
+    return g;
+  };
+  for (const list of [mcqs, essays]) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = gramsOf(list[i]);
+        const b = gramsOf(list[j]);
+        if (a.size < 25 || b.size < 25) continue;
+        let inter = 0;
+        for (const x of a) if (b.has(x)) inter++;
+        const sim = inter / (a.size + b.size - inter);
+        if (sim >= 0.6) {
+          const src = (q: Question) => `「${q.fileName}」 원래 ${q.srcNumber ?? "?"}번`;
+          add("warn", "중복 문항 의심", `${num(list[i], numbers)}과 ${num(list[j], numbers)}의 내용이 ${Math.round(sim * 100)}% 같습니다(${src(list[i])}, ${src(list[j])}). 같은 문항을 두 파일에서 올렸다면 하나를 빼세요.`, cite.merge, list[j]);
+        }
+      }
+    }
   }
   // 머리 표·쪽 표시의 과목명: 한 파일 안에서, 그리고 파일끼리 비교
   const subjectsByFile = sources.map((s) => ({
@@ -133,9 +191,9 @@ export function lint(
   // ── 배점 ──
   // 학력평가형 양식(2점 문항 표기 생략)이면 표기 없는 선택형은 그 점수로 셉니다.
   const unmarked = spec.unmarkedScore;
-  const scoreOf = (q: Question) => q.score ?? (unmarked != null && q.kind === "mcq" ? unmarked : null);
+  const scoreOf = (q: Question) => q.scoreOverride ?? q.score ?? (unmarked != null && q.kind === "mcq" ? unmarked : null);
   const scored = order.filter((q) => scoreOf(q) != null);
-  const noMark = order.filter((q) => q.score == null && scoreOf(q) != null);
+  const noMark = order.filter((q) => q.score == null && q.scoreOverride == null && scoreOf(q) != null);
   if (noMark.length) add("info", "배점 표기 생략", `${noMark.map((q) => num(q, numbers)).join(", ")}: 배점 표기가 없어 ${unmarked}점으로 계산했습니다(양식 관례).`, cite.unmarked);
   for (const q of order) if (scoreOf(q) == null) add("error", "배점 없음", `${num(q, numbers)}: 배점 표기([x.x점])를 찾지 못했습니다.`, cite.tplScore, q);
   if (scored.length) {
@@ -143,10 +201,15 @@ export function lint(
     const mcqSum = mcqs.reduce((a, q) => a + (scoreOf(q) ?? 0), 0);
     const essaySum = essays.reduce((a, q) => a + (scoreOf(q) ?? 0), 0);
     add(Math.abs(total - 100) < 0.01 ? "info" : "warn", "배점 합계", `합계 ${fmt(total)}점 (선택형 ${fmt(mcqSum)} + 논술형 ${fmt(essaySum)})${Math.abs(total - 100) < 0.01 ? "" : " — 100점이 아닙니다"}`, cite.tplScore);
-    const frac = scored.filter((q) => !Number.isInteger(q.score!));
-    if (frac.length) add("info", "소수점 배점", `소수점 배점 ${frac.length}문항(${[...new Set(frac.map((q) => q.score))].join(", ")}점). 지침은 정수 배점을 원칙으로 합니다.`, cite.schoolInteger);
-    const maxMcq = Math.max(0, ...mcqs.map((q) => q.score ?? 0));
-    for (const q of essays) if (q.score != null && q.score <= maxMcq) add("warn", "논술형 배점", `${num(q, numbers)} 배점(${fmt(q.score)}점)이 선택형 최고 배점(${fmt(maxMcq)}점)보다 높지 않습니다.`, cite.schoolEssayScore, q);
+    const frac = scored.filter((q) => !Number.isInteger(scoreOf(q)!));
+    if (frac.length) add("info", "소수점 배점", `소수점 배점 ${frac.length}문항(${[...new Set(frac.map((q) => scoreOf(q)))].join(", ")}점). 지침은 정수 배점을 원칙으로 합니다.`, cite.schoolInteger);
+    const maxMcq = Math.max(0, ...mcqs.map((q) => scoreOf(q) ?? 0));
+    for (const q of essays) {
+      const sc = scoreOf(q);
+      if (sc != null && sc <= maxMcq) add("warn", "논술형 배점", `${num(q, numbers)} 배점(${fmt(sc)}점)이 선택형 최고 배점(${fmt(maxMcq)}점)보다 높지 않습니다.`, cite.schoolEssayScore, q);
+    }
+    const set = order.filter((q) => q.scoreOverride != null);
+    if (set.length) add("info", "배점 지정", `${set.map((q) => `${num(q, numbers)} ${fmt(q.scoreOverride!)}점`).join(", ")}: 화면에서 지정한 배점을 결과에 표기합니다.`, "교사 지정");
   }
 
   // ── 발문 ──
@@ -250,18 +313,29 @@ export function lint(
       if (run) unsure += (unsure ? " · " : "") + run;
     }
     // 이미지에서 인식한 글자 가운데 확신이 낮아 빨갛게 둔 것: 원본과 대조해야 합니다.
-    if (unsureN) add("warn", "글자 인식 확인", `${num(q, numbers)}: 이미지에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. 원본과 대조해 고친 뒤 검정으로 바꾸세요.`, "이미지 글자 인식(OCR) 결과", q);
+    // 10자 이상이면 문장이 깨졌을 가능성이 커서 ‘확인 필요’로 올립니다.
+    if (unsureN) add(unsureN >= 10 ? "error" : "warn", "글자 인식 확인", `${num(q, numbers)}: 사진에서 인식이 불확실한 글자 ${unsureN}자(빨간색) — ${unsure.length > 60 ? unsure.slice(0, 60) + "…" : unsure}. 3단계에서 문항을 펼쳐 원본 사진과 대조해 고치세요(고친 글자는 검정으로 바뀝니다).`, "사진 글자 인식(OCR) 결과", q);
     if (colors.size) add("info", "글자색", `${num(q, numbers)}: 검정이 아닌 글자색(${[...colors].join(", ")})이 있습니다. 원안지는 흑백 인쇄 기준입니다.`, cite.color, q);
 
     // 기호: 양식(없으면 문항 파일 다수)과 다른 기호 — 원문은 그대로 두고 알리기만 합니다.
     // 상자를 양식 틀로 다시 짰으면 상자 표시(〈 보 기 〉)는 양식 것이 되므로 불일치가 아닙니다.
     const boxUnified = spec.boxStyle === "template" && !!tpl.boxProto;
-    const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols).filter((m) => !(boxUnified && m.fam === "bogiLabel"));
+    const fixed = (m: { fam: string; used: string }) => (q.symbolFixes ?? []).some((f) => f.fam === m.fam && f.from === m.used);
+    const mism = symbolMismatches(qSymbols.get(q.id)!, tpl.symbols ?? {}, allSymbols).filter((m) => !(boxUnified && m.fam === "bogiLabel") && !fixed(m));
     if (mism.length) {
       const strong = mism.some((m) => ["bogiLabel", "bogiRef", "bogiItem", "bullet"].includes(m.fam));
       const detail = mism.map((m) => `${SYMBOL_LABEL[m.fam]} ‘${m.used}’ (${m.basis === "양식" ? "양식" : "다른 문항 다수"}: ‘${m.want}’)`).join(" · ");
-      add(strong ? "warn" : "info", "기호 불일치", `${num(q, numbers)}: ${detail}. 자동으로 바꾸지 않았습니다. 필요하면 원본에서 고쳐 주세요.`, strong ? `${cite.symbols} / ${cite.bogiSymbols}` : cite.symbols, q);
+      const fix = mism.filter((m) => FIXABLE.has(m.fam)).map((m) => ({ fam: m.fam, from: m.used, to: m.want }));
+      issues.push({
+        severity: strong ? "warn" : "info",
+        rule: "기호 불일치",
+        message: `${num(q, numbers)}: ${detail}. 자동으로 바꾸지 않았습니다.${fix.length ? " 확인한 뒤 ‘양식 기호로 바꾸기’를 누르면 바꿉니다." : " 필요하면 원본에서 고쳐 주세요."}`,
+        source: strong ? `${cite.symbols} / ${cite.bogiSymbols}` : cite.symbols,
+        questionId: q.id,
+        fix: fix.length ? fix : undefined,
+      });
     }
+    if (q.symbolFixes?.length) add("info", "기호 바꿈", `${num(q, numbers)}: ${q.symbolFixes.map((f) => `${SYMBOL_LABEL[f.fam] ?? f.fam} ‘${f.from}’ → ‘${f.to}’`).join(" · ")} (교사 확인)`, cite.symbols, q);
     for (const el of q.paras.flatMap((p) => descendants(p, "pos"))) {
       const rel = `${el.getAttribute("vertRelTo")}/${el.getAttribute("horzRelTo")}`;
       if (el.getAttribute("treatAsChar") === "0" && /PAPER|PAGE/.test(rel)) {

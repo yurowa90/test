@@ -367,6 +367,7 @@ export function analyzeTemplate(doc: LoadedDoc): TemplateAnalysis {
     tracking: true,
     layout: "balanced",
     boxStyle: boxProto ? "template" : "keep",
+    merge: "split",
   };
 
   // 양식 상용구(문항 파일에서 같은 문단이 나오면 뺍니다). 발문·선지·〈보기〉처럼 문항에도 흔한 글은 넣지 않습니다.

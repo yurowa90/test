@@ -6,7 +6,7 @@ import { getMargin, type Importer } from "./header";
 import { floatRight, isInline, objKind, objWidth, setObjWidth, shrinkFloatOffset, topObjects } from "./objects";
 import { charPositions } from "./pagectl";
 import { indexText, isBlank, itemsOf, replaceItems, restyle, shiftLinesegs, textOf, trimLeading, trimTrailing, type Item } from "./text";
-import type { Change, FormatSpec, Issue, Question } from "./types";
+import type { Change, FormatSpec, Issue, Question, SymbolFix } from "./types";
 
 /** 배점 숫자 표기: 소수점 한 자리(4 → 4.0) 또는 정수 그대로(4 → 4) */
 export function formatScore(n: number, decimal = true): string {
@@ -235,7 +235,7 @@ function fitObjects(
       const off = Number(pos?.getAttribute("horzOffset") ?? 0);
       if (setObjWidth(o, Math.round(w * k))) {
         if ((pos?.getAttribute("horzAlign") ?? "LEFT") === "LEFT") pos?.setAttribute("horzOffset", String(Math.round(off * k)));
-        log("크기", `떠 있는 ${label(kind)}의 위치·폭을 단에 맞게 ${Math.round(k * 100)}%로`);
+        log("개체 크기", `떠 있는 ${label(kind)}의 위치·폭을 단에 맞게 ${Math.round(k * 100)}%로`);
       } else {
         shrinkFloatOffset(o, room);
         if (floatRight(o) > room + 100) warn(`떠 있는 ${label(kind)}가 단 오른쪽 밖으로 나갑니다(선·도형이 들어 있어 자동으로 줄이지 못함). 한글에서 위치·크기를 확인해 주세요.`);
@@ -252,7 +252,7 @@ function fitObjects(
       if (ratio > 1.05) target = Math.min(room, Math.round(w * ratio));
     }
     if (Math.abs(target - w) >= 100) {
-      if (setObjWidth(o, target)) log("크기", `${label(kind)} 폭 ${pct(w, spec.columnWidthHU)} → ${pct(target, spec.columnWidthHU)}(단 폭 대비)`);
+      if (setObjWidth(o, target)) log("개체 크기", `${label(kind)} 폭 ${pct(w, spec.columnWidthHU)} → ${pct(target, spec.columnWidthHU)}(단 폭 대비)`);
       else if (w > room) warn(`${label(kind)} 폭이 단의 ${pct(w, spec.columnWidthHU)}인데, 선·도형으로 그린 개체가 들어 있어 자동으로 줄이지 못했습니다. 한글에서 크기를 줄여 주세요.`);
     }
   }
@@ -452,6 +452,90 @@ function renumberEssay(p: Element, n: number, numberSizeHU: number): boolean {
   return m[0] !== want;
 }
 
+const BOGI_REF = /([<〈＜《[［])\s*보\s*기\s*([>〉＞》\]］])/g;
+
+/**
+ * 교사가 확인하고 고른 기호 바꾸기. 한 글자 기호(물결표·가운뎃점)와 전각 괄호는 표 안까지,
+ * 발문 속 〈보기〉는 표 밖 문단에서만 바꿉니다(상자 표시는 상자 틀이 정함). 바꾼 개수를 돌려줍니다.
+ */
+export function applySymbolFixes(paras: Element[], fixes: SymbolFix[]): number {
+  let n = 0;
+  const all = paras.flatMap((p) => [p, ...descendants(p, "p")]);
+  for (const f of fixes) {
+    if (f.fam === "bogiRef") {
+      for (const p of paras) {
+        for (let guard = 0; guard < 8; guard++) {
+          const items = itemsOf(p);
+          const ix = indexText(items);
+          const m = [...ix.text.matchAll(BOGI_REF)].find((x) => `${x[1]}보기${x[2]}` === f.from);
+          if (!m) break;
+          const [a, b] = ix.range(m.index!, m.index! + m[0].length);
+          if (items.slice(a, b).some((i) => i.kind === "obj")) break;
+          replaceItems(items, a, b, f.to);
+          n++;
+        }
+      }
+      continue;
+    }
+    const pairs: [string, string][] = f.fam === "paren" ? [["（", "("], ["）", ")"]] : [[f.from, f.to]];
+    for (const p of all) {
+      for (const t of descendants(p, "t")) {
+        for (let c = t.firstChild; c; c = c.nextSibling) {
+          if (c.nodeType !== 3) continue;
+          let v = c.nodeValue ?? "";
+          for (const [a, b] of pairs) {
+            const k = v.split(a).length - 1;
+            if (k) {
+              n += k;
+              v = v.split(a).join(b);
+            }
+          }
+          c.nodeValue = v;
+        }
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * 교사가 화면에서 정한 배점을 결과에 씁니다. 배점 표기가 있으면 그 숫자를, 없으면 발문의 마지막 물음표 뒤
+ * (없으면 발문 끝)에 [x점]을 넣습니다. 선지 문단에는 넣지 않습니다.
+ */
+export function applyScoreOverride(paras: Element[], firstChoice: number, score: number, decimal: boolean): string | null {
+  const want = `[${formatScore(score, decimal)}점]`;
+  for (let i = paras.length - 1; i >= 0; i--) {
+    const items = itemsOf(paras[i]);
+    const ix = indexText(items);
+    const ms = [...ix.text.matchAll(RX.score)];
+    const m = ms[ms.length - 1];
+    if (!m) continue;
+    const [a, b] = ix.range(m.index!, m.index! + m[0].length);
+    if (items.slice(a, b).some((it) => it.kind === "obj" || it.kind === "mark")) return null;
+    if (m[0] === want) return null;
+    replaceItems(items, a, b, want);
+    return `${m[0]} → ${want}(화면에서 지정)`;
+  }
+  const stemEnd = Math.max(1, Math.min(paras.length, firstChoice));
+  for (let i = stemEnd - 1; i >= 0; i--) {
+    const items = itemsOf(paras[i]);
+    const ix = indexText(items);
+    const q = ix.text.lastIndexOf("?");
+    if (q < 0) continue;
+    const [, b] = ix.range(q, q + 1);
+    replaceItems(items, b, b, ` ${want}`);
+    return `배점 표기가 없어 물음표 뒤에 ${want}을 넣음(화면에서 지정)`;
+  }
+  for (let i = stemEnd - 1; i >= 0; i--) {
+    const items = itemsOf(paras[i]);
+    const last = items.map((it, k) => (it.kind === "ch" ? k : -1)).filter((k) => k >= 0).pop();
+    if (last == null) continue;
+    replaceItems(items, last + 1, last + 1, ` ${want}`);
+    return `배점 표기가 없어 발문 끝에 ${want}을 넣음(화면에서 지정)`;
+  }
+  return null;
+}
+
 export function buildQuestion(
   q: Question,
   finalNumber: number,
@@ -476,6 +560,16 @@ export function buildQuestion(
     head.setAttribute("paraPrIDRef", "@head");
   } else if (renumberEssay(head, finalNumber, numberSizeHU)) {
     log("번호", `논술형 번호를 ${finalNumber}번으로 다시 매김`);
+  }
+
+  // 0) 교사가 화면에서 고른 기호 바꾸기와 배점(교사가 단추·입력으로 정한 것만)
+  if (q.symbolFixes?.length) {
+    const n = applySymbolFixes(paras, q.symbolFixes);
+    if (n) log("기호 바꿈", `${q.symbolFixes.map((f) => `‘${f.from}’ → ‘${f.to}’`).join(", ")} ${n}곳(교사 확인)`);
+  }
+  if (q.scoreOverride != null) {
+    const d = applyScoreOverride(paras, q.choices?.paraIdx[0] ?? paras.length, q.scoreOverride, spec.scoreDecimal);
+    if (d) log("배점", d);
   }
 
   // 1-1) 교사가 화면에서 지정한 정답: 선지 번호(①~⑤)에 정답 음영, 다른 번호의 음영은 지움(글자는 그대로)
