@@ -252,48 +252,51 @@ export default function QuestionBoard(props: Props) {
       {groups
         .filter((g) => g.list.length)
         .map((g) => (
-          <div key={g.title} className="overflow-x-auto border border-line bg-paper">
-            <table className="w-full min-w-[760px] text-sm">
-              <caption className="border-b-2 border-ink px-3 py-1.5 text-left">
-                <span className="serif text-[15px] font-bold">{g.title}</span>
-                <span className="ml-2 text-xs text-ink-3">{g.list.filter((q) => !excluded.has(q.id)).length}문항</span>
-              </caption>
-              <thead className="text-[11px] text-ink-3">
-                <tr className="border-b border-line">
-                  <th className="sticky left-0 z-[2] w-10 bg-paper px-2 py-1.5 font-bold">포함</th>
-                  <th className="sticky left-10 z-[2] w-14 bg-paper px-2 py-1.5 text-right font-bold">결과</th>
-                  <th className="w-12 px-2 py-1.5 text-right font-bold">원래</th>
-                  <th className="px-2 py-1.5 text-left font-bold">발문 · 검수</th>
-                  <th className="w-20 px-2 py-1.5 text-right font-bold">배점</th>
-                  <th className="w-24 px-2 py-1.5 font-bold">정답</th>
-                  <th className="w-28 px-2 py-1.5 text-left font-bold">파일</th>
-                  <th className="w-20 px-2 py-1.5 font-bold">순서</th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.list.map((q) => (
-                  <Row
-                    key={q.id}
-                    q={q}
-                    off={excluded.has(q.id)}
-                    finalNo={finalNo.get(q.id)}
-                    label={label(q)}
-                    list={excluded.has(q.id) ? [] : (perQ.get(q.id) ?? [])}
-                    open={open.has(q.id)}
-                    flash={flash === q.id}
-                    dupNum={flagged(q.id, "번호 중복")}
-                    dupContent={flagged(q.id, "중복 문항 의심")}
-                    chosen={answers.get(q.id)}
-                    score={scores.get(q.id)}
-                    fix={fixes.get(q.id)}
-                    source={sources[q.fileIdx]}
-                    imageUrl={imageUrls.get(q.fileIdx)}
-                    onToggleOpen={() => toggleOpen(q.id)}
-                    {...props}
-                  />
-                ))}
-              </tbody>
-            </table>
+          <div key={g.title} className="border border-line bg-paper">
+            {/* 제목은 가로 스크롤 밖에 두어, 좁은 화면에서 표를 밀어도 보이게 합니다. */}
+            <div className="border-b-2 border-ink px-3 py-1.5 text-left">
+              <span className="serif text-[15px] font-bold">{g.title}</span>
+              <span className="ml-2 text-xs text-ink-3">{g.list.filter((q) => !excluded.has(q.id)).length}문항</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm" aria-label={`${g.title} 문항`}>
+                <thead className="text-[11px] text-ink-3">
+                  <tr className="border-b border-line">
+                    <th className="sticky left-0 z-[2] w-10 bg-paper px-2 py-1.5 font-bold">포함</th>
+                    <th className="sticky left-10 z-[2] w-14 bg-paper px-2 py-1.5 text-right font-bold">결과</th>
+                    <th className="w-12 px-2 py-1.5 text-right font-bold">원래</th>
+                    <th className="px-2 py-1.5 text-left font-bold">발문 · 검수</th>
+                    <th className="w-20 px-2 py-1.5 text-right font-bold">배점</th>
+                    <th className="w-24 px-2 py-1.5 font-bold">정답</th>
+                    <th className="w-28 px-2 py-1.5 text-left font-bold">파일</th>
+                    <th className="w-20 px-2 py-1.5 font-bold">순서</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.list.map((q) => (
+                    <Row
+                      key={q.id}
+                      q={q}
+                      off={excluded.has(q.id)}
+                      finalNo={finalNo.get(q.id)}
+                      label={label(q)}
+                      list={excluded.has(q.id) ? [] : (perQ.get(q.id) ?? [])}
+                      open={open.has(q.id)}
+                      flash={flash === q.id}
+                      dupNum={flagged(q.id, "번호 중복")}
+                      dupContent={flagged(q.id, "중복 문항 의심")}
+                      chosen={answers.get(q.id)}
+                      score={scores.get(q.id)}
+                      fix={fixes.get(q.id)}
+                      source={sources[q.fileIdx]}
+                      imageUrl={imageUrls.get(q.fileIdx)}
+                      onToggleOpen={() => toggleOpen(q.id)}
+                      {...props}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
     </div>
