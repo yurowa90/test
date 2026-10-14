@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/16/solid";
 import type {
   GraspsCandidates,
   GraspsElementKey,
@@ -165,9 +166,10 @@ export default function CandidateSelect({
         <button
           onClick={onBack}
           disabled={busy}
-          className="rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
         >
-          ← Stage 1 수정
+          <ArrowLeftIcon className="size-4" aria-hidden />
+          Stage 1 수정
         </button>
         <button
           onClick={confirm}
@@ -175,7 +177,7 @@ export default function CandidateSelect({
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "안내문·루브릭 생성 중…" : "이 6요소로 과제 완성"}
-          {!busy && <span aria-hidden>→</span>}
+          {!busy && <ArrowRightIcon className="size-4" aria-hidden />}
         </button>
       </div>
     </div>

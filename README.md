@@ -17,10 +17,18 @@
 
 ## 스택
 
-- Vite + React 19 + TypeScript, Tailwind CSS v4
+- Vite + React 19 + TypeScript, Tailwind CSS v4, 아이콘 [Heroicons](https://heroicons.com) v2 (MIT, `16/solid` micro 세트)
 - 백엔드 없음 — **BYOK**(Bring Your Own Key) Gemini. API 키는 브라우저 localStorage에만 저장되고 Google로 직접 호출됩니다.
 - Gemini `responseSchema`로 JSON 강제 출력 → 파싱 오류 방지.
 - Vercel 정적 배포용(`vercel.json` 포함).
+
+## 디자인·접근성 규칙
+
+- **대비(WCAG 2.2 SC 1.4.3, 4.5:1)**: `thread`(#b0791f)는 밝은 바탕에서 3.54:1이라 큰 글자·선·포커스 링 전용입니다. 작은 글자는 `thread-ink`(#845a17), 블루프린트 바탕 위 작은 글자는 `blueprint-mute`(#94a5bf)를 씁니다. `blueprint-line`은 선·테두리 전용입니다.
+- **아이콘은 장식, 의미는 글자로**: 아이콘에는 `aria-hidden`을 붙이고 버튼 이름은 텍스트로 둡니다. ✓·→ 같은 글자 기호는 스크린리더가 "체크 표시" 등으로 읽으므로 쓰지 않습니다.
+- **인쇄**: 결과 화면의 **인쇄·PDF**는 과제(1쪽)와 루브릭(새 쪽)을 나눠 출력합니다. 화면 전용 UI는 `print:hidden`, 어두운 패널은 `.print-invert`, 정렬 마커 색은 `.print-keep-color`로 유지합니다(`src/index.css`).
+- **모션**: 애니메이션·부드러운 스크롤은 `prefers-reduced-motion: no-preference`일 때만 켭니다.
+- **한국어 줄바꿈**: 본문 전체에 `word-break: keep-all`(어절 단위)을 적용합니다.
 
 ## 로컬 실행
 
@@ -60,7 +68,8 @@ src/
 └─ types.ts
 
 public/
-└─ science_standards.json  # 2022 개정 과학과 성취기준 473 + 성취수준 A~E 371
+├─ science_standards.json  # 2022 개정 과학과 성취기준 473 + 성취수준 A~E 371
+└─ favicon.svg
 ```
 
 ## 근거 자료 (Phase 0)

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/16/solid";
 import type { Stage1Result } from "../types";
 import { markerFor } from "../lib/markers";
 
@@ -161,9 +162,10 @@ export default function Stage1Review({
         <button
           onClick={onBack}
           disabled={busy}
-          className="rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
         >
-          ← 입력 수정
+          <ArrowLeftIcon className="size-4" aria-hidden />
+          입력 수정
         </button>
         <button
           onClick={() => onConfirm(draft)}
@@ -171,7 +173,7 @@ export default function Stage1Review({
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "GRASPS 생성 중…" : "이 이해를 평가하는 과제 만들기"}
-          {!busy && <span aria-hidden>→</span>}
+          {!busy && <ArrowRightIcon className="size-4" aria-hidden />}
         </button>
       </div>
     </div>
