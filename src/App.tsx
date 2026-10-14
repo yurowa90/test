@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CheckIcon, KeyIcon } from "@heroicons/react/16/solid";
 import type {
   GraspsCandidates,
   GraspsSelection,
@@ -169,11 +170,11 @@ export default function App() {
   return (
     <div className="min-h-screen">
       {/* 헤더 / 히어로 */}
-      <header className="blueprint-grid relative overflow-hidden text-paper">
+      <header className="blueprint-grid relative overflow-hidden text-paper print:hidden">
         <div className="relative mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
           <div className="flex items-start justify-between gap-4">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blueprint-line">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blueprint-mute">
                 Understanding by Design · 2단계 파이프라인
               </p>
               <h1 className="serif mt-3 text-3xl font-bold leading-tight sm:text-[2.6rem]">
@@ -189,9 +190,19 @@ export default function App() {
             </div>
             <button
               onClick={() => setKeyModalOpen(true)}
-              className="shrink-0 rounded-lg border border-blueprint-line/60 bg-white/5 px-3 py-2 text-xs font-semibold text-paper/90 backdrop-blur hover:bg-white/10"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blueprint-line/60 bg-white/5 px-3 py-2 text-xs font-semibold text-paper/90 backdrop-blur hover:bg-white/10"
             >
-              {apiKey ? "API 키 ✓" : "API 키 설정"}
+              {apiKey ? (
+                <>
+                  <CheckIcon className="size-4 text-thread" aria-hidden />
+                  API 키<span className="sr-only"> 등록됨 — 변경</span>
+                </>
+              ) : (
+                <>
+                  <KeyIcon className="size-4" aria-hidden />
+                  API 키 설정
+                </>
+              )}
             </button>
           </div>
 
@@ -204,33 +215,42 @@ export default function App() {
                 return (
                   <li
                     key={s.id}
+                    aria-current={state === "active" ? "step" : undefined}
                     className="flex flex-1 items-center gap-2 sm:gap-3"
                   >
                     <div className="flex items-center gap-2.5">
                       <span
                         className={[
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ring-1 transition",
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ring-1 transition motion-reduce:transition-none",
                           state === "active"
-                            ? "bg-thread text-white ring-thread"
+                            ? "bg-thread text-ink ring-thread"
                             : state === "done"
                               ? "bg-white/90 text-blueprint ring-white/90"
-                              : "bg-transparent text-paper/50 ring-blueprint-line/60",
+                              : "bg-transparent text-paper/60 ring-blueprint-line/60",
                         ].join(" ")}
                       >
-                        {state === "done" ? "✓" : i + 1}
+                        {state === "done" ? (
+                          <CheckIcon className="size-4" aria-hidden />
+                        ) : (
+                          <span aria-hidden>{i + 1}</span>
+                        )}
                       </span>
-                      <span className="hidden sm:block">
+                      {/* 모바일에서도 스크린리더는 단계명·상태를 읽는다 */}
+                      <span className="sr-only sm:not-sr-only sm:block">
                         <span
                           className={[
                             "block text-sm font-semibold",
-                            state === "todo" ? "text-paper/50" : "text-paper",
+                            state === "todo" ? "text-paper/60" : "text-paper",
                           ].join(" ")}
                         >
                           {s.label}
                         </span>
-                        <span className="block text-[11px] text-paper/50">
+                        <span className="block text-[11px] text-paper/60">
                           {s.sub}
                         </span>
+                        {state === "done" && (
+                          <span className="sr-only"> (완료)</span>
+                        )}
                       </span>
                     </div>
                     {i < STEPS.length - 1 && (
@@ -254,7 +274,7 @@ export default function App() {
         {error && (
           <div
             role="alert"
-            className="mx-auto mb-6 max-w-3xl rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+            className="mx-auto mb-6 max-w-3xl rounded-lg border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-800 print:hidden"
           >
             {error}
           </div>
@@ -304,7 +324,7 @@ export default function App() {
         )}
       </main>
 
-      <footer className="mx-auto max-w-5xl px-5 pb-10 text-center text-xs text-ink-soft sm:px-8">
+      <footer className="mx-auto max-w-5xl px-5 pb-10 text-center text-xs text-ink-soft sm:px-8 print:hidden">
         <p>
           백워드 설계(Wiggins &amp; McTighe, 2005) · UDL Guidelines 3.0(CAST,
           2024) 기반 · BYOK Gemini · 데이터는 브라우저에만 저장됩니다.

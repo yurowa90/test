@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowRightIcon } from "@heroicons/react/16/solid";
 import type { ScienceStandard, TeacherInput } from "../types";
 import {
   domainsFor,
@@ -233,9 +234,10 @@ export default function InputForm({
                     {selected.code}
                   </span>
                   {selected.levels ? (
-                    <span className="rounded-full bg-thread-soft px-2 py-0.5 text-xs font-semibold text-thread">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-thread-soft px-2 py-0.5 text-xs font-semibold text-thread-ink">
                       성취수준 {selected.levels.system === 3 ? "A~C" : "A~E"} 포함
-                      → 루브릭 정렬
+                      <ArrowRightIcon className="size-3" aria-hidden />
+                      <span className="sr-only">,</span> 루브릭 정렬
                     </span>
                   ) : (
                     <span className="rounded-full bg-paper-line/60 px-2 py-0.5 text-xs text-ink-soft">
@@ -289,7 +291,8 @@ export default function InputForm({
             </div>
 
             <label className="block text-sm font-semibold text-ink">
-              성취기준 <span className="text-thread">*</span>
+              성취기준 <span className="text-thread-ink" aria-hidden>*</span>
+              <span className="sr-only">(필수)</span>
               <textarea
                 value={form.standard}
                 onChange={(e) =>
@@ -323,9 +326,10 @@ export default function InputForm({
           <button
             type="button"
             onClick={onOpenKey}
-            className="rounded-lg border border-dashed border-thread/60 bg-thread-soft/40 px-4 py-3 text-sm font-semibold text-thread hover:bg-thread-soft/70"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-thread/60 bg-thread-soft/40 px-4 py-3 text-sm font-semibold text-thread-ink hover:bg-thread-soft/70"
           >
-            먼저 Gemini API 키를 등록하세요 →
+            먼저 Gemini API 키를 등록하세요
+            <ArrowRightIcon className="size-4" aria-hidden />
           </button>
         )}
 
@@ -337,10 +341,10 @@ export default function InputForm({
           <button
             type="submit"
             disabled={!canSubmit}
-            className="inline-flex items-center gap-2 rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
           >
             {busy ? "생성 중…" : "Stage 1 생성"}
-            {!busy && <span aria-hidden>→</span>}
+            {!busy && <ArrowRightIcon className="size-4" aria-hidden />}
           </button>
         </div>
       </div>

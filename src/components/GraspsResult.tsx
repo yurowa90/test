@@ -1,4 +1,13 @@
 import { useState } from "react";
+import {
+  AdjustmentsHorizontalIcon,
+  ArrowDownTrayIcon,
+  ArrowPathIcon,
+  CheckIcon,
+  ClipboardDocumentIcon,
+  PlusIcon,
+  PrinterIcon,
+} from "@heroicons/react/16/solid";
 import type { GraspsTask, Stage1Result } from "../types";
 import { markerFor } from "../lib/markers";
 
@@ -26,6 +35,9 @@ const GRASPS_ROWS: {
   { key: "standards", letter: "S", name: "성공기준 Standards" },
 ];
 
+const ACTION_BTN =
+  "inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40";
+
 export default function GraspsResult({
   stage1,
   task,
@@ -47,39 +59,46 @@ export default function GraspsResult({
   return (
     <div className="rise-in mx-auto max-w-4xl">
       {/* 액션 바 */}
-      <div className="sticky top-2 z-10 mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-paper-line bg-paper/90 p-2 shadow-sm backdrop-blur">
-        <button
-          onClick={handleCopy}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper"
-        >
-          {copied ? "복사됨 ✓" : "Markdown 복사"}
+      <div className="sticky top-2 z-10 mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-paper-line bg-paper/90 p-2 shadow-sm backdrop-blur print:hidden">
+        <button onClick={handleCopy} className={ACTION_BTN}>
+          {copied ? (
+            <CheckIcon className="size-4 text-thread-ink" aria-hidden />
+          ) : (
+            <ClipboardDocumentIcon className="size-4 text-ink-soft" aria-hidden />
+          )}
+          {copied ? "복사됨" : "Markdown 복사"}
         </button>
-        <button
-          onClick={onDownload}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper"
-        >
+        <span className="sr-only" aria-live="polite">
+          {copied ? "Markdown이 클립보드에 복사되었습니다" : ""}
+        </span>
+        <button onClick={onDownload} className={ACTION_BTN}>
+          <ArrowDownTrayIcon className="size-4 text-ink-soft" aria-hidden />
           .md 다운로드
         </button>
-        <button
-          onClick={onRegenerate}
-          disabled={busy}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
-        >
+        <button onClick={() => window.print()} className={ACTION_BTN}>
+          <PrinterIcon className="size-4 text-ink-soft" aria-hidden />
+          인쇄·PDF
+        </button>
+        <button onClick={onRegenerate} disabled={busy} className={ACTION_BTN}>
+          <ArrowPathIcon
+            className={`size-4 text-ink-soft ${busy ? "animate-spin motion-reduce:animate-none" : ""}`}
+            aria-hidden
+          />
           {busy ? "다시 생성 중…" : "안내문·루브릭 다시 생성"}
         </button>
-        <button
-          onClick={onReselect}
-          disabled={busy}
-          className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line hover:bg-paper disabled:opacity-40"
-        >
+        <button onClick={onReselect} disabled={busy} className={ACTION_BTN}>
+          <AdjustmentsHorizontalIcon
+            className="size-4 text-ink-soft"
+            aria-hidden
+          />
           요소 다시 고르기
         </button>
         <div className="ml-auto">
           <button
             onClick={onRestart}
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-ink-soft hover:bg-paper-line/50"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-ink-soft hover:bg-paper-line/50"
           >
-            새 과제
+            <PlusIcon className="size-4" aria-hidden />새 과제
           </button>
         </div>
       </div>
@@ -93,7 +112,7 @@ export default function GraspsResult({
           {GRASPS_ROWS.map((row) => (
             <div
               key={row.name}
-              className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-paper-line"
+              className="print-avoid-break rounded-xl bg-white p-4 shadow-sm ring-1 ring-paper-line"
             >
               <div className="flex items-baseline gap-2">
                 <span className="serif text-2xl font-bold text-thread">
@@ -112,7 +131,7 @@ export default function GraspsResult({
       </section>
 
       {/* 학생용 안내문 */}
-      <section className="mt-6 rounded-xl bg-blueprint p-6 text-paper shadow-sm">
+      <section className="print-invert print-avoid-break mt-6 rounded-xl bg-blueprint p-6 text-paper shadow-sm">
         <h3 className="serif text-sm font-bold tracking-wide text-white/80">
           학생용 과제 안내문
         </h3>
@@ -147,8 +166,8 @@ export default function GraspsResult({
         </section>
       )}
 
-      {/* 루브릭 — 정렬 마커로 Stage 1 이해와 연결 */}
-      <section className="mt-6">
+      {/* 루브릭 — 정렬 마커로 Stage 1 이해와 연결. 인쇄 시 별도 배부용 새 쪽 */}
+      <section className="mt-6 print:mt-0 print:break-before-page">
         <h2 className="serif text-lg font-bold text-blueprint">루브릭</h2>
         <p className="mt-0.5 text-sm text-ink-soft">
           각 준거 옆의 표식은 그 준거가 평가하는{" "}
@@ -163,7 +182,7 @@ export default function GraspsResult({
             return (
               <div
                 key={idx}
-                className={`overflow-hidden rounded-xl border-l-4 ${m.edge} bg-white shadow-sm ring-1 ring-paper-line`}
+                className={`print-keep-color print-avoid-break overflow-hidden rounded-xl border-l-4 ${m.edge} bg-white shadow-sm ring-1 ring-paper-line`}
               >
                 <div className={`px-4 py-3 ${m.surface}`}>
                   <div className="flex items-center gap-2">
