@@ -101,7 +101,6 @@ body {
   font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn:disabled {
   opacity: 0.45;
@@ -146,6 +145,11 @@ body {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-soft);
 }
+/* 입력 예시·‘없음’ 같은 안내 글: 기본(글자색 50%, 3.1:1) 대신 ink-3(6.4:1) */
+.field::placeholder {
+  color: var(--color-ink-3);
+  opacity: 1;
+}
 
 /* 접는 안내: 기본 삼각형 대신 오른쪽 +/− */
 details.fold > summary {
@@ -161,6 +165,8 @@ details.fold > summary::-webkit-details-marker {
 }
 details.fold > summary::after {
   content: "+";
+  /* 펼침 상태는 details가 알려 주므로 기호는 화면 읽기 프로그램이 읽지 않게(대체 글 "") */
+  content: "+" / "";
   font-weight: 700;
   font-size: 20px;
   line-height: 1;
@@ -168,6 +174,7 @@ details.fold > summary::after {
 }
 details.fold[open] > summary::after {
   content: "−";
+  content: "−" / "";
 }
 
 /* 원안지 미리보기: 종이처럼 */
@@ -195,6 +202,9 @@ details.fold[open] > summary::after {
   .rise-in {
     animation: riseIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+  .btn {
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  }
 }
 
 @keyframes riseIn {
@@ -205,5 +215,58 @@ details.fold[open] > summary::after {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/*
+ * 화면 인쇄 — 동료 교사와 검수 결과·문항 목록을 종이로 돌려 볼 때.
+ * 원안지 자체는 내려받은 .hwp를 한글에서 인쇄하므로 여기서 다루지 않습니다(미리보기 그림은 크기·비율 그대로).
+ * HTML5 Boilerplate(v9) print 블록의 원칙(잉크 절약, 행·제목 분할 방지, orphans/widows)을 따르고,
+ * 단추·작업 띠·파일 올리기처럼 화면에서만 쓰는 것은 숨깁니다(그 밖은 각 요소의 `print:hidden`).
+ */
+@media print {
+  @page {
+    margin: 14mm 12mm;
+  }
+
+  body,
+  .panel {
+    background: #fff;
+  }
+
+  /* 장식용 그림자는 끔 */
+  * {
+    --tw-shadow: 0 0 #0000 !important;
+  }
+
+  .rise-in {
+    animation: none;
+  }
+
+  /* .btn은 모두 동작 단추(만들기·내려받기·바꾸기·빼기)라 종이에는 필요 없음 */
+  .btn {
+    display: none !important;
+  }
+
+  /* 색이 곧 정보인 것(정답 분포 막대, 고른 합치는 방식·거르기)은 ‘배경 그래픽’을 끄고 인쇄해도 남김 */
+  .print-keep-color {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  h2,
+  h3,
+  h4 {
+    break-after: avoid;
   }
 }

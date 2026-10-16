@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/16/solid";
 import { editableParas, lockedUnsureParas, isEdited, paraSegments, paraText, restorePara, setParaText, unsureCount } from "../engine/edit";
 import { HeaderIndex } from "../engine/header";
 import { refreshQuestion } from "../engine/segment";
 import type { FormatSpec, Issue, MergeMode, Question, SourceAnalysis, SymbolFix } from "../engine/types";
 import { bareMessage, parseAnswers, scoreOf, SEV_LABEL } from "../work";
+import { scrollBehavior } from "../motion";
 
 interface Props {
   order: Question[];
@@ -90,7 +92,7 @@ export default function QuestionBoard(props: Props) {
     if (!focus) return;
     setOpen((s) => new Set(s).add(focus.id));
     setFlash(focus.id);
-    const t = setTimeout(() => document.getElementById(`q-${focus.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+    const t = setTimeout(() => document.getElementById(`q-${focus.id}`)?.scrollIntoView({ behavior: scrollBehavior(), block: "center" }), 60);
     const t2 = setTimeout(() => setFlash(null), 2400);
     return () => {
       clearTimeout(t);
@@ -136,7 +138,7 @@ export default function QuestionBoard(props: Props) {
         </div>
         <figure className="border border-line bg-paper px-4 py-2">
           <figcaption className="text-[11px] font-bold text-ink-3">정답 분포 · 정답이 정해진 {known.length}문항 기준</figcaption>
-          <div className="mt-1 flex items-end gap-3" role="img" aria-label={`정답 분포 ${dist.map((d, i) => `${CIRCLED[i]} ${d}`).join(", ")}`}>
+          <div className="print-keep-color mt-1 flex items-end gap-3" role="img" aria-label={`정답 분포 ${dist.map((d, i) => `${CIRCLED[i]} ${d}`).join(", ")}`}>
             {dist.map((d, i) => (
               <div key={i} className="flex w-6 flex-col items-center gap-0.5">
                 <span className="text-[11px] tabular-nums text-ink-2">{d}</span>
@@ -183,7 +185,7 @@ export default function QuestionBoard(props: Props) {
                 className={`border px-3 py-2 text-left ${spec.merge === m ? "border-primary bg-primary-soft" : "border-line-strong hover:border-primary"}`}
               >
                 <span className="flex items-center gap-2 text-[13px] font-bold text-ink">
-                  <span className={`inline-block h-3 w-3 rounded-full border ${spec.merge === m ? "border-primary bg-primary" : "border-line-strong"}`} />
+                  <span className={`inline-block h-3 w-3 rounded-full border ${spec.merge === m ? "print-keep-color border-primary bg-primary" : "border-line-strong"}`} />
                   {t}
                 </span>
                 <span className="mt-0.5 block text-[11.5px] leading-snug text-ink-2">{d}</span>
@@ -202,10 +204,10 @@ export default function QuestionBoard(props: Props) {
                     </span>
                     <span className="shrink-0">
                       <IconBtn label={`${s.name} 위로`} disabled={k === 0} onClick={() => props.onFileOrder(swap(fileOrder, k, k - 1))}>
-                        ↑
+                        <ArrowUpIcon className="size-4" aria-hidden />
                       </IconBtn>
                       <IconBtn label={`${s.name} 아래로`} disabled={k === fileNames.length - 1} onClick={() => props.onFileOrder(swap(fileOrder, k, k + 1))}>
-                        ↓
+                        <ArrowDownIcon className="size-4" aria-hidden />
                       </IconBtn>
                     </span>
                   </li>
@@ -216,7 +218,7 @@ export default function QuestionBoard(props: Props) {
         </fieldset>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-l-primary bg-primary-soft/40 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-l-[3px] border-l-primary bg-primary-soft/40 px-3 py-2 print:hidden">
         <p className="w-full text-[12.5px] text-ink-2">
           문항 줄을 누르면 전문과 검수가 펼쳐집니다. <b className="text-ink">결과 번호</b>를 누르면 그 번호로 옮길 수 있고, 뺄 문항은 체크를 푸세요. 정답 표시가 없거나 틀린 문항은 <b className="text-ink">정답</b> 칸에서 고르면(숫자 1~5 키도 됨) 결과에 음영으로 표시합니다.
         </p>
@@ -234,7 +236,8 @@ export default function QuestionBoard(props: Props) {
           </button>
         )}
         <button type="button" onClick={() => setBulkOpen(!bulkOpen)} className="btn btn-line !min-h-0 !px-2 !py-1 text-xs" aria-expanded={bulkOpen}>
-          정답 한꺼번에 입력 {bulkOpen ? "▲" : "▼"}
+          정답 한꺼번에 입력
+          {bulkOpen ? <ChevronUpIcon className="size-4" aria-hidden /> : <ChevronDownIcon className="size-4" aria-hidden />}
         </button>
         <span className="ml-auto flex gap-2">
           <button type="button" onClick={props.onSaveWork} className="btn btn-line !min-h-0 !px-2 !py-1 text-xs" title="순서·포함 여부·정답·배점·고친 글자·옵션을 파일로 저장(문항 파일은 들어가지 않음)">
@@ -264,12 +267,13 @@ export default function QuestionBoard(props: Props) {
         .map((g) => (
           <div key={g.title} className="border border-line bg-paper">
             {/* 제목은 가로 스크롤 밖에 두어, 좁은 화면에서 표를 밀어도 보이게 합니다. */}
-            <div className="border-b-2 border-ink px-3 py-1.5 text-left">
+            <div className="border-b-2 border-ink px-3 py-1.5 text-left print:break-after-avoid">
               <span className="serif text-[15px] font-bold">{g.title}</span>
               <span className="ml-2 text-xs text-ink-3">{g.list.filter((q) => !excluded.has(q.id)).length}문항</span>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm" aria-label={`${g.title} 문항`}>
+            {/* 인쇄할 때는 가로 스크롤이 없으므로 표를 종이 폭에 맞춥니다(순서 열은 화면 전용). */}
+            <div className="overflow-x-auto print:overflow-visible">
+              <table className="w-full min-w-[760px] text-sm print:min-w-0" aria-label={`${g.title} 문항`}>
                 <thead className="text-[11px] text-ink-3">
                   <tr className="border-b border-line">
                     <th className="sticky left-0 z-[2] w-10 bg-paper px-2 py-1.5 font-bold">포함</th>
@@ -279,7 +283,7 @@ export default function QuestionBoard(props: Props) {
                     <th className="w-20 px-2 py-1.5 text-right font-bold">배점</th>
                     <th className="w-24 px-2 py-1.5 font-bold">정답</th>
                     <th className="w-28 px-2 py-1.5 text-left font-bold">파일</th>
-                    <th className="w-20 px-2 py-1.5 font-bold">순서</th>
+                    <th className="w-20 px-2 py-1.5 font-bold print:hidden">순서</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -328,7 +332,7 @@ function IconBtn({ label, disabled, onClick, children }: { label: string; disabl
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="inline-flex min-h-9 min-w-9 items-center justify-center text-ink-2 hover:bg-primary-soft hover:text-primary disabled:opacity-30 sm:min-h-7 sm:min-w-7"
+      className="inline-flex min-h-9 min-w-9 items-center justify-center text-ink-2 hover:bg-primary-soft hover:text-primary disabled:opacity-30 sm:min-h-7 sm:min-w-7 print:hidden"
     >
       {children}
     </button>
@@ -361,13 +365,14 @@ function Row(p: RowProps) {
   const [editNo, setEditNo] = useState(false);
   const detected = q.answers;
   const sym = list.find((i) => i.rule === "기호 불일치");
-  const tone = p.flash ? "bg-answer/60" : p.dupNum ? "bg-danger-soft" : p.dupContent ? "bg-warn-soft" : "bg-paper";
+  // 뺀 문항은 줄 전체 opacity로 흐리게 하면 글자 대비가 2:1까지 떨어지므로 회색 바탕 + 흐린 글자(5.2:1)로 구별
+  const tone = p.flash ? "bg-answer/60" : off ? "bg-surface-2" : p.dupNum ? "bg-danger-soft" : p.dupContent ? "bg-warn-soft" : "bg-paper";
   const sc = scoreOf({ ...q, scoreOverride: p.score }, spec);
   const missingScore = sc == null;
   const unmarked = q.score == null && p.score == null && sc != null;
   return (
     <>
-      <tr id={`q-${q.id}`} className={`border-b border-line/70 align-top ${off ? "opacity-45" : ""} ${tone} scroll-mt-nav transition-colors`}>
+      <tr id={`q-${q.id}`} className={`border-b border-line/70 align-top ${tone} scroll-mt-nav transition-colors motion-reduce:transition-none`}>
         <td className={`sticky left-0 z-[1] px-2 py-2 text-center ${tone}`}>
           <input type="checkbox" checked={!off} onChange={() => p.onToggle(q.id)} aria-label={`${p.label} 포함`} className="h-[18px] w-[18px] accent-primary" />
         </td>
@@ -400,14 +405,15 @@ function Row(p: RowProps) {
         </td>
         <td className={`px-2 py-2 text-right tabular-nums ${p.dupNum ? "font-bold text-danger" : "text-ink-3"}`}>{q.srcNumber ?? "?"}</td>
         <td className="max-w-0 px-2 py-2">
-          <button type="button" onClick={p.onToggleOpen} className="block w-full truncate text-left text-ink hover:text-primary" aria-expanded={open} title={q.summary}>
+          <button type="button" onClick={p.onToggleOpen} className={`block w-full truncate text-left hover:text-primary ${off ? "text-ink-3" : "text-ink"}`} aria-expanded={open} title={q.summary}>
             {q.summary}
           </button>
           <p className="flex flex-wrap items-center gap-x-2 text-[11px] text-ink-3">
             {[q.objects.pic && `그림 ${q.objects.pic}`, q.objects.tbl && `표·상자 ${q.objects.tbl}`, q.objects.equation && `수식 ${q.objects.equation}`].filter(Boolean).join(" · ")}
             {list.length > 0 && (
-              <button type="button" onClick={p.onToggleOpen} className="font-bold text-warn underline-offset-2 hover:underline" aria-expanded={open}>
-                검수 {list.length}건 {open ? "▲" : "▼"}
+              <button type="button" onClick={p.onToggleOpen} className="inline-flex items-center gap-0.5 font-bold text-warn underline-offset-2 hover:underline" aria-expanded={open}>
+                검수 {list.length}건
+                {open ? <ChevronUpIcon className="size-3.5" aria-hidden /> : <ChevronDownIcon className="size-3.5" aria-hidden />}
               </button>
             )}
             {p.dupContent && <span className="font-bold text-warn">중복 의심</span>}
@@ -470,12 +476,12 @@ function Row(p: RowProps) {
         <td className="max-w-0 truncate px-2 py-2 text-xs text-ink-2" title={q.fileName}>
           {q.fileName}
         </td>
-        <td className="whitespace-nowrap px-1 py-1 text-center">
+        <td className="whitespace-nowrap px-1 py-1 text-center print:hidden">
           <IconBtn label={`${p.label} 위로`} disabled={p.first} onClick={() => p.onMove(q.id, -1)}>
-            ↑
+            <ArrowUpIcon className="size-4" aria-hidden />
           </IconBtn>
           <IconBtn label={`${p.label} 아래로`} disabled={p.last} onClick={() => p.onMove(q.id, 1)}>
-            ↓
+            <ArrowDownIcon className="size-4" aria-hidden />
           </IconBtn>
         </td>
       </tr>
@@ -683,12 +689,13 @@ function BulkAnswers({ order, excluded, sources, finalNo, onApply }: { order: Qu
       : parsed.seq.map((a, i) => [list[i].id, a]);
   const unknownNo = parsed.numbered ? parsed.numbered.length - pairs.length : 0;
   return (
-    <div className="border border-line bg-paper px-3 py-3">
+    <div className="border border-line bg-paper px-3 py-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
         <label className="font-bold text-ink" htmlFor="bulk-target">
           대상
         </label>
-        <select id="bulk-target" value={target} onChange={(e) => setTarget(e.target.value)} className="field !w-auto !min-h-0 !py-1 text-[12.5px]">
+        {/* 파일 이름이 긴 항목이 있어도 좁은 화면에서 상자 밖으로 나가지 않게 */}
+        <select id="bulk-target" value={target} onChange={(e) => setTarget(e.target.value)} className="field !w-auto max-w-full !min-h-0 !py-1 text-[12.5px]">
           <option value="all">결과 번호순 — 포함한 선택형 {included.length}문항</option>
           {sources.map((s, i) => (
             <option key={i} value={i}>
@@ -737,7 +744,10 @@ function BulkAnswers({ order, excluded, sources, finalNo, onApply }: { order: Qu
         >
           {pairs.length}문항에 넣기
         </button>
-        {msg && <span className="text-ok">{msg}</span>}
+        {/* 늘 있는 알림 영역에 내용만 넣어 화면 읽기 프로그램이 ‘넣었습니다’를 읽게 */}
+        <span role="status" className="text-ok">
+          {msg}
+        </span>
       </div>
     </div>
   );
