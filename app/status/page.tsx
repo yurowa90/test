@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
+
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Supabase 연결 상태",
+};
 
 type CheckResult = {
   name: string;
@@ -82,8 +88,18 @@ export default async function StatusPage() {
             key={r.name}
             className="flex items-start gap-3 rounded-md border border-slate-200 bg-white p-4"
           >
-            <span aria-hidden>{r.ok ? "✅" : "❌"}</span>
-            <div>
+            {/* 상태는 글자로 — 이모지는 스크린리더에 숨겨져 있었고 기기마다 다르게 보인다 */}
+            <span
+              className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                r.ok
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-rose-50 text-rose-800"
+              }`}
+            >
+              {r.ok ? "정상" : "실패"}
+            </span>
+            {/* min-w-0: 긴 환경 변수 이름이 카드 밖으로 밀려나지 않게 */}
+            <div className="min-w-0">
               <p className="font-medium">{r.name}</p>
               <p className="text-sm text-slate-600">{r.detail}</p>
             </div>

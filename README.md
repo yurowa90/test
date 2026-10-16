@@ -15,6 +15,14 @@
 
 Next.js 16 (App Router) · TypeScript · React 19 · Tailwind CSS 4 · Supabase (PostgreSQL/Auth/Realtime/Edge Functions) · Google Gemini (@google/genai)
 
+## 디자인·접근성 규칙
+
+- **대비(WCAG 2.2 SC 1.4.3, 4.5:1)**: 작은 글자의 보조색 `slate-500`은 `slate-50`(4.55:1)·흰 바탕(4.76:1)에서만 씁니다. `slate-100`(4.35:1)·`slate-200`(3.86:1) 바탕 위 작은 글자는 `slate-600` 이상을 씁니다.
+- **상태는 글자로**: 정상·실패 같은 상태를 이모지·아이콘·색만으로 나타내지 않습니다. 아이콘은 장식으로 보고 `aria-hidden`을 붙입니다.
+- **한국어 줄바꿈**: `body`에 `word-break: keep-all`(어절 단위)을 적용합니다. flex 안에서 긴 영문 토큰(환경 변수·URL)을 담는 자식에는 `min-w-0`을 줍니다.
+- **모션**: 동작 줄이기(`prefers-reduced-motion: reduce`) 사용자에게는 전역에서 애니메이션·전환을 1ms로 줄입니다 (`app/globals.css`).
+- **head**: 페이지마다 `export const metadata = { title: "…" }`만 두면 "… · 씽크루프 (가칭)"이 됩니다. 파비콘은 `app/icon.svg`, 브라우저 UI 색은 `app/layout.tsx`의 `viewport.themeColor`입니다.
+
 ## 개발 시작
 
 ```bash
