@@ -2,6 +2,8 @@
 @theme {
   --color-ink: #152238;
   --color-ink-soft: #526072;
+  /* 입력 예시(placeholder)용 — 입력값(ink)보다 옅되 가장 어두운 입력란 바탕에서도 4.5:1 이상 */
+  --color-ink-mute: #626e7f;
   --color-paper: #f6f3eb;
   --color-paper-line: #b6c0cd;
   --color-blueprint: #152238;
@@ -14,6 +16,14 @@
 }
 :root { color-scheme: light; }
 body { margin: 0; background: #d5dbe3; color: #152238; font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+/* 한국어는 어절 단위로 줄바꿈("단계적/으로" 방지), 긴 DOI·URL은 넘치지 않게 */
+body { word-break: keep-all; overflow-wrap: break-word; }
+/* Tailwind 기본 placeholder(글자색 50%)는 3.2:1 */
+::placeholder { color: var(--color-ink-mute); }
+/* 동작 줄이기 설정 존중(animate.css의 reduced-motion 처리) — 전환·애니메이션·부드러운 스크롤을 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}
 .serif { font-family: var(--font-serif); }
 .blueprint-grid { background: #152238; }
 *:focus-visible { outline: 2px solid #2859b6; outline-offset: 3px; }
@@ -158,7 +168,7 @@ body { margin: 0; background: #d5dbe3; color: #152238; font-family: var(--font-s
   .editorial-workbench { display: block; }
   .mobile-tabs { display: flex; margin-top: 14px; }
   .mobile-tabs button { flex: 1; padding: 10px; border: 1px solid #152238; }
-  .mobile-tabs button[aria-selected=true] { background: #152238; color: white; }
+  .mobile-tabs button[aria-pressed=true] { background: #152238; color: white; }
   .paper-pane,.editorial-tools { display: none; position: static; max-height: none; }
   .paper-pane.is-mobile-active,.editorial-tools.is-mobile-active { display: block; }
 }
@@ -188,4 +198,28 @@ body { margin: 0; background: #d5dbe3; color: #152238; font-family: var(--font-s
   .original-compare object { height: 360px; }
   .bank-editor { padding-bottom: 100px; }
   .mobile-bank-progress { display: flex; gap: 12px; align-items: center; justify-content: space-between; position: fixed; bottom: 0; left: 0; right: 0; z-index: 30; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid #adb7c6; background: #faf8f2; }
+}
+
+/*
+ * 인쇄 — 4단계 결과 화면을 교사용 검토본(문항·정답·해설·문항정보표·점검)으로 출력.
+ * 학생 배부용은 내보내기의 ‘학생용 HTML’을 인쇄한다(교사 확인 후 활성화).
+ * HTML5 Boilerplate print 블록의 원칙(잉크 절약, 행·제목 분할 방지, orphans/widows)을 따른다.
+ * 화면 UI는 .print-hide — 사용자 정의 클래스의 display 규칙(레이어 밖)이 Tailwind print:hidden을 이기므로 !important.
+ * 인쇄 폭(A4)에서는 max-width: 900px 규칙이 함께 적용된다.
+ */
+@media print {
+  @page { margin: 15mm; }
+  body { background: #fff; font-size: 11pt; }
+  .print-hide,.mobile-bank-progress { display: none !important; }
+  .editorial-wrap { padding: 0; }
+  .editorial-wide-stage { background: none; border-top: 0; padding: 0; margin: 0; }
+  /* 장식용 그림자만 끈다(ring-* 테두리는 같은 box-shadow를 쓰므로 유지) */
+  * { --tw-shadow: 0 0 #0000 !important; }
+  /* 어두운 패널·칩은 흰 바탕 + 테두리로(잉크 절약, 배경 미인쇄 시 흰 글자 사라짐 방지) */
+  .print-invert { background: #fff !important; color: var(--color-ink) !important; border: 1px solid var(--color-ink-soft) !important; }
+  .print-invert * { color: var(--color-ink) !important; border-color: var(--color-paper-line) !important; }
+  /* 제목과 바로 아래 설명문은 다음 내용과 함께 넘긴다 */
+  .print-avoid-break,tr,h2 + p { break-inside: avoid; }
+  p,h2,h3,li { orphans: 3; widows: 3; }
+  h2,h3,h2 + p { break-after: avoid; }
 }

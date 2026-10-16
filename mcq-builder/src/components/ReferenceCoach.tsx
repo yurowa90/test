@@ -18,7 +18,7 @@ function Lesson({ lesson }: { lesson: DesignLesson }) {
 export default function ReferenceCoach({ input, step }: { input: TeacherInput; step: WizardStep }) {
   const lessons = selectDesignLessons(input, step);
   const others = DESIGN_LESSONS.filter(lesson => !lessons.some(selected => selected.id === lesson.id));
-  return <details className="reference-coach">
+  return <details className="reference-coach print-hide">
     <summary>자료에서 배우는 문항 개선 <span>현재 설계 참고 {lessons.length}개</span></summary>
     <p className="reference-intro">선택한 과목·성취기준에 따라 안내합니다. 사례를 읽고 현재 문항에서 바꿀 점과 그 이유를 성장 노트에 남겨 보세요.</p>
     {lessons.map(lesson => <Lesson key={lesson.id} lesson={lesson} />)}

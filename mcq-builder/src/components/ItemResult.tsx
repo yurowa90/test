@@ -1,5 +1,6 @@
 import { finalFigureIssue, unresolvedReviews } from "../lib/integrity";
 import { useState } from "react";
+import { ExclamationTriangleIcon } from "@heroicons/react/16/solid";
 import type {
   AnalysisResult,
   Assembly,
@@ -110,7 +111,7 @@ export default function ItemResult({
   return (
     <div className="rise-in mx-auto max-w-4xl">
       {/* 액션 바 */}
-      <div className="sticky top-2 z-10 mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-paper-line bg-paper/90 p-2 shadow-sm backdrop-blur">
+      <div className="print-hide sticky top-2 z-10 mb-6 flex flex-wrap items-center gap-2 rounded-xl border border-paper-line bg-paper/90 p-2 shadow-sm backdrop-blur">
         <button
           onClick={() => handleCopy("student")}
           disabled={!approved}
@@ -140,10 +141,12 @@ export default function ItemResult({
           교사용 .md
         </button>
         {copyStatus && (
-          <span aria-live="polite" className="text-xs font-semibold text-ink-soft">
+          <span className="text-xs font-semibold text-ink-soft">
             {copyStatus}
           </span>
         )}
+        {/* 알림 영역은 미리 있어야 읽힌다 — 내용과 함께 삽입하면 스크린리더가 놓친다 */}
+        <span className="sr-only" aria-live="polite">{copyStatus}</span>
         <button type="button" disabled={!approved} className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-ink ring-1 ring-paper-line disabled:opacity-40" onClick={() => downloadText("학생용_문항.html", toStudentHtml(input, stimulus, assembly, final), "text/html;charset=utf-8")}>학생용 HTML (그림 포함)</button>
         <button
           onClick={onRegenerate}
@@ -170,9 +173,9 @@ export default function ItemResult({
       </div>
 
       {/* 문항지 */}
-      <section className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-paper-line sm:p-8">
+      <section className="print-avoid-break rounded-xl bg-white p-6 shadow-sm ring-1 ring-paper-line sm:p-8">
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-          <span className="rounded bg-blueprint px-2 py-0.5 font-bold text-white">
+          <span className="print-invert rounded bg-blueprint px-2 py-0.5 font-bold text-white">
             {input.standardCode ?? "직접 입력"}
           </span>
           <span>{input.subject || "-"}</span>
@@ -183,7 +186,7 @@ export default function ItemResult({
           <span aria-hidden>·</span>
           <span>자료: {scenario.stimulusType}</span>
           <span
-            className={`ml-auto rounded-md px-2 py-0.5 font-bold ${TIER_CHIP[tier] ?? "bg-slate-300 text-ink"}`}
+            className={`print-invert ml-auto rounded-md px-2 py-0.5 font-bold ${TIER_CHIP[tier] ?? "bg-slate-300 text-ink"}`}
           >
             인지 복잡도 {tier}
           </span>
@@ -251,7 +254,7 @@ export default function ItemResult({
       </section>
 
       {/* 정답·해설 */}
-      <section className="mt-6 rounded-xl bg-blueprint p-6 text-paper shadow-sm">
+      <section className="print-invert print-avoid-break mt-6 rounded-xl bg-blueprint p-6 text-paper shadow-sm">
         <div className="flex items-baseline gap-3">
           <h3 className="serif text-sm font-bold tracking-wide text-white/80">정답 · 해설</h3>
           <span className="text-2xl font-bold text-white">{answer}</span>
@@ -312,7 +315,7 @@ export default function ItemResult({
         </p>
       </section>
 
-      <section className="mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-paper-line">
+      <section className="print-avoid-break mt-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-paper-line">
         <h2 className="serif text-lg font-bold text-blueprint">자료 출처·이용 기록</h2>
         {input.sourceMode === "synthetic" ? (
           <p className="mt-2 text-sm leading-relaxed text-ink">
@@ -338,7 +341,7 @@ export default function ItemResult({
       </section>
 
       {/* 교사 최종 확인 */}
-      <section className="mt-6 rounded-xl border border-blueprint/25 bg-blueprint/5 p-5">
+      <section className="print-avoid-break mt-6 rounded-xl border border-blueprint/25 bg-blueprint/5 p-5">
         <h2 className="serif text-lg font-bold text-blueprint">교사 최종 확인</h2>
         <p className="mt-1 text-sm leading-relaxed text-ink-soft">
           AI 사전 점검은 독립 검토가 아닙니다. 아래 항목을 직접 확인해야 학생용·교사용
@@ -380,7 +383,7 @@ export default function ItemResult({
           {final.review.map((r, i) => (
             <li
               key={i}
-              className="flex items-start gap-3 rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-paper-line"
+              className="print-avoid-break flex items-start gap-3 rounded-lg bg-white px-4 py-3 shadow-sm ring-1 ring-paper-line"
             >
               <span
                 className={[
@@ -403,7 +406,10 @@ export default function ItemResult({
         {assembly.warnings.length > 0 && (
           <ul className="mt-3 space-y-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
             {assembly.warnings.map((w, i) => (
-              <li key={i}>⚠ 조립 경고: {w}</li>
+              <li key={i} className="flex gap-1.5">
+                <ExclamationTriangleIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span>조립 경고: {w}</span>
+              </li>
             ))}
           </ul>
         )}

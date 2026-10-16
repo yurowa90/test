@@ -35,10 +35,18 @@
 
 ## 스택
 
-- Vite + React 19 + TypeScript, Tailwind CSS v4 (자매 앱과 동일한 `index.css` 테마)
+- Vite + React 19 + TypeScript, Tailwind CSS v4 (자매 앱과 동일한 `index.css` 테마), 아이콘 [Heroicons](https://heroicons.com) v2 (MIT, `16/solid` micro 세트)
 - 백엔드 없음 — **BYOK** Gemini. API 키와 작업 초안은 브라우저 localStorage(`mcq-builder:` 접두어)에 저장됩니다. 생성 요청 시 API 키와 입력 내용은 브라우저에서 Google Gemini API로 직접 전송됩니다.
 - Gemini `responseSchema`로 JSON 강제 출력.
 - Vercel 정적 배포용(`vercel.json`). 같은 저장소에서 두 번째 Vercel 프로젝트를 만들고 **Root Directory를 `mcq-builder`**로 지정하면 됩니다.
+
+## 디자인·접근성 규칙
+
+- **대비(WCAG 2.2 SC 1.4.3, 4.5:1)**: 입력 예시(placeholder)는 `ink-mute`(#626e7f)를 씁니다. Tailwind 기본값(글자색 50%)은 3.2:1입니다. 인지 복잡도 칩(`TIER_CHIP`)은 rose-600보다 밝은 바탕에 흰 글자 대신 `ink`를 씁니다.
+- **아이콘은 장식, 의미는 글자로**: 아이콘에는 `aria-hidden`을 붙이고 버튼 이름은 텍스트로 둡니다. ←·→·✕·⚠·↗·+ 같은 글자 기호는 스크린리더가 "왼쪽 화살표" 등으로 읽으므로 버튼·상태 표시에 쓰지 않습니다. 문항 본문·내보내기 파일의 기호(①, ㄱ, ◦)는 그대로 둡니다.
+- **인쇄**: 4단계 결과 화면을 인쇄하면 교사용 검토본(문항·정답·해설·문항정보표·점검)만 나옵니다. 학생 배부용은 교사 확인 후 내보내는 ‘학생용 HTML’을 인쇄합니다. 화면 전용 UI는 `.print-hide`, 어두운 패널·칩은 `.print-invert`, 카드는 `.print-avoid-break`를 붙입니다(`src/index.css`).
+- **모션**: `prefers-reduced-motion: reduce`이면 전환·애니메이션·부드러운 스크롤을 끕니다.
+- **한국어 줄바꿈**: 본문 전체에 `word-break: keep-all`(어절 단위)을 적용합니다. 긴 DOI·URL은 `overflow-wrap`으로 넘치지 않게 합니다.
 
 ## 로컬 실행
 
@@ -93,7 +101,9 @@ mcq-builder/
 │  │  ├─ style_rules.md       # Ⅳ장 윤문(표기·문장 규칙, 윤문 사례 패턴)
 │  │  └─ subject_{physics,chemistry,biology,earth}.md  # 과목별 예시 문항·절차·수정 사례
 │  └─ types.ts
-└─ public/science_standards.json   # 자매 앱과 동일한 성취기준 DB (473건, 성취수준 371건)
+└─ public/
+   ├─ science_standards.json      # 자매 앱과 동일한 성취기준 DB (473건, 성취수준 371건)
+   └─ favicon.svg
 ```
 
 ## 근거 자료

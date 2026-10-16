@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { ArrowLeftIcon, ArrowRightIcon, PlusIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import type { AnalysisResult, BehaviorDomain, Scenario } from "../types";
 import { BEHAVIOR_DOMAINS } from "../types";
 import { BEHAVIOR_CHIP } from "../lib/markers";
@@ -109,10 +110,10 @@ export default function AnalysisReview({
               <button
                 type="button"
                 onClick={() => removeElement(i)}
-                aria-label="삭제"
-                className="mt-1.5 rounded px-1.5 text-xs text-ink-soft hover:bg-paper-line/50"
+                aria-label={`필수 학습 요소 ${i + 1} 삭제`}
+                className="mt-1.5 rounded p-1 text-ink-soft hover:bg-paper-line/50"
               >
-                ✕
+                <XMarkIcon className="size-4" aria-hidden />
               </button>
             </li>
           ))}
@@ -120,9 +121,10 @@ export default function AnalysisReview({
         <button
           type="button"
           onClick={addElement}
-          className="mt-2 text-xs font-semibold text-blueprint hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blueprint hover:underline"
         >
-          + 요소 추가
+          <PlusIcon className="size-3.5" aria-hidden />
+          요소 추가
         </button>
       </section>
 
@@ -259,9 +261,10 @@ export default function AnalysisReview({
         <button
           onClick={onBack}
           disabled={busy}
-          className="rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold text-ink-soft hover:bg-paper-line/50 disabled:opacity-40"
         >
-          ← 입력 수정
+          <ArrowLeftIcon className="size-4" aria-hidden />
+          입력 수정
         </button>
         <button
           onClick={() => onConfirm(draft, scenarioIndex)}
@@ -269,7 +272,7 @@ export default function AnalysisReview({
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-blueprint px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blueprint-deep disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? "자료·명제 생성 중…" : "이 장면으로 자료·〈보기〉 명제 만들기"}
-          {!busy && <span aria-hidden>→</span>}
+          {!busy && <ArrowRightIcon className="size-4" aria-hidden />}
         </button>
       </div>
     </div>

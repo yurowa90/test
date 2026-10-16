@@ -3,7 +3,7 @@ import type { BankDraft } from "../lib/workspace";
 import { pickLabel } from "../lib/assemble";
 
 export default function StructureGuide({ input, analysis, assembly, stimulus, notes = {} }: { input: TeacherInput; analysis?: AnalysisResult | null; assembly: Assembly; stimulus: Stimulus; notes?: BankDraft["notes"] }) {
-  return <section className="growth-panel">
+  return <section className="growth-panel print-hide">
     <h2>이 문항의 구조와 개선 질문</h2>
     <p className="growth-help">아래는 문항 구성과 교사 기록을 연결한 안내입니다. 자동으로 내용 타당성을 판정한 결과가 아닙니다.</p>
     <dl className="structure-map">

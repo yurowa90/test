@@ -1,4 +1,10 @@
 import { useState } from "react";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/16/solid";
+
+/** 새 창 표시는 아이콘(장식) + 스크린리더용 글자 */
+function NewTab() {
+  return <><ArrowTopRightOnSquareIcon className="size-3.5 shrink-0" aria-hidden /><span className="sr-only"> (새 창)</span></>;
+}
 
 export default function ReferenceSearch({ subject, standard }: { subject: string; standard: string }) {
   const [query, setQuery] = useState("");
@@ -11,9 +17,9 @@ export default function ReferenceSearch({ subject, standard }: { subject: string
       <input value={query} onChange={e => setQuery(e.target.value)} placeholder={suggested || "개념 + 측정 변인 + 실험 대상"} />
     </label>
     <div className="growth-actions">
-      <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${term}`} target="_blank" rel="noreferrer">PubMed 논문 검색 ↗</a>
-      <a href={`https://search.crossref.org/?q=${term}`} target="_blank" rel="noreferrer">Crossref 서지·DOI 검색 ↗</a>
-      <a href="https://openstax.org/subjects/science" target="_blank" rel="noreferrer">OpenStax 공개 교재 ↗</a>
+      <a className="inline-flex items-center gap-1" href={`https://pubmed.ncbi.nlm.nih.gov/?term=${term}`} target="_blank" rel="noreferrer">PubMed 논문 검색<NewTab /></a>
+      <a className="inline-flex items-center gap-1" href={`https://search.crossref.org/?q=${term}`} target="_blank" rel="noreferrer">Crossref 서지·DOI 검색<NewTab /></a>
+      <a className="inline-flex items-center gap-1" href="https://openstax.org/subjects/science" target="_blank" rel="noreferrer">OpenStax 공개 교재<NewTab /></a>
     </div>
     <p>외부 검색으로 이동합니다. 앱이 원문을 검색·검증한 추천 목록은 아닙니다. PubMed는 생명·의학 분야, Crossref는 분야 전반의 서지 탐색에 사용하세요.</p>
     <ol><li>교육과정 범위에서 읽을 수 있는 자료인가?</li><li>묻고 싶은 관계가 그림·표에 실제로 제시되는가?</li><li>단위·표본·오차·조건을 유지해 재구성할 수 있는가?</li><li>원문 접근과 출처 표시·이용 조건을 확인했는가?</li></ol>

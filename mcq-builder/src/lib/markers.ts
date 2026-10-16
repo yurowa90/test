@@ -44,12 +44,13 @@ export const TRUTH_CHIP = {
   false: "bg-rose-50 text-rose-700 ring-rose-200",
 } as const;
 
+/** 12px 굵은 글자 — 4.5:1 이상(WCAG 1.4.3). 흰 글자는 rose-600까지만, 그보다 밝은 바탕은 ink 글자 */
 export const TIER_CHIP: Record<string, string> = {
   "A+": "bg-rose-600 text-white",
-  A: "bg-rose-500 text-white",
-  "B+": "bg-amber-500 text-white",
+  A: "bg-rose-400 text-ink",
+  "B+": "bg-amber-500 text-ink",
   B: "bg-amber-400 text-ink",
-  "C+": "bg-teal-500 text-white",
-  C: "bg-teal-400 text-white",
-  D: "bg-slate-400 text-white",
+  "C+": "bg-teal-500 text-ink",
+  C: "bg-teal-400 text-ink",
+  D: "bg-slate-400 text-ink",
 };
