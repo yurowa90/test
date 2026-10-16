@@ -39,7 +39,7 @@ export default function Dropzone({ multiple, disabled, onFiles, children, compac
         setOver(false);
         if (!disabled) take(e.dataTransfer.files);
       }}
-      className={`block w-full border border-dashed text-left transition-colors focus-within:border-primary ${
+      className={`block w-full border border-dashed text-left transition-colors focus-within:border-primary motion-reduce:transition-none print:hidden ${
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
       } ${compact ? "px-4 py-2.5" : "px-5 py-7"} ${over ? "border-primary bg-primary-soft" : "border-line-strong bg-[#f6f2f0] hover:border-primary hover:bg-primary-soft/60"}`}
     >

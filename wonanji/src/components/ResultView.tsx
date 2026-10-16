@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon } from "@heroicons/react/16/solid";
 import type { FormatSpec, Issue, Question, SymbolFix } from "../engine/types";
 import type { BuildOutput } from "../pipeline";
 import { checklist, groupIssues, scoreOf, SEV_LABEL, type IssueGroup } from "../work";
+import { scrollBehavior } from "../motion";
 
 export type DownloadKind = "hwp" | "hwpx" | "student" | "report";
 
@@ -92,7 +94,7 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
     const pg = out.pageOf.get(id);
     if (pg == null) return;
     setPage(pg);
-    previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    previewRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
   };
   const checks = checklist(out, order, spec);
 
@@ -111,15 +113,15 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
 
       <div className="space-y-2 border-y border-ink py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="out-name" className="text-[12px] font-bold text-ink-3">
+          <label htmlFor="out-name" className="text-[12px] font-bold text-ink-3 print:hidden">
             파일 이름
           </label>
-          <input id="out-name" value={base} onChange={(e) => setBase(e.target.value.replace(/[\\/:*?"<>|]/g, ""))} className="field !min-h-0 !w-56 !py-1 text-[13px]" />
+          <input id="out-name" value={base} onChange={(e) => setBase(e.target.value.replace(/[\\/:*?"<>|]/g, ""))} className="field !min-h-0 !w-56 !py-1 text-[13px] print:hidden" />
           <span className="ml-auto text-sm text-ink-2">
             <b className="serif text-lg text-ink">{out.pages}</b>쪽{out.loss.count ? ` · 변환 손실 보고 ${out.loss.count}건` : ""}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <button type="button" disabled={stale} onClick={() => onDownload("hwp", base)} className="btn btn-primary" title="정답 음영이 들어 있습니다(교사 보관·검토용)">
             교사용 .hwp <span className="text-[11px] font-semibold opacity-80">정답 음영 포함</span>
           </button>
@@ -137,11 +139,11 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
         <section ref={previewRef} aria-label="원안지 미리보기" className="scroll-mt-nav min-w-0">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 print:break-after-avoid">
             <span className="kicker">미리보기</span>
-            <div className="flex items-center gap-1 text-sm">
+            <div className="flex items-center gap-1 text-sm print:hidden">
               <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className="btn btn-line !min-h-9 !px-2.5 !py-0.5" aria-label="앞 쪽">
-                ◀
+                <ChevronLeftIcon className="size-4" aria-hidden />
               </button>
               <select value={page} onChange={(e) => setPage(Number(e.target.value))} className="field !min-h-9 !w-auto !py-0.5 tabular-nums" aria-label="쪽 고르기">
                 {out.svgs.map((_, i) => (
@@ -151,13 +153,17 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
                 ))}
               </select>
               <button type="button" disabled={page >= pageCount - 1} onClick={() => setPage(page + 1)} className="btn btn-line !min-h-9 !px-2.5 !py-0.5" aria-label="다음 쪽">
-                ▶
+                <ChevronRightIcon className="size-4" aria-hidden />
               </button>
               <button type="button" onClick={() => setZoom(!zoom)} className="btn btn-line !min-h-9 !px-2.5 !py-0.5 text-xs" aria-pressed={zoom}>
                 크게 보기
               </button>
             </div>
           </div>
+          {/* 브라우저 인쇄는 검토 기록용. 배부할 원안지는 한글에서 인쇄합니다(미리보기는 한글과 다를 수 있음). */}
+          <p className="mb-2 hidden border-l-[3px] border-l-ink px-3 py-1.5 text-[12px] text-ink print:block print:break-after-avoid">
+            검토용 화면 인쇄입니다. 학생에게 나눠 줄 원안지는 내려받은 .hwp를 한글에서 인쇄하세요. 아래는 {page + 1}쪽 미리보기입니다.
+          </p>
           {page === 0 && (out.previewAdjusted || out.previewOverlapRisk) && (
             <p className={`mb-2 border-l-[3px] px-3 py-1.5 text-[12px] ${out.previewAdjusted ? "border-l-ok bg-ok-soft text-ok" : "border-l-warn bg-warn-soft text-warn"}`}>
               {out.previewAdjusted
@@ -165,7 +171,7 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
                 : "미리보기 엔진은 첫 쪽 오른쪽 단 첫 줄을 머리 표와 겹쳐 그릴 수 있습니다. 한글에서는 머리 표 아래에서 시작합니다."}
             </p>
           )}
-          <div className={`sheet border border-line-strong bg-canvas p-3 sm:p-5 ${zoom ? "overflow-auto" : ""}`}>
+          <div className={`sheet border border-line-strong bg-canvas p-3 sm:p-5 print:break-inside-avoid print:bg-white ${zoom ? "overflow-auto" : ""}`}>
             <div className={`shadow-[0_2px_10px_rgba(43,31,34,0.18)] ${zoom ? "w-[200%]" : ""}`}>{url && <img src={url} alt={`원안지 ${page + 1}쪽 미리보기`} />}</div>
           </div>
           <div className="mt-2 space-y-1 text-[11.5px] leading-relaxed text-ink-3">
@@ -211,7 +217,7 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
             </div>
           </div>
           {groups.length === 0 && <p className="text-sm text-ok">해당하는 검수 항목이 없습니다.</p>}
-          <ul className="space-y-2 lg:max-h-[70vh] lg:overflow-auto lg:pr-1">
+          <ul className="space-y-2 lg:max-h-[70vh] lg:overflow-auto lg:pr-1 print:max-h-none print:overflow-visible">
             {groups.map((g, k) => (
               <IssueCard key={k} g={g} label={qLabel} hasPage={(id) => out.pageOf.has(id)} onPage={goPage} onFocus={onFocusQuestion} onFixAll={onFixAll} />
             ))}
@@ -227,8 +233,9 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
           </div>
 
           <div className="border border-line bg-surface-2 px-3 py-2 text-sm">
-            <button type="button" onClick={() => setShowChanges(!showChanges)} className="font-bold text-ink" aria-expanded={showChanges}>
-              형식만 고친 것 {out.changes.length}건 {showChanges ? "▲" : "▼"}
+            <button type="button" onClick={() => setShowChanges(!showChanges)} className="inline-flex items-center gap-1 font-bold text-ink" aria-expanded={showChanges}>
+              형식만 고친 것 {out.changes.length}건
+              {showChanges ? <ChevronUpIcon className="size-4" aria-hidden /> : <ChevronDownIcon className="size-4" aria-hidden />}
             </button>
             <p className="text-[11.5px] text-ink-2">모든 문항에 글꼴·크기·줄간격 통일. 종류를 누르면 문항별 내용을 봅니다.</p>
             {showChanges && (
@@ -237,7 +244,7 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
                   <li key={kind} className="border-b border-line/60 pb-1 last:border-0">
                     <button
                       type="button"
-                      className="font-bold text-ink"
+                      className="inline-flex items-center gap-0.5 font-bold text-ink"
                       aria-expanded={openKinds.has(kind)}
                       onClick={() =>
                         setOpenKinds((s) => {
@@ -248,7 +255,8 @@ export default function ResultView({ out, order, excluded, spec, stale, busy, on
                         })
                       }
                     >
-                      {kind} {list.length}건 {openKinds.has(kind) ? "▲" : "▼"}
+                      {kind} {list.length}건
+                      {openKinds.has(kind) ? <ChevronUpIcon className="size-3.5" aria-hidden /> : <ChevronDownIcon className="size-3.5" aria-hidden />}
                     </button>
                     {openKinds.has(kind) && (
                       <ul className="mt-0.5 space-y-0.5 pl-3">
@@ -330,7 +338,7 @@ function Chip({ on, small, onClick, children }: { on: boolean; small?: boolean; 
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={`border ${small ? "px-1.5 py-0.5" : "min-h-8 px-2 py-1"} ${on ? "border-primary bg-primary text-white" : "border-line-strong text-ink-2 hover:border-primary hover:text-primary"}`}
+      className={`border ${small ? "px-1.5 py-0.5" : "min-h-8 px-2 py-1"} ${on ? "print-keep-color border-primary bg-primary text-white" : "border-line-strong text-ink-2 hover:border-primary hover:text-primary"}`}
     >
       {children}
     </button>
@@ -353,7 +361,7 @@ function IssueCard({
   onFixAll: (ids: string[], fix: SymbolFix[]) => void;
 }) {
   return (
-    <li className={`border border-line border-l-[3px] bg-paper px-3 py-2 text-sm ${SEV_TONE[g.severity].rule}`}>
+    <li className={`border border-line border-l-[3px] bg-paper px-3 py-2 text-sm print:break-inside-avoid ${SEV_TONE[g.severity].rule}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className={`border px-1.5 text-[11px] font-bold ${SEV_TONE[g.severity].tone}`}>{SEV_LABEL[g.severity]}</span>
         <span className="font-bold">{g.rule}</span>
@@ -366,7 +374,7 @@ function IssueCard({
               <button type="button" disabled={!hasPage(id)} onClick={() => onPage(id)} className="serif px-1.5 py-0.5 text-xs font-bold text-primary hover:bg-primary-soft" title="미리보기에서 그 쪽 보기">
                 {label(id)}
               </button>
-              <button type="button" onClick={() => onFocus(id)} className="border-l border-line px-1 py-0.5 text-[11px] text-ink-3 hover:bg-primary-soft hover:text-primary" title="3단계 문항 줄로 가기">
+              <button type="button" onClick={() => onFocus(id)} className="border-l border-line px-1 py-0.5 text-[11px] text-ink-3 hover:bg-primary-soft hover:text-primary print:hidden" title="3단계 문항 줄로 가기">
                 3단계
               </button>
             </span>

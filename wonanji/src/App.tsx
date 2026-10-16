@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowRightIcon } from "@heroicons/react/16/solid";
 import { defaultOrder, detectMerge } from "./engine/assemble";
 import { lint } from "./engine/lint";
 import type { LoadedDoc } from "./engine/load";
@@ -13,6 +14,7 @@ import QuestionBoard from "./components/QuestionBoard";
 import FormatOptions from "./components/FormatOptions";
 import ResultView, { type DownloadKind } from "./components/ResultView";
 import RulesGuide from "./components/RulesGuide";
+import { scrollBehavior } from "./motion";
 
 // 이 앱은 아무것도 저장하지 않습니다(localStorage·sessionStorage·IndexedDB 사용 안 함).
 // 올린 파일과 결과는 이 페이지의 메모리에만 있고, 새로고침하거나 탭을 닫으면 사라집니다.
@@ -417,7 +419,7 @@ export default function App() {
       setBuiltExcluded(ex);
       // 만드는 동안 정답·배점·순서·옵션을 바꿨으면 결과는 그 전 상태이므로 ‘바뀐 내용 미반영’으로 둡니다.
       setStale(rev.current !== startRev);
-      requestAnimationFrame(() => document.getElementById("s-result")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      requestAnimationFrame(() => document.getElementById("s-result")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }));
     } catch (e) {
       setErrors([`원안지를 만들지 못했습니다: ${errText(e)}`]);
     } finally {
@@ -480,7 +482,7 @@ export default function App() {
               <p className="mt-1 max-w-2xl text-[13.5px] text-ink-2">여러 형태의 문항 파일과 형식을 동일한 양식으로 맞추고 검수합니다.</p>
             </div>
             <div className="flex border border-ink text-[12px] font-bold">
-              <span className="bg-ink px-3 py-1.5 text-paper">서버 전송 없음 · 저장 없음</span>
+              <span className="bg-ink px-3 py-1.5 text-paper print:bg-transparent print:text-ink">서버 전송 없음 · 저장 없음</span>
               <span className="border-l border-line px-3 py-1.5">HWP · PDF · 사진</span>
               <span className="border-l border-line px-3 py-1.5">한글 원안지</span>
             </div>
@@ -498,7 +500,7 @@ export default function App() {
         </p>
 
         {/* 작업 요약 띠 */}
-        <nav ref={navRef} aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(43,31,34,0.06)]">
+        <nav ref={navRef} aria-label="작업 단계" className="sticky top-0 z-20 mt-5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border border-line border-l-[3px] border-l-primary bg-surface px-3 py-2 shadow-[0_1px_0_rgba(43,31,34,0.06)] print:hidden">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px] text-ink-2">
             <b className="max-w-[12rem] truncate text-[13px] text-ink">{tpl ? tpl.name : "양식 미선택"}</b>
             <span className="border-l border-line-strong pl-3">문항 파일 {sources.length || docs.length}개</span>
@@ -516,6 +518,8 @@ export default function App() {
               <li key={s.id}>
                 <a href={`#${s.id}`} aria-current={i === current ? "step" : undefined} className={`block px-2 py-1.5 text-[12px] font-bold ${i === current ? "bg-primary text-white" : i < current ? "text-ok" : "text-ink-3"}`}>
                   {i + 1}. {s.label}
+                  {/* 지난 단계는 초록 글자로만 구별되므로 화면 읽기 프로그램에는 글로 알림 */}
+                  {i < current && <span className="sr-only"> (완료)</span>}
                 </a>
               </li>
             ))}
@@ -523,10 +527,13 @@ export default function App() {
         </nav>
 
         {busy && (
-          <div role="status" className="sticky top-nav z-10 mt-3 flex items-center gap-3 border border-primary bg-primary-soft px-4 py-2 text-sm font-semibold text-primary-hover">
-            <span className="inline-block h-3 w-3 shrink-0 animate-pulse rounded-full bg-primary" aria-hidden />
+          <div role="status" className="sticky top-nav z-10 mt-3 flex items-center gap-3 border border-primary bg-primary-soft px-4 py-2 text-sm font-semibold text-primary-hover print:hidden">
+            <span className="inline-block h-3 w-3 shrink-0 rounded-full bg-primary motion-safe:animate-pulse" aria-hidden />
             <span className="min-w-0 flex-1">{busy.text}</span>
-            <span className="shrink-0 tabular-nums text-ink-2">{elapsed}초</span>
+            {/* 1초마다 바뀌는 경과 시간을 화면 읽기 프로그램이 매초 다시 읽지 않게 */}
+            <span className="shrink-0 tabular-nums text-ink-2" aria-hidden>
+              {elapsed}초
+            </span>
           </div>
         )}
         {errors.length > 0 && (
@@ -536,14 +543,17 @@ export default function App() {
             ))}
           </div>
         )}
-        {notice && (
-          <div role="status" className="mt-3 flex items-start justify-between gap-3 border border-ok/40 border-l-[3px] border-l-ok bg-ok-soft px-4 py-2 text-sm text-ok">
-            <span>{notice}</span>
-            <button type="button" onClick={() => setNotice(null)} className="shrink-0 px-1 text-xs" aria-label="알림 닫기">
-              닫기
-            </button>
-          </div>
-        )}
+        {/* 알림 영역은 늘 두고 내용만 바꿔야 화면 읽기 프로그램이 새 알림을 읽습니다. */}
+        <div role="status" className="print:hidden">
+          {notice && (
+            <div className="mt-3 flex items-start justify-between gap-3 border border-ok/40 border-l-[3px] border-l-ok bg-ok-soft px-4 py-2 text-sm text-ok">
+              <span>{notice}</span>
+              <button type="button" onClick={() => setNotice(null)} className="shrink-0 px-1 text-xs" aria-label="알림 닫기">
+                닫기
+              </button>
+            </div>
+          )}
+        </div>
 
         <main className="mt-6 space-y-6">
           <Step id="s-template" n={1} kicker="학교 양식 읽기" title="평가 문제지 양식" sub="유의사항·예시 문항이 든 양식, 또는 학력평가 문제지처럼 문항이 채워진 문서를 그대로 올리세요. 글자·문단·번호 방식·〈보기〉·표·그림 규격을 읽습니다." accent={current === 0}>
@@ -563,7 +573,7 @@ export default function App() {
                   <p className="font-semibold">양식 파일(.hwp, .hwpx)을 끌어 놓거나 눌러서 고르세요</p>
                   <p className="mt-1 text-sm text-ink-3">예: 학력평가 문항지.hwp · 형성평가 문제지.hwp</p>
                 </Dropzone>
-                <p className="text-[12.5px] text-ink-2">
+                <p className="text-[12.5px] text-ink-2 print:hidden">
                   양식이 손에 없으면{" "}
                   <button type="button" disabled={!!busy} onClick={tryDemo} className="font-bold text-primary underline underline-offset-2 disabled:opacity-50">
                     예시 파일로 해 보기
@@ -675,10 +685,11 @@ export default function App() {
                           key={s.label}
                           type="button"
                           onClick={() => focusQuestion(s.ids[0])}
-                          className={`border px-2 py-1 text-[12px] font-bold ${s.tone === "danger" ? "border-danger/50 bg-danger-soft text-danger" : "border-warn/50 bg-warn-soft text-warn"} hover:underline`}
+                          className={`inline-flex items-center gap-1 border px-2 py-1 text-[12px] font-bold ${s.tone === "danger" ? "border-danger/50 bg-danger-soft text-danger" : "border-warn/50 bg-warn-soft text-warn"} hover:underline`}
                           title="3단계의 첫 문항으로 가기"
                         >
-                          {s.label} →
+                          {s.label}
+                          <ArrowRightIcon className="size-3.5" aria-hidden />
                         </button>
                       ))}
                     </div>
@@ -726,7 +737,7 @@ export default function App() {
 function Step({ id, n, kicker, title, sub, accent, children }: { id: string; n: number; kicker: string; title: string; sub?: string; accent?: boolean; children: ReactNode }) {
   return (
     <section id={id} className={`panel scroll-mt-nav px-5 pb-6 pt-5 sm:px-6 ${accent ? "panel-accent" : ""}`}>
-      <div className="mb-5 flex gap-4 border-b border-line pb-4">
+      <div className="mb-5 flex gap-4 border-b border-line pb-4 print:break-after-avoid">
         <span className="step-no pt-1">{String(n).padStart(2, "0")}</span>
         <div className="min-w-0">
           <span className="kicker">{kicker}</span>

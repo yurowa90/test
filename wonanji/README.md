@@ -71,6 +71,14 @@ HWP/HWPX ─rhwp(WASM)→ HWPX(XML) ─┬─ 형광펜 복원(HWP 바이너리�
 - 차트·OLE 개체, 쪽(용지) 기준으로 고정된 개체, 여러 구역으로 된 양식은 결과를 확인해야 합니다. 암호·배포용 문서는 읽지 않습니다.
 - 발문 규칙 검수는 문자열 규칙이라 놓치거나 과하게 잡을 수 있습니다(예: 부정어는 물음표 앞 24자 안에서만 찾습니다).
 
+## 디자인·접근성 규칙
+
+- **대비(WCAG 2.2 SC 1.4.3, 4.5:1)**: 작은 글자의 `ink`·`ink-2`·`ink-3`와 상태색(`ok`·`warn`·`danger`)은 쓰이는 바탕 위에서 모두 4.5:1 이상입니다(가장 낮은 조합 `danger`/`danger-soft` 4.88:1). 흐리게 보이려고 글자에 `opacity`를 걸지 않습니다(뺀 문항 줄은 `surface-2` 바탕 + `ink-3`). 입력 칸 안내 글(placeholder)도 `ink-3`, `line-strong`은 선·장식 전용입니다.
+- **아이콘은 장식, 의미는 글자로**: 단추의 화살표·펼침 표시는 Heroicons `16/solid`에 `aria-hidden`을 붙이고, 이름은 글자나 `aria-label`로 둡니다(◀·↑·▼ 같은 글자 기호는 화면 읽기 프로그램이 도형 이름으로 읽음). ‘<보기>→〈보기〉’처럼 문서의 기호를 보여 주는 표기는 그대로 둡니다.
+- **인쇄**: 원안지는 내려받은 `.hwp`를 한글에서 인쇄합니다. 브라우저 인쇄는 검수 결과·문항 목록을 동료와 돌려 보는 용도라, 단추(`.btn`)·작업 띠·파일 올리기는 숨기고 색이 곧 정보인 것(정답 분포 막대 등)만 `.print-keep-color`로 남깁니다(`src/index.css`). 미리보기 그림의 크기·비율은 건드리지 않습니다.
+- **모션**: 나타나기 애니메이션·단추 색 전환·진행 점 깜박임·부드러운 스크롤(`src/motion.ts`)은 `prefers-reduced-motion`을 켠 환경에서 끕니다.
+- **한국어 줄바꿈**: 화면 글은 `word-break: keep-all`(어절 단위)입니다. 원안지 미리보기는 rhwp가 글자 위치까지 정해 그린 SVG를 `<img>`로 띄우므로 이 설정의 영향을 받지 않고, 결과 파일의 줄바꿈은 문단 모양(`KEEP_WORD`)이 정합니다.
+
 ## 개발
 
 ```bash
@@ -90,6 +98,7 @@ npx tsx scripts/validate.ts out/merged.hwpx                        # 결과 HWPX
 
 - [rhwp](https://github.com/edwardkim/rhwp) `@rhwp/core` (MIT): HWP/HWPX 읽기·HWPX/HWP 쓰기·SVG 렌더링
 - [cfb](https://github.com/SheetJS/js-cfb) (Apache-2.0): HWP 바이너리 컨테이너 읽기·쓰기, [fflate](https://github.com/101arrowz/fflate) (MIT): 압축
+- [Heroicons](https://heroicons.com) `@heroicons/react` (MIT): 화면 단추 아이콘(`16/solid`)
 - 한글과컴퓨터, 「한글 문서 파일 형식 5.0」 공개 문서: 레코드 구조, 영역 태그, 제어 문자 크기
 - 설계 참고(코드는 가져오지 않음): [HWPExamAssembler](https://github.com/CauchyRiemannEquations/HWPExamAssembler) — 양식의 명시 규칙과 관찰 서식을 구분해 대조하는 흐름, [hwpx-skill](https://github.com/jkf87/hwpx-skill) — HWPX 구조와 편집 후 줄 배치 캐시 제거 관행, [claw-hwp](https://github.com/DoHyun468/claw-hwp) — rhwp 사용상 주의점(캐시·그림 목록)
 
