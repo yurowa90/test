@@ -8,7 +8,8 @@
   --color-film-panel: #211d1a;
   /* 바디 각인 글자 */
   --color-chrome: #b9b2a7;
-  --color-chrome-dim: #7d766c;
+  /* 작은 보조 글자 전용 — film-panel 위에서도 4.5:1 이상(4.76:1, WCAG 1.4.3) */
+  --color-chrome-dim: #8e887e;
   /* 감열지 */
   --color-receipt: #faf7ef;
   --color-ink: #221e1a;
@@ -32,11 +33,19 @@ body {
   font-family: var(--font-sans);
   background-color: var(--color-film);
   color: var(--color-chrome);
+  /*
+   * 한국어는 어절 단위로 줄바꿈("주머니/에" 방지). 영수증 시 행도 포함 —
+   * 캔버스 렌더러(lib/receipt.ts)처럼 공백에서 먼저 접고, 한 어절이 폭보다
+   * 길 때만 음절에서 끊는다(overflow-wrap) — 화면·시스템 인쇄·블루투스가 같은 규칙.
+   */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* ── 영수증 배출 애니메이션: 감열 프린터처럼 한 칸씩 밀려 나온다 ── */
+/* ── 영수증 배출 애니메이션: 감열 프린터처럼 한 칸씩 밀려 나온다 ──
+ * 동작 줄이기(reduce)면 규칙 자체가 없어 다 나온 영수증이 바로 보인다. */
 @media (prefers-reduced-motion: no-preference) {
   .receipt-feed {
     animation: receiptFeed 2s steps(16, end) both;
@@ -88,6 +97,24 @@ body {
     margin: 14mm auto 0;
     border: 1pt dashed #9a938a;
     box-shadow: none;
+    /* 영수증 한 장이 쪽 경계에서 갈라지지 않게 */
+    break-inside: avoid;
+  }
+  /*
+   * HTML5 Boilerplate print 원칙: 글자는 검정으로. 흐린 꼬리말(ink-soft)이
+   * 감열 드라이버의 1비트 변환에서 점묘로 바래지 않고, 블루투스(캔버스)
+   * 출력과 같은 농도로 찍힌다. 절취선 테두리는 안내선이라 회색 유지.
+   */
+  #printable .receipt-sheet,
+  #printable .receipt-sheet * {
+    color: #000 !important;
+  }
+  #printable h2 {
+    break-after: avoid;
+  }
+  #printable p {
+    orphans: 3;
+    widows: 3;
   }
   /* 감열 프린터: 용지 폭에 딱 맞게, 테두리 없이 */
   body[data-print="58"] #printable .receipt-sheet {
