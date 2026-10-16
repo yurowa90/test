@@ -1,3 +1,4 @@
+import { ArrowPathIcon } from "@heroicons/react/16/solid";
 import type { CapturedImage } from "../types";
 
 interface Props {
@@ -54,9 +55,10 @@ export default function Viewfinder({
       {image && !writing && (
         <button
           onClick={onClear}
-          className="absolute top-3 right-3 rounded-full bg-film-deep/80 px-3 py-1.5 text-xs font-semibold text-chrome backdrop-blur hover:text-receipt"
+          className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-film-deep/80 px-3 py-1.5 text-xs font-semibold text-chrome backdrop-blur hover:text-receipt"
         >
-          ↺ 다시 담기
+          <ArrowPathIcon className="size-3.5" aria-hidden />
+          다시 담기
         </button>
       )}
 

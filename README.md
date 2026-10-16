@@ -72,4 +72,13 @@ src/
     bluetooth.ts          Web Bluetooth BLE 프린터 연결·전송
 ```
 
-기술 스택: React 19 + TypeScript + Vite + Tailwind CSS 4. 런타임 의존성은 React뿐입니다.
+기술 스택: React 19 + TypeScript + Vite + Tailwind CSS 4. 런타임 의존성은 React와 아이콘 [Heroicons](https://heroicons.com) v2(MIT, `16/solid`)뿐입니다.
+
+## 디자인·접근성 규칙
+
+- **대비(WCAG 2.2 SC 1.4.3, 4.5:1)**: 작은 보조 글자는 `chrome-dim`(#8e887e) — 가장 밝은 바탕인 `film-panel`에서도 4.76:1입니다. 영수증 꼬리말 `ink-soft`는 바랜 감열지 느낌을 내되 5.20:1을 지킵니다. 점선·절취선 같은 장식은 기준 밖입니다.
+- **아이콘은 장식, 의미는 글자로**: 아이콘에는 `aria-hidden`, 버튼 이름은 텍스트로 둡니다. ↺ 같은 글자 기호는 스크린리더가 기호 이름으로 읽으므로 버튼에 쓰지 않습니다. 아이콘만 있는 버튼(셔터·설정)은 `aria-label`로 이름을 붙입니다.
+- **모션**: 영수증 배출·깜빡임·색 전환은 `prefers-reduced-motion`을 따릅니다. 동작 줄이기면 다 나온 영수증이 바로 보입니다.
+- **알림**: "짓는 중"·"시가 나왔습니다"와 토스트는 늘 DOM에 있는 라이브 영역으로 스크린리더에 읽힙니다.
+- **한국어 줄바꿈**: 영수증을 포함한 본문 전체에 `word-break: keep-all` + `overflow-wrap: break-word`. 캔버스 렌더러(`lib/receipt.ts`)와 같은 규칙(공백 우선, 폭보다 긴 어절만 음절에서)으로 접습니다.
+- **인쇄**: 시스템 인쇄는 영수증 사본(`#printable`)만 찍고 화면 UI·토스트·설정 창은 숨깁니다. 글자는 검정으로 바꿔 감열 드라이버의 1비트 변환에서도 흐려지지 않고, 영수증은 쪽 경계에서 갈라지지 않습니다. 용지별 폭·글자 크기는 그대로입니다.

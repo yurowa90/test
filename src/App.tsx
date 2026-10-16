@@ -188,13 +188,13 @@ export default function App() {
       >
         <header className="flex items-start justify-between">
           <div>
-            <p className="m-0 flex items-center gap-2 text-[13px] font-bold tracking-[0.3em] text-chrome">
+            <h1 className="m-0 flex items-center gap-2 text-[13px] font-bold tracking-[0.3em] text-chrome">
               <span
                 className="inline-block h-2 w-2 rounded-full bg-shutter"
                 aria-hidden
               />
               POETRY CAMERA
-            </p>
+            </h1>
             <p className="m-0 mt-1 text-xs text-chrome-dim">
               찍으면, 시가 나옵니다
             </p>
@@ -245,7 +245,7 @@ export default function App() {
                   setForm(f.id);
                   storage.set(FORM_STORAGE, f.id);
                 }}
-                className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition-colors motion-reduce:transition-none ${
                   form === f.id
                     ? "border-receipt bg-receipt text-ink"
                     : "border-film-line text-chrome-dim hover:text-chrome"
@@ -262,7 +262,7 @@ export default function App() {
               onClick={shoot}
               disabled={writing}
               aria-label={image ? "이 장면으로 시 짓기" : "사진 올리기"}
-              className={`h-[72px] w-[72px] rounded-full border-4 transition-colors disabled:opacity-50 ${
+              className={`h-[72px] w-[72px] rounded-full border-4 transition-colors motion-reduce:transition-none disabled:opacity-50 ${
                 image
                   ? "border-receipt/80 bg-shutter active:bg-shutter-deep"
                   : "border-film-line bg-film-panel hover:border-chrome/40"
@@ -274,6 +274,14 @@ export default function App() {
                 : image
                   ? "셔터를 누르면 이 장면으로 시를 짓습니다"
                   : "셔터를 누르면 사진을 올릴 수 있습니다"}
+            </p>
+            {/* 스크린리더 안내 — 라이브 영역은 늘 DOM에 있어야 내용 변화가 읽힌다 */}
+            <p className="sr-only" aria-live="polite">
+              {writing
+                ? "시를 짓는 중입니다"
+                : result
+                  ? `시가 나왔습니다. 제목: ${result.poem.title}`
+                  : ""}
             </p>
           </div>
 
@@ -419,14 +427,17 @@ export default function App() {
         />
       )}
 
-      {notice && (
-        <div
-          role="status"
-          className="fixed bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-receipt px-4 py-2 text-sm font-bold text-ink shadow-lg"
-        >
-          {notice}
-        </div>
-      )}
+      {/* 알림 토스트 — role="status" 틀은 늘 두고 내용만 바꿔야 읽힌다 */}
+      <div
+        role="status"
+        className="fixed bottom-5 left-1/2 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 text-center print:hidden"
+      >
+        {notice && (
+          <p className="m-0 rounded-full bg-receipt px-4 py-2 text-sm font-bold text-ink shadow-lg">
+            {notice}
+          </p>
+        )}
+      </div>
     </>
   );
 }
