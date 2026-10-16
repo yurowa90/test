@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    /* 한국어는 어절 단위로 줄바꿈("주세/요" 방지), 긴 키 이름·URL은 넘치지 않게 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+}
+
+/*
+ * 동작 줄이기(prefers-reduced-motion)를 켠 사용자에게는 애니메이션·전환·
+ * 부드러운 스크롤을 끈다. animate.css처럼 0이 아닌 1ms로 줄여
+ * animationend·transitionend 이벤트는 그대로 발생하게 한다.
+ * 레이어 밖 !important라 일반 유틸리티보다 우선하며, 꼭 필요한 움직임만
+ * `!` 유틸리티(레이어 안 !important)로 예외를 둘 수 있다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
