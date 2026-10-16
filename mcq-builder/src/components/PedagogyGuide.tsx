@@ -58,7 +58,7 @@ const GUIDES: Record<WizardStep, Guide> = {
 export default function PedagogyGuide({ step, input }: { step: WizardStep; input: TeacherInput }) {
   const guide = GUIDES[step];
   return (
-    <><details className="pedagogy-guide" open>
+    <><details className="pedagogy-guide print-hide" open>
       <summary>
         <span>출제 원리</span>
         <strong>{guide.title}</strong>

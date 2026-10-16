@@ -14,7 +14,7 @@ export default function GrowthNotebook({ work, revisions, onReflection, onCheckp
   const [label, setLabel] = useState("");
   const revision = revisions.find(r => r.id === selected) ?? revisions[0];
   const changes = revision ? revisionDifferences(revision.snapshot,work) : [];
-  return <details className="growth-panel growth-notebook">
+  return <details className="growth-panel growth-notebook print-hide">
     <summary>출제 성장 노트 · 보관 버전 {revisions.length}개 · {saved ? "이 브라우저에 저장됨" : "저장 실패 — 기록을 내려받으세요"}</summary>
     <p>긴 보고서 대신 핵심 수정 한두 건만 남기세요. 편집은 자동 저장되고, 재생성·새 문항 시작 전에는 이전 버전을 보관합니다.</p>
     <fieldset disabled={busy}>

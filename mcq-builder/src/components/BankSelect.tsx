@@ -1,3 +1,4 @@
+import { ArrowLeftIcon, PlusIcon } from "@heroicons/react/16/solid";
 import type { AnalysisResult, Assembly, ItemBank, Proposition, Stimulus, TeacherInput } from "../types";
 import { BEHAVIOR_DOMAINS, LEVEL_LABELS } from "../types";
 import type { BankDraft, Judgment } from "../lib/workspace";
@@ -129,7 +130,7 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
             </>}
           </article>;
         })}</div>
-        {!practice && <button type="button" onClick={addProposition}>+ 명제 직접 작성</button>}
+        {!practice && <button type="button" className="inline-flex items-center gap-1" onClick={addProposition}><PlusIcon className="size-3.5" aria-hidden />명제 직접 작성</button>}
       </section>
       {!practice && <aside className="bank-assembly">
         <section className="growth-panel"><h2>조립 결과 {picks.length}/{maxPicks}</h2>
@@ -148,7 +149,7 @@ export default function BankSelect({ draft, original, input, analysis, busy, err
         <StructureGuide input={input} analysis={analysis} assembly={assembly} stimulus={stimulus} notes={draft.notes} />
       </aside>}
     </div>
-    <div className="growth-actions"><button type="button" onClick={onBack}>← 평가 요소·장면</button><button type="button" onClick={onRegenerate}>현재 버전 보관 후 자료·명제 재생성</button></div>
+    <div className="growth-actions"><button type="button" className="inline-flex items-center gap-1" onClick={onBack}><ArrowLeftIcon className="size-3.5" aria-hidden />평가 요소·장면</button><button type="button" onClick={onRegenerate}>현재 버전 보관 후 자료·명제 재생성</button></div>
     <div className="mobile-bank-progress"><span>선택 {picks.length}/{maxPicks} · 확인 {picks.length - pending.length}/{picks.length}</span><button type="button" onClick={() => onConfirm(stimulus,assembly)}>{ready ? nextLabel : "진행 조건 확인"}</button></div>
   </fieldset>;
 }
